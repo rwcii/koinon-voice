@@ -4,6 +4,8 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- Phase 0 Koinon map: what Koinon v0.4.1 offers a maintainer client today, and the gaps
+  reported on rwcii/koinon#464.
 - Draft product and architecture records from the 2026-10-23 design session (PDR 001 to
   PDR 004, ADR 001 to ADR 003) and the Phase 0 spike decision.
 - Repository set up as a peer of rwcii/koinon: Go module, `koinon-voice version`, Koinon's
