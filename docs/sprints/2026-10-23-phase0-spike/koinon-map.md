@@ -22,7 +22,7 @@ are dashboard-only. The gaps are listed for rwcii/koinon#464 at the end.
 | ---- | ---------- | ------ | ----- |
 | Waiting decision items, every field | `GET /dashboard/decisions` (HTML), with the item's reference, revision, title, context, recommendation and commands in the card and its action form | `internal/core/dashboard.go` (views), `dashboard_decisions.go` | Yes: 200, `text/html`, the item's `reference` and `revision` form fields present |
 | Messages to the maintainer | `GET /dashboard/messages` (HTML) | `dashboard.go` views | Yes: the sent message appears |
-| Room posts | `GET /dashboard/rooms` (HTML) | `dashboard.go` views | Read from source only |
+| Room posts | `GET /dashboard/rooms?room=ROOM_ID` (HTML); the room ID appears in the view's links | `dashboard.go` views, `dashboard_rooms.go` | Yes: 200, and the maintainer's post appears |
 | Peers and their state | `GET /dashboard/sessions` (HTML) | `dashboard.go` views | Yes: the login redirects there |
 | Any view as a fragment | the same URL with `?fragment=1` returns only the list's HTML | `dashboard.go` `render` | Read from source |
 
@@ -42,7 +42,8 @@ have to poll each view and diff the HTML.
 | Action | Route | Fields | Tried |
 | ------ | ----- | ------ | ----- |
 | Message a peer | `POST /dashboard/actions/send` | `to` (peer name, not `family:id`), `body`, `csrf` | Yes: 303 `notice=sent`; the message appears on the messages view. With `to=deepseek:synthetic-1` the answer was `notice=peer_not_found` |
-| Post to a room | `POST /dashboard/actions/room-post` | room and body, `csrf` | Read from source only; same checks as send |
+| Create a room, add a member | `POST /dashboard/actions/room-create` (`name`, `key`, `refill`), `room-add` (`room_id`, `peer`) | `csrf` | Yes: 303 `notice=room_created`, then `notice=room_member_added` for the synthetic peer |
+| Post to a room | `POST /dashboard/actions/room-post` | `room_id`, `body`, `key` (idempotency key, up to 256 bytes), `deadline` (Unix seconds, parsed as a number), `csrf` (`dashboard_rooms.go`) | Yes: 303 `notice=room_posted`; the post shows in the room view, and the member session read it through `/v1/rooms/read` |
 
 The daemon sends these as `maintainerKey`, so they carry the maintainer's weight (Koinon
 PDR 005, Decision 3).
@@ -67,19 +68,22 @@ The verdict records no client: a voice approval and a click look the same.
   secret) prints `http://ADDRESS/dashboard/login?token=…`. The token works once, within 60
   seconds. Opening it sets an HttpOnly, SameSite=Strict cookie named
   `koinon_dashboard_<port>` on path `/dashboard/` and redirects to the sessions view.
-- **Lifetime.** 24 hours idle, 7 days absolute (`dashboard_auth.go`). After that, a new link,
-  which needs a command on the daemon's host.
+- **Lifetime.** 24 hours idle, 7 days absolute (`dashboard_auth.go`). Logins, links and the
+  CSRF key are held in the daemon's memory, so a daemon restart ends every login: after a
+  restart of the scratch daemon the old cookie got 401. A new login needs a new link, which
+  needs a command on the daemon's host.
 - **Checks on every request.** The `Host` header must be a literal loopback address with a
   port; a state-changing request needs an `Origin` equal to `http://<Host>` and the CSRF
   token (form field `csrf` or header `X-Koinon-CSRF`) from a page of the same login.
 - **Through a forwarded port.** A plain TCP forward from 127.0.0.1:47800 to the daemon stood in
   for an SSH local forward; an SSH forward to localhost was not tried, because it would have
-  meant accepting this machine's own host key. The cookie from the direct port was refused on
-  the forwarded port (401), because the cookie name carries the port. A new login link, its
-  host and port rewritten to 127.0.0.1:47800, logged in (cookie `koinon_dashboard_47800`) and
-  the decisions view answered 200. So each forwarded port needs its own login, and for a
-  remote daemon the link comes from running `koinon dashboard --no-open` on that host, over
-  SSH.
+  meant accepting this machine's own host key. The login is not bound to a port; only the
+  cookie's name carries it (`cookieName`), and the daemon finds a session by the cookie's
+  value alone. A browser sends the direct port's cookie only to that port, so on the
+  forwarded port it got 401. A client that sends the same session value under the forwarded
+  port's name, `koinon_dashboard_47800`, got 200 with no new login. A new link, its host and
+  port rewritten to 127.0.0.1:47800, also logged in. For a remote daemon the link comes from
+  running `koinon dashboard --no-open` on that host, over SSH.
 
 ## Gaps for rwcii/koinon#464
 
@@ -92,8 +96,8 @@ Posted as [a comment on #464](https://github.com/rwcii/koinon/issues/464#issueco
 3. **No stable action interface.** Posting and verdicts are HTML form endpoints that need a
    CSRF token scraped from a page; their fields can change with the dashboard.
 4. **No long-lived maintainer credential.** A login needs a one-time link created on the
-   daemon's host within 60 seconds, expires after 24 hours idle or 7 days, and is bound to the
-   port the client reaches the daemon on.
+   daemon's host within 60 seconds, expires after 24 hours idle or 7 days, and ends when the
+   daemon restarts.
 5. **No client recorded on a verdict or post**, so a voice decision cannot be told from a click
    (#464 asks whether one should be).
 
