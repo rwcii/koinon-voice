@@ -8,13 +8,15 @@ Measurements run on the maintainer's Mac: Apple M2 Max, 32 GB, macOS 26.5, Swift
 the macOS 26.5 SDK (Command Line Tools), Go 1.27.3. Checked on 2026-10-23:
 
 - `SpeechTranscriber` supports en-US, and the en-US assets are installed.
-- `SystemLanguageModel.default.availability` is `unavailable(appleIntelligenceNotEnabled)`.
-  Apple's on-device model is scored only after the maintainer turns on Apple Intelligence;
-  until then criterion 1 records it as unavailable, and the rest of the sprint does not
+- `SystemLanguageModel.default.availability` was `unavailable(appleIntelligenceNotEnabled)`.
+  The maintainer turned on Apple Intelligence the same day; after the model download it
+  reports `available` and answered a one-sentence summary prompt. Should it become
+  unavailable again, criterion 1 records Apple's reason, and the rest of the sprint does not
   depend on it.
 - No local model server (Ollama, LM Studio) is installed, and the system Python is 3.9.
-  Engines that need a newer Python run in a virtual environment outside the repository,
-  created with a Homebrew Python; each chunk records what it installed.
+  Chunk 02 installs a local model server and one open-weight model for criterion 1. Engines
+  that need a newer Python run in a virtual environment outside the repository, created with
+  a Homebrew Python. Each chunk records what it installed, with versions and model digests.
 
 Whether GitHub's `macos-latest` runner has the macOS 26 SDK is not known. Chunk 03 finds out;
 until it is shown, the Swift helper is built and tested on the maintainer's Mac and its CI

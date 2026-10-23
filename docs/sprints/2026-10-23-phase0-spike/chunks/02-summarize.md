@@ -19,6 +19,11 @@ adapter comes in chunk 03.
 - **Keys** from the macOS Keychain through `security find-generic-password -s
   koinon-voice-<provider> -w`, run as a subprocess so the module stays CGO-free. Linux and
   tests take no key and fail the external engines with a clear message.
+- **Local open-weight engine**: the chunk installs Ollama with Homebrew and pulls one
+  open-weight instruction model that fits this machine (32 GB), chosen at the start of the
+  chunk and recorded with the Ollama version and the model's digest. Its engine row uses the
+  OpenAI-compatible adapter against Ollama's loopback endpoint, and the scorecard is not
+  complete without it.
 - **Engines file**: `~/.config/koinon-voice/engines.toml` (outside the repository) lists rows
   of adapter, base URL, model and local or external; `testdata/engines.toml` is the example.
 - **Items** from `--fixtures DIR`, or from `--item FILE`, a decision item exported as JSON.
@@ -27,8 +32,10 @@ adapter comes in chunk 03.
   answer keys (definition of done, Fixtures).
 - **Output**: one line per engine and item with the summary, correctness flags (by a
   deterministic check against the answer key where possible, else marked for the maintainer),
-  time to first token, total time and cost; `--speak` plays each summary with macOS `say`
-  for the blind rating, and `--blind` hides engine names until the ratings are entered.
+  time to first token, time to the end of the first sentence, total time and cost. These
+  are diagnostic columns; the end-to-end spoken latency is chunk 03's. `--speak` plays each
+  summary with macOS `say` for the blind rating, and `--blind` hides engine names until the
+  ratings are entered.
 
 The prompt asks for two or three sentences naming the asker, the ask, the options, the
 recommendation and any deadline, without hashes, paths or markdown, with numbers as spoken,
@@ -41,8 +48,8 @@ both adapters and a fake `security` command on `PATH` for the Keychain.
 
 ## Live check
 
-Definition of done, live check 1, for the external engines and any local server the maintainer
-installs. The evidence goes to `scorecard-summarize.md`.
+Definition of done, live check 1, for the external engines and the local open-weight engine.
+The evidence goes to `scorecard-summarize.md`.
 
 ## Done
 

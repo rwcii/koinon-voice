@@ -108,11 +108,14 @@ Parakeet), synthesis (Apple, Kokoro), wake word ("Koinon" with openWakeWord and 
 recognition plus phrase matching) and echo cancellation on the maintainer's machine, and
 records the results. This record is revised with the chosen defaults.
 
-**Provenance:** Maintainer, 2026-10-23: "I would like to consider local running models.  we
-can look at local mac models, or even emergent micro models such as
-https://huggingface.co/Cactus-Compute/whistle or similar
-https://github.com/cactus-compute/cactus." and "we can also look at local mac models and
-modes."
+**Provenance:** Maintainer, 2026-10-23, in the design session; the full context of the first
+quote, the answer to where speech processing happens, is in PDR 001, Decision 2: "I would like
+to consider local running models.  we can look at local mac models, or even emergent micro
+models such as https://huggingface.co/Cactus-Compute/whistle or similar
+https://github.com/cactus-compute/cactus." Later, raised by the maintainer, not in answer to a
+question, after the agent had proposed engine sidecars and a Phase 0 bake-off: "we can also
+look at local mac models and modes." Reason: the maintainer asked to consider these engines.
+Scope: which engines Phase 0 measures; the sidecar mechanism in Decision 1 is a proposal.
 
 ### Alternatives Considered
 

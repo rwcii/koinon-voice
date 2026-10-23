@@ -131,8 +131,17 @@ verdict without typing.
 Speech recognition and speech synthesis run on the maintainer's machine. No audio leaves it.
 Summarizing text for speech may use external inference under PDR 004.
 
-**Provenance:** Maintainer, 2026-10-23: "all VTT TTV transitions happen locally." and, on
-engines, "I would like to consider local running models."
+**Provenance:** Maintainer, 2026-10-23, in the design session. The agent had asked six
+questions, the fourth being where speech processing happens, with the trade-off stated:
+sending audio of agent messages to a cloud speech service breaks Koinon's practice of keeping
+message bodies on the machine, while local engines such as whisper.cpp keep it but usually need
+C bindings, which conflict with CGO-free builds. The maintainer's reply opened with a paragraph
+describing the product, not tied to a numbered question, that ended: "all VTT TTV transitions
+happen locally." The numbered answer to the fourth question was: "I would like to consider
+local running models.  we can look at local mac models, or even emergent micro models such as
+https://huggingface.co/Cactus-Compute/whistle or similar
+https://github.com/cactus-compute/cactus." Reason: the maintainer's words. Scope: speech
+recognition and synthesis; text summarization is PDR 004.
 
 ### Alternatives Considered
 
@@ -163,8 +172,10 @@ not dropped.
 
 **Provenance:** Maintainer, 2026-10-23, asked where Koinon Voice runs (the Mac next to the
 daemon, a phone, or the browser dashboard): "I'd love to support all 3. let's discuss
-phasing." Later: "phone, is deffered for now." The phase order was proposed in the design
-session and is part of the Phase 0 plan's gate A.
+phasing." Later, asked whether the phone runs speech on the phone or sends audio to the Mac:
+"phone, is deffered for now." The order of Phases 1 to 3 was proposed in the design session
+and has no maintainer decision. Gate A of the Phase 0 plan (c699013) approved Phase 0's
+decision and does not decide the later phases.
 
 ### Alternatives Considered
 
@@ -189,8 +200,8 @@ dashboard open.
 
 Koinon Voice is a local, two-way voice bridge with one dashboard over local and remote Koinon
 daemons, with all speech processed on the maintainer's machine, built in phases with the
-phone deferred. The shape, local speech and the phone deferral are the maintainer's words;
-the phase order is a proposal awaiting gate A of the Phase 0 plan.
+phone deferred. The shape, local speech, Phase 0 and the phone deferral are the maintainer's
+words or approvals; the order of Phases 1 to 3 is a proposal.
 
 ---
 
