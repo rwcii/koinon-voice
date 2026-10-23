@@ -10,7 +10,7 @@ git config core.hooksPath .githooks
 git config fetch.prune true
 gh api --method PATCH "repos/$repo" \
   -F allow_squash_merge=true -F allow_merge_commit=true -F allow_rebase_merge=false \
-  -F delete_branch_on_merge=true \
+  -F delete_branch_on_merge=true -F allow_auto_merge=true \
   -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY \
   -f merge_commit_title=PR_TITLE -f merge_commit_message=PR_BODY >/dev/null
 
