@@ -16,3 +16,8 @@ pull request. All chunks deliver #1.
 
 Gate A approved `decision.md` at c699013. Maintainer, 2026-10-23, asked "Do you approve
 `decision.md` at `c699013` (Gate A)?": "gate A approved, proceed with the plan".
+
+Gate B approved the reviewed plan at 8ff7c77 (review in `review.md`). Maintainer, 2026-10-23,
+asked "Do you approve Gate B?" for the plan at 8ff7c77, after a recap of its criteria,
+chunks, the maintainer's part in each and what Gate B does not approve (the order of later
+phases and the ADR proposals): "approved".

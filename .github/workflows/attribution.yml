@@ -2,8 +2,10 @@ name: Attribution
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
+  workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   attribution:
     runs-on: ubuntu-latest
@@ -12,16 +14,27 @@ jobs:
         with:
           fetch-depth: 0
       # The squash commit takes the pull request's title and body, so check them with
-      # every commit on the branch (WDR 004, Decision 5).
+      # every commit on the branch (WDR 004, Decision 5). A manual run checks the commits
+      # that the branch adds to develop and, when the branch has an open pull request, its
+      # title and body.
       - name: Check the pull request and its commits
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           status=0
+          if [ "$EVENT" = workflow_dispatch ]; then
+            HEAD="$(git rev-parse HEAD)"
+            BASE="$(git merge-base origin/develop HEAD)"
+            pr="$(gh pr list --head "$GITHUB_REF_NAME" --state open --json title,body --jq '.[0] // empty')"
+            TITLE="$(printf '%s' "$pr" | jq -r '.title // empty')"
+            BODY="$(printf '%s' "$pr" | jq -r '.body // empty')"
+          fi
           printf '%s\n\n%s\n' "$TITLE" "$BODY" > "$RUNNER_TEMP/pr.txt"
           sh scripts/check-attribution.sh "$RUNNER_TEMP/pr.txt" || status=1
           for c in $(git rev-list "$BASE..$HEAD"); do
