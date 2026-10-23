@@ -1,0 +1,14 @@
+/bin/
+/koinon-voice
+*.log
+*.sock
+_handoff/
+.claude/settings.local.json
+
+# Native OpenCode dependency artifacts; commands remain tracked.
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/bun.lockb
+.opencode/.gitignore
