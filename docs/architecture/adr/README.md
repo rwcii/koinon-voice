@@ -9,3 +9,6 @@ Koinon Voice keeps these records and how a constraint becomes one.
 
 | Number | Title | Status |
 | ------ | ----- | ------ |
+| 001    | [Local Bridge and Koinon Connectors](001-local-bridge-and-connectors.md) | Draft |
+| 002    | [Local Speech Engine Sidecars](002-local-speech-engine-sidecars.md) | Draft |
+| 003    | [Inference Adapters](003-inference-adapters.md) | Draft |

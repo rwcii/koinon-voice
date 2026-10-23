@@ -17,3 +17,7 @@ mechanism, a PDR decides the behavior that mechanism serves. Cross-reference via
 
 | Number | Title | Status |
 | ------ | ----- | ------ |
+| 001    | [Two-Way Voice Bridge](001-two-way-voice-bridge.md) | Draft |
+| 002    | [Spoken Maintainer Decisions](002-spoken-maintainer-decisions.md) | Draft |
+| 003    | [Listening States and Alerts](003-listening-states-and-alerts.md) | Draft |
+| 004    | [Spoken Summaries and Inference](004-spoken-summaries-and-inference.md) | Draft |
