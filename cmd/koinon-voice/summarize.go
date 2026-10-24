@@ -233,6 +233,12 @@ func (r *rater) after(res *summarize.Result) error {
 	}
 	label := string(rune('A' + r.letter))
 	r.letter++
+	if res.SpeechErr != nil {
+		// A summary that was not heard is not rated for listening; its text stays hidden
+		// so it is not judged by reading. The speech error names no engine.
+		fmt.Fprintf(r.out, "%s: playback failed (%v); not rated.\n", label, res.SpeechErr)
+		return nil
+	}
 	fmt.Fprintf(r.out, "%s: %s\n", label, res.Summary.Text)
 	n, err := ask(r.in, r.out, label)
 	if errors.Is(err, errStop) {

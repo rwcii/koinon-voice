@@ -53,6 +53,20 @@ func fakeHelper(mode string) {
 		send(Message{Type: "hello", Protocol: 99})
 		time.Sleep(time.Minute)
 		return
+	case "deaf":
+		// Says hello and never reads, so the bridge's writes fill the pipe and block.
+		send(Message{Type: "hello", Protocol: Version, Helper: "fake"})
+		time.Sleep(time.Minute)
+		return
+	case "deaf-after-event":
+		// Answers the first request with an event and then stops reading.
+		send(Message{Type: "hello", Protocol: Version, Helper: "fake"})
+		m, err := ReadMessage(bufio.NewReader(os.Stdin))
+		if err == nil {
+			send(Message{Type: "event", ID: m.ID, Event: "first_audio"})
+		}
+		time.Sleep(time.Minute)
+		return
 	}
 	send(Message{Type: "hello", Protocol: Version, Helper: "fake", HelperVer: "0.0.1", Capabilities: []string{"echo", "speak"}})
 	in := bufio.NewReader(os.Stdin)
@@ -314,5 +328,85 @@ func TestFrames(t *testing.T) {
 	}
 	if err := writeFrame(io.Discard, kindJSON, make([]byte, MaxFrame)); err == nil {
 		t.Error("an oversized frame was written")
+	}
+}
+
+// big is input far larger than a pipe's buffer, so writing it to a helper that is not
+// reading blocks.
+var big = map[string]string{"text": strings.Repeat("x", 256<<10)}
+
+// A deadline ends a request whose own frame is still blocked on a helper that stopped
+// reading.
+func TestDeadlineDuringBlockedRequest(t *testing.T) {
+	h := start(t, "deaf")
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := h.Call(ctx, "echo", big, nil)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrDeadline) {
+			t.Fatalf("error %v, want ErrDeadline", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the deadline did not end a request blocked on its write")
+	}
+	gone(t, h.cmd.Process.Pid)
+}
+
+// A deadline ends a request whose event callback is blocked writing to a helper that
+// stopped reading; failing the request does not wait on the callback.
+func TestDeadlineDuringBlockedEvent(t *testing.T) {
+	h := start(t, "deaf-after-event")
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	var s *Stream
+	opened := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		var err error
+		s, err = h.Open(ctx, "speak", nil, func(Event) {
+			<-opened
+			s.Send(big) // blocks until the helper is gone
+		})
+		close(opened)
+		if err != nil {
+			done <- err
+			return
+		}
+		_, err = s.Wait()
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrDeadline) {
+			t.Fatalf("error %v, want ErrDeadline", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the deadline did not end a request whose callback was blocked")
+	}
+	gone(t, h.cmd.Process.Pid)
+}
+
+// Canceling a request after its result changes nothing: the helper takes the next one.
+func TestCancelAfterResult(t *testing.T) {
+	h := start(t, "ok")
+	for i := 0; i < 200; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		_, err := h.Call(ctx, "echo", map[string]string{"text": "hi"}, nil)
+		cancel()
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+	}
+	time.Sleep(20 * time.Millisecond) // let the last watchers see their cancellation
+	if err := h.Err(); err != nil {
+		t.Fatalf("helper died after canceled finished requests: %v", err)
+	}
+	if _, err := h.Call(context.Background(), "echo", map[string]string{"text": "again"}, nil); err != nil {
+		t.Fatalf("next call: %v", err)
 	}
 }

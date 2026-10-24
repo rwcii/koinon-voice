@@ -208,6 +208,19 @@ func TestSummarizeBlind(t *testing.T) {
 		t.Errorf("spoke %q", said.said)
 	}
 
+	// A summary whose playback failed is not shown or rated, and the next is.
+	said.fail = errors.New("no audio device")
+	stdout.Reset()
+	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--engine", "local-a,local-b", "--blind", "--speak"}, strings.NewReader("5\n5\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	got = stdout.String()
+	if !strings.Contains(got, "A: playback failed (no audio device); not rated.") || strings.Contains(got, "Rating for") ||
+		strings.Contains(got, "A: Codex") || strings.Contains(got, "(1) |") {
+		t.Errorf("after a playback failure:\n%s", got)
+	}
+	said.fail = nil
+
 	// q stops rating and keeps the ratings so far.
 	stdout.Reset()
 	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--engine", "local-a,local-b", "--blind"}, strings.NewReader("4\nq\n"), &stdout, &stderr); code != 0 {

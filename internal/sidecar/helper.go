@@ -156,9 +156,11 @@ func (h *Helper) Err() error {
 }
 
 // Close ends the helper: it closes stdin, gives the helper a moment to exit and then kills
-// its process group.
+// its process group. Requests still in flight fail once the process is gone, so a callback
+// blocked writing to a wedged helper cannot hold Close up.
 func (h *Helper) Close() error {
-	h.fail(fmt.Errorf("%w: closed", ErrExited))
+	closed := fmt.Errorf("%w: closed", ErrExited)
+	h.markDead(closed)
 	h.stdin.Close()
 	select {
 	case <-h.done:
@@ -166,6 +168,7 @@ func (h *Helper) Close() error {
 	}
 	h.kill()
 	<-h.done
+	h.fail(closed)
 	return nil
 }
 
@@ -207,28 +210,43 @@ func (h *Helper) Open(ctx context.Context, method string, params any, onEvent fu
 	h.calls[s.id] = s
 	h.mu.Unlock()
 
+	// The watcher runs before the first write, which can block on a helper that stopped
+	// reading.
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-s.done:
+			return
+		}
+		// A request that already has its result keeps it, and the helper lives on.
+		if !h.take(s.id) {
+			return
+		}
+		err := ctx.Err()
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("%w: %w", ErrDeadline, err)
+		}
+		// A request past its deadline may have the helper wedged; the bridge does not wait
+		// to find out (ADR 002, Decision 1). Killing first releases any write or event
+		// callback blocked on the helper, so failing the requests cannot wait on them.
+		h.markDead(err)
+		h.kill()
+		s.finish(outcome{err: err})
+		h.fail(err)
+	}()
+
 	m := Message{Type: "request", ID: s.id, Method: method, Params: raw}
 	if d, ok := ctx.Deadline(); ok {
 		m.DeadlineMS = max(time.Until(d).Milliseconds(), 1)
 	}
 	if err := h.write(m); err != nil {
-		h.remove(s.id)
+		// A write cut short by the deadline's kill reports the deadline.
+		if h.take(s.id) {
+			s.finish(outcome{err: err})
+		}
+		_, err = s.Wait()
 		return nil, err
 	}
-	go func() {
-		select {
-		case <-ctx.Done():
-			err := ctx.Err()
-			if errors.Is(err, context.DeadlineExceeded) {
-				err = fmt.Errorf("%w: %w", ErrDeadline, err)
-			}
-			// A request past its deadline may have the helper wedged; the bridge does not
-			// wait to find out (ADR 002, Decision 1).
-			h.fail(err)
-			h.kill()
-		case <-s.done:
-		}
-	}()
 	return s, nil
 }
 
@@ -294,10 +312,14 @@ func (h *Helper) write(m Message) error {
 	return nil
 }
 
-func (h *Helper) remove(id uint64) {
+// take removes a request from those in flight and reports whether it was there. Whoever
+// takes a request decides its outcome: its result, its error, or its cancellation.
+func (h *Helper) take(id uint64) bool {
 	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, ok := h.calls[id]
 	delete(h.calls, id)
-	h.mu.Unlock()
+	return ok
 }
 
 // read dispatches frames until the helper's stdout ends or breaks the protocol.
@@ -332,17 +354,28 @@ func (h *Helper) read(r io.Reader) {
 		case "event":
 			s.event(Event{Name: m.Event, Data: m.Data, At: time.Now()})
 		case "result":
-			h.remove(m.ID)
-			s.finish(outcome{data: m.Data})
+			if h.take(m.ID) {
+				s.finish(outcome{data: m.Data})
+			}
 		case "error":
-			h.remove(m.ID)
-			s.finish(outcome{err: &Error{Code: m.Code, Message: m.Message}})
+			if h.take(m.ID) {
+				s.finish(outcome{err: &Error{Code: m.Code, Message: m.Message}})
+			}
 		default:
 			h.fail(fmt.Errorf("%w: unexpected message type %q", ErrProtocol, m.Type))
 			h.kill()
 			return
 		}
 	}
+}
+
+// markDead takes no more requests, with err as the reason unless there already is one.
+func (h *Helper) markDead(err error) {
+	h.mu.Lock()
+	if h.dead == nil {
+		h.dead = err
+	}
+	h.mu.Unlock()
 }
 
 // fail marks the helper dead and fails every request in flight with err.

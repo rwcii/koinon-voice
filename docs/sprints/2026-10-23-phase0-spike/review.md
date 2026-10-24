@@ -71,3 +71,35 @@ With F1 to F4 fixed, both reviews approved e6e2dbf, which merged as 6d1b90d:
 [refusal review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378422499).
 Chunk 03 moves F4's provider label after the summary ("Summary by PROVIDER."), so that the
 label is not the first spoken word that criterion 1 times; the screen line is unchanged.
+
+## Chunk 03, Apple helper (0a22fcb)
+
+[Peer review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6379992503), changes
+requested:
+
+1. **F1 (P1). A deadline could not end a request blocked on a helper that stopped reading.**
+   Open wrote the request before its deadline watcher started, and a deadline failed the
+   requests before killing the helper, so it waited on an event callback blocked writing to
+   it. Disposition: fixed. The watcher starts before the first write, and on a deadline the
+   bridge kills the process group first, which releases any blocked write or callback, and
+   then fails the requests; Close does the same. A request whose write the kill cut short
+   reports the deadline. Tests cover a 256 KiB request to a helper that never reads and an
+   event callback blocked writing input.
+2. **F2 (P2). Canceling a finished request could kill the helper.** The watcher's select
+   could pick the canceled context over the closed result. Disposition: fixed. Whoever
+   removes a request from those in flight decides its outcome, so a result and a
+   cancellation exclude each other and a late cancel does nothing. A test cancels 200
+   finished calls and then makes another. This was the Linux CI failure in
+   `TestHelperCommand`.
+3. **F3 (P2). A summary whose playback failed was still rated.** Disposition: fixed. In
+   `--blind`, a failed playback is reported as "playback failed (REASON); not rated." with
+   neither the summary text nor the engine, and no rating is asked for or counted. No
+   playback failed in the recorded run, so its ratings stand.
+
+The three new sidecar tests fail on 0a22fcb and pass after the fix. Also corrected: the
+definition of done gives the runner image version, 20261013.0424.1, and the runner's macOS;
+20261012.601 was the provisioner's version.
+
+[Refusal review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6379992662):
+approved. The provider label's move after the summary was accepted, and the check's
+limitation recorded in the scorecard was carried forward.
