@@ -1,0 +1,44 @@
+{
+  "item": {
+    "reference": "SYN-20",
+    "title": "Gate A for the Phase 1 sprint",
+    "kind": "decision",
+    "where": "docs/sprints/2026-11-02-phase1/decision.md",
+    "agent_text": "The Phase 1 decision is ready for Gate A. It has eight acceptance criteria and four chunks.",
+    "context": "Approving starts Gate B planning. Requesting changes sends it back with your notes.",
+    "recommendation": "Approve Gate A.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "gate a",
+        "phase 1",
+        "phase one",
+        "sprint"
+      ]
+    ],
+    "options": [
+      [
+        "approve"
+      ],
+      [
+        "change",
+        "changes"
+      ]
+    ],
+    "recommendation": [
+      [
+        "approve"
+      ]
+    ],
+    "deadline": []
+  }
+}

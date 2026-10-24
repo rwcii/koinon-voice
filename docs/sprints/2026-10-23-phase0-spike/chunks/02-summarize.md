@@ -19,11 +19,15 @@ adapter comes in chunk 03.
 - **Keys** from the macOS Keychain through `security find-generic-password -s
   koinon-voice-<provider> -w`, run as a subprocess so the module stays CGO-free. Linux and
   tests take no key and fail the external engines with a clear message.
-- **Local open-weight engine**: the chunk installs Ollama with Homebrew and pulls one
-  open-weight instruction model that fits this machine (32 GB), chosen at the start of the
-  chunk and recorded with the Ollama version and the model's digest. Its engine row uses the
-  OpenAI-compatible adapter against Ollama's loopback endpoint, and the scorecard is not
-  complete without it.
+- **Local open-weight engine**: the chunk installs oMLX with Homebrew and downloads one
+  small open-weight instruction model in MLX format, of about 2 GB, chosen at the start of
+  the chunk and recorded with the oMLX version and the model's revision. The maintainer set
+  the size on 2026-10-23, after a 12B model did not fit beside the machine's other work: "we
+  are not running local models of any major size here". Its engine
+  row uses the OpenAI-compatible adapter against oMLX's loopback endpoint, and the scorecard
+  is not complete without it. The reviewed plan named Ollama; the maintainer changed it on
+  2026-10-23 after the driver compared oMLX and the mlx-lm server and recommended oMLX for its
+  prompt-prefix cache and streamed usage: "go with omlx, drop ollama".
 - **Engines file**: `~/.config/koinon-voice/engines.toml` (outside the repository) lists rows
   of adapter, base URL, model and local or external; `testdata/engines.toml` is the example.
 - **Items** from `--fixtures DIR`, or from `--item FILE`, a decision item exported as JSON.

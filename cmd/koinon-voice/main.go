@@ -11,14 +11,17 @@ import (
 var version = "dev"
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 1 && args[0] == "version" {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	switch {
+	case len(args) == 1 && args[0] == "version":
 		fmt.Fprintf(stdout, "koinon-voice %s\n", version)
 		return 0
+	case len(args) > 0 && args[0] == "summarize":
+		return runSummarize(args[1:], stdin, stdout, stderr)
 	}
-	fmt.Fprintln(stderr, "Usage: koinon-voice version")
+	fmt.Fprintln(stderr, "Usage: koinon-voice version | summarize")
 	return 2
 }

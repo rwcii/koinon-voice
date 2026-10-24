@@ -1,0 +1,46 @@
+{
+  "item": {
+    "reference": "SYN-14",
+    "title": "Settle the review disagreement on chunk 03",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Claude wants the Swift helper to retry a crashed engine once. I think a crash must fail the request so the maintainer hears it.",
+    "context": "A retry hides crashes but saves a repeated question. Failing is simpler and matches ADR 002.",
+    "recommendation": "Fail without a retry.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "chunk 3",
+        "chunk three",
+        "chunk 03",
+        "disagree"
+      ]
+    ],
+    "options": [
+      [
+        "retry"
+      ],
+      [
+        "fail"
+      ]
+    ],
+    "recommendation": [
+      [
+        "fail",
+        "no retry",
+        "not retry",
+        "without a retry"
+      ]
+    ],
+    "deadline": []
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "item": {
+    "reference": "SYN-18",
+    "title": "Decide where engine helpers are installed",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Helpers can go in the app bundle or in ~/.local/share/koinon-voice/bin.",
+    "context": "The bundle is signed with the app. The data directory lets helpers update without a new app build.",
+    "recommendation": "",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "helper"
+      ]
+    ],
+    "options": [
+      [
+        "bundle",
+        "app"
+      ],
+      [
+        "local share",
+        "data directory",
+        "data folder",
+        "local data",
+        "user data",
+        "home"
+      ]
+    ],
+    "recommendation": [],
+    "deadline": []
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "item": {
+    "reference": "SYN-19",
+    "title": "Rename the repository to koinon-speech",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Some people read Koinon Voice as a singing product.",
+    "context": "Renaming breaks existing links for a while; GitHub redirects most of them. Keeping the name costs nothing.",
+    "recommendation": "Keep the current name.",
+    "commands": [],
+    "author_family": "deepseek",
+    "author_name": "deepseek-koinon-7c"
+  },
+  "key": {
+    "asker": [
+      [
+        "deepseek"
+      ]
+    ],
+    "ask": [
+      [
+        "rename"
+      ]
+    ],
+    "options": [
+      [
+        "rename",
+        "koinon speech"
+      ],
+      [
+        "keep"
+      ]
+    ],
+    "recommendation": [
+      [
+        "keep"
+      ]
+    ],
+    "deadline": []
+  }
+}

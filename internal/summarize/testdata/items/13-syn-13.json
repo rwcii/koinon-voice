@@ -1,0 +1,50 @@
+{
+  "item": {
+    "reference": "SYN-13",
+    "title": "Schedule the v0.5.0 release",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "All chunks for v0.5.0 are merged.",
+    "context": "Releasing on Monday gives Codex time for the installation checks. Releasing today skips them.",
+    "recommendation": "Release on Monday after the checks.",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "release"
+      ],
+      [
+        "0 5",
+        "zero point five",
+        "five",
+        "v0 5"
+      ]
+    ],
+    "options": [
+      [
+        "monday"
+      ],
+      [
+        "today"
+      ]
+    ],
+    "recommendation": [
+      [
+        "monday"
+      ]
+    ],
+    "deadline": [
+      [
+        "monday"
+      ]
+    ]
+  }
+}

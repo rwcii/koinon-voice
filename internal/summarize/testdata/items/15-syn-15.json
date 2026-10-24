@@ -1,0 +1,38 @@
+{
+  "item": {
+    "reference": "SYN-15",
+    "title": "Approve the Phase 0 corpus phrase list",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "## Phrase list\n\n- 40 peer and repository names\n- 20 issue and pull request numbers\n- 15 verdict words: approve, reject, confirm\n- 25 free sentences\n\nYou read it twice: once quiet, once with noise.",
+    "context": "The list is 100 phrases and takes about 12 minutes to read.",
+    "recommendation": "Approve the list.",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "phrase",
+        "corpus"
+      ]
+    ],
+    "options": [
+      [
+        "approve"
+      ]
+    ],
+    "recommendation": [
+      [
+        "approve"
+      ]
+    ],
+    "deadline": []
+  }
+}

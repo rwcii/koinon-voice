@@ -79,8 +79,9 @@ The verdict records no client: a voice approval and a click look the same.
   for an SSH local forward; an SSH forward to localhost was not tried, because it would have
   meant accepting this machine's own host key. The login is not bound to a port; only the
   cookie's name carries it (`cookieName`), and the daemon finds a session by the cookie's
-  value alone. A browser sends the direct port's cookie only to that port, so on the
-  forwarded port it got 401. A client that sends the same session value under the forwarded
+  value alone. Browsers do not separate cookies by port, so a browser sends the
+  direct port's cookie to the forwarded port too, but under the direct port's name; the
+  daemon looks only for the forwarded port's name, and the browser got 401. A client that sends the same session value under the forwarded
   port's name, `koinon_dashboard_47800`, got 200 with no new login. A new link, its host and
   port rewritten to 127.0.0.1:47800, also logged in. For a remote daemon the link comes from
   running `koinon dashboard --no-open` on that host, over SSH.

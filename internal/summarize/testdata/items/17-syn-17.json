@@ -1,0 +1,48 @@
+{
+  "item": {
+    "reference": "SYN-17",
+    "title": "Raise the OpenRouter spending limit",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "The scorecard runs used 36 of the 40 dollar monthly limit.",
+    "context": "Raising it to 80 dollars covers the remaining runs. Keeping 40 dollars stops OpenRouter rows after about ten more items.",
+    "recommendation": "Raise it to 80 dollars.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "limit"
+      ],
+      [
+        "openrouter",
+        "open router"
+      ]
+    ],
+    "options": [
+      [
+        "80",
+        "eighty"
+      ],
+      [
+        "40",
+        "forty",
+        "keep"
+      ]
+    ],
+    "recommendation": [
+      [
+        "80",
+        "eighty"
+      ]
+    ],
+    "deadline": []
+  }
+}
