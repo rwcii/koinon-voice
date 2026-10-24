@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -166,4 +167,59 @@ func TestCorpusUsage(t *testing.T) {
 	if code := run([]string{"corpus", "record", "--set", "loud", "--phrases", phrases, "--dir", dir, "--helper", "/h"}, nil, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), `corpus set "loud"`) {
 		t.Errorf("exit %d: %s", code, stderr.String())
 	}
+}
+
+func TestCorpusWakeAndBackground(t *testing.T) {
+	phrases, dir := corpusSetup(t)
+	seconds := fakeRecorder(t)
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"corpus", "wake", "--distance", "far", "--count", "2", "--phrases", phrases, "--dir", dir, "--helper", "/fake/helper"},
+		strings.NewReader("\n\n\n\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("wake exit %d: %s%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `[1/2] 01. Say "Koinon" once`) || !strings.Contains(stdout.String(), "Done: 2 of 2 takes are in the wake/far set.") {
+		t.Errorf("wake:\n%s", stdout.String())
+	}
+	stdout.Reset()
+	if code := run([]string{"corpus", "background", "--source", "podcast", "--count", "1", "--minutes", "0.5", "--phrases", phrases, "--dir", dir, "--helper", "/fake/helper"},
+		strings.NewReader("\n\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("background exit %d: %s%s", code, stdout.String(), stderr.String())
+	}
+	if fmtFloats(*seconds) != "3,3,30" {
+		t.Errorf("recording lengths %v", *seconds)
+	}
+	for _, d := range []string{filepath.Join(dir, "wake"), filepath.Join(dir, "wake", "far"), filepath.Join(dir, "background", "podcast")} {
+		if fi, err := os.Stat(d); err != nil || fi.Mode().Perm() != 0o700 {
+			t.Errorf("%s: %v %v", d, fi.Mode(), err)
+		}
+	}
+	stdout.Reset()
+	run([]string{"corpus", "status", "--phrases", phrases, "--dir", dir}, nil, &stdout, &stderr)
+	for _, want := range []string{"wake/far: 2 takes", "wake/near: 0 takes", "background/podcast: 1 recordings, 0 minutes"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("status lacks %q:\n%s", want, stdout.String())
+		}
+	}
+	for _, args := range [][]string{
+		{"corpus", "wake", "--phrases", phrases},
+		{"corpus", "background", "--phrases", phrases},
+		{"corpus", "wake", "--distance", "near", "--set", "clean", "--phrases", phrases},
+		{"corpus", "background", "--source", "music", "--minutes", "0", "--phrases", phrases},
+	} {
+		if code := run(args, nil, &stdout, &stderr); code != 2 {
+			t.Errorf("%q: exit %d", args, code)
+		}
+	}
+	if code := run([]string{"corpus", "wake", "--distance", "roof", "--phrases", phrases, "--dir", dir, "--helper", "/h"}, strings.NewReader(""), &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), `corpus set "wake/roof"`) {
+		t.Errorf("bad distance: exit %d %s", code, stderr.String())
+	}
+}
+
+func fmtFloats(fs []float64) string {
+	var parts []string
+	for _, f := range fs {
+		parts = append(parts, strconv.FormatFloat(f, 'f', -1, 64))
+	}
+	return strings.Join(parts, ",")
 }

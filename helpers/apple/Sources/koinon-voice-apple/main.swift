@@ -47,7 +47,7 @@ func modelAvailability() -> String {
 let args = CommandLine.arguments.dropFirst()
 switch args.first {
 case nil:
-    await serve(handlers: ["summarize": summarize, "transcribe": transcribe, "speak": speak], info: Info())
+    await serve(handlers: ["summarize": summarize, "transcribe": transcribe, "speak": speak, "duplex": duplex], info: Info())
 case "record":
     let rest = Array(args.dropFirst())
     guard rest.count == 2 || rest.count == 3, let seconds = Double(rest[0]), seconds > 0,

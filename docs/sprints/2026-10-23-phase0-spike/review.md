@@ -141,3 +141,7 @@ changes requested:
    options (Evan or Ava, from the same Apple synthesizer, or leaving Zoe) and the reason for
    asking (`summarize --speak` speaks only Apple voices until a Kokoro engine exists, and
    ADR 002 decides product engines), with the maintainer's answer quoted.
+
+With F1 to F3 and R1 fixed, both reviews approved b9f11e2, which merged as 93e1008:
+[peer review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381108404) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381108577).

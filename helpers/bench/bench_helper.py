@@ -1,12 +1,18 @@
-"""Bench helper for chunk 04: one recognition or synthesis engine behind the sidecar protocol.
+"""Bench helper for chunks 04 and 05: one recognition, synthesis or wake engine behind the
+sidecar protocol.
 
-Usage: python bench_helper.py ENGINE, where ENGINE is whistle, parakeet or kokoro. It speaks
-protocol v1 (internal/sidecar) on stdin and stdout: 4-byte big-endian frame length, kind
-byte 'J', then one JSON message. It serves
+Usage: python bench_helper.py ENGINE, where ENGINE is whistle, parakeet, kokoro, openwakeword
+or phrase. It speaks protocol v1 (internal/sidecar) on stdin and stdout: 4-byte big-endian
+frame length, kind byte 'J', then one JSON message. It serves
 
 - transcribe {path, keywords?} -> {text, elapsed_ms}, for whistle and parakeet;
 - synthesize {text, voice, output} -> event first_audio {since_request_ms}, then
-  {audio_seconds, elapsed_ms}, for kokoro, writing a 16-bit mono WAV file.
+  {audio_seconds, elapsed_ms}, for kokoro, writing a 16-bit mono WAV file;
+- wake {path, model?, threshold?, keywords?} -> {events, max_score, audio_seconds,
+  elapsed_ms}: the times in seconds at which the detector fired on a 16 kHz mono file. For
+  openwakeword, a score at or above threshold (default 0.5) on an 80 ms frame with model, an
+  ONNX wake model, after 2 s of silence that is not scored; for phrase, a speech segment found by Silero VAD whose Whistle transcript,
+  biased with keywords, has the word "koinon".
 
 The model loads on the first request, so the hello is immediate; the bench sends a warm-up
 request first and does not score it. The helper runs from a virtual environment outside the
@@ -33,7 +39,13 @@ ENGINES = {
     "whistle": (["transcribe"], "Cactus-Compute/whistle"),
     "parakeet": (["transcribe"], "mlx-community/parakeet-tdt-0.6b-v2"),
     "kokoro": (["synthesize"], "mlx-community/Kokoro-82M-bf16"),
+    "openwakeword": (["wake"], "openWakeWord with the model in the request"),
+    "phrase": (["wake"], "Silero VAD, then Cactus-Compute/whistle"),
 }
+
+# A frame of openWakeWord's input: 80 ms at 16 kHz.
+FRAME = 1280
+LEAD_IN = 2 * 16000  # samples of silence before each file, for openwakeword
 
 # Frames go to the real stdout; anything a library prints (spaCy's model install, progress
 # bars) goes to stderr, so it cannot break a frame.
@@ -90,6 +102,13 @@ class Engine:
             from mlx_audio.tts.utils import load_model
 
             self.model = load_model(ENGINES["kokoro"][1])
+        elif self.name == "openwakeword":
+            self.model = {}  # one openwakeword.Model per model file, made on first use
+        elif self.name == "phrase":
+            import needle
+            from silero_vad import load_silero_vad
+
+            self.model = (load_silero_vad(), needle)
 
     def transcribe(self, params):
         self.load()
@@ -101,6 +120,52 @@ class Engine:
         else:
             text = self.model.generate(path).text
         return {"text": text.strip(), "elapsed_ms": (time.perf_counter() - start) * 1000}
+
+    def wake(self, params):
+        import numpy as np
+
+        self.load()
+        start = time.perf_counter()
+        with wave.open(params["path"], "rb") as w:
+            if w.getframerate() != 16000 or w.getnchannels() != 1 or w.getsampwidth() != 2:
+                raise HelperError("bad_audio", "want 16 kHz mono 16-bit")
+            samples = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
+        events = []
+        best = 0.0
+        if self.name == "openwakeword":
+            from openwakeword.model import Model
+
+            path = params["model"]
+            if path not in self.model:
+                self.model[path] = Model(wakeword_models=[path], inference_framework="onnx")
+            model = self.model[path]
+            # reset() refills the feature buffer from random noise, which would reach the
+            # first 1.3 s of a file's scores; 2 s of silence replaces it, as a quiet room would.
+            model.reset()
+            for i in range(0, LEAD_IN, FRAME):
+                model.predict(np.zeros(FRAME, dtype=np.int16))
+            threshold = params.get("threshold") or 0.5
+            for i in range(0, len(samples) - FRAME + 1, FRAME):
+                score = max(model.predict(samples[i:i + FRAME]).values())
+                best = max(best, float(score))
+                if score >= threshold:
+                    events.append((i + FRAME) / 16000)
+        else:
+            import re
+            import torch
+            from silero_vad import get_speech_timestamps
+
+            vad, needle = self.model
+            audio = samples.astype(np.float32) / 32768
+            pad = 3200  # 200 ms around each segment
+            for seg in get_speech_timestamps(torch.from_numpy(audio), vad, sampling_rate=16000):
+                a, b = max(seg["start"] - pad, 0), min(seg["end"] + pad, len(audio))
+                text = needle.transcribe(audio[a:b], language="en", keywords=params.get("keywords") or None)["text"]
+                if "koinon" in re.findall(r"[a-z]+", text.lower()):
+                    events.append(seg["start"] / 16000)
+                    best = 1.0
+        return {"events": events, "max_score": best, "audio_seconds": len(samples) / 16000,
+                "elapsed_ms": (time.perf_counter() - start) * 1000}
 
     def synthesize(self, request_id, params, started):
         import numpy as np
@@ -139,11 +204,11 @@ class HelperError(Exception):
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ENGINES:
-        print("usage: bench_helper.py whistle|parakeet|kokoro", file=sys.stderr)
+        print("usage: bench_helper.py whistle|parakeet|kokoro|openwakeword|phrase", file=sys.stderr)
         return 2
     name = sys.argv[1]
     capabilities, model = ENGINES[name]
-    package = "cactus-needle" if name == "whistle" else "mlx-audio"
+    package = {"whistle": "cactus-needle", "phrase": "cactus-needle", "openwakeword": "openwakeword"}.get(name, "mlx-audio")
     engine = Engine(name)
     send({
         "type": "hello",
@@ -170,6 +235,8 @@ def main():
                 raise HelperError("unknown_method", str(method))
             if method == "transcribe":
                 data = engine.transcribe(params)
+            elif method == "wake":
+                data = engine.wake(params)
             else:
                 data = engine.synthesize(request_id, params, started)
             send({"type": "result", "id": request_id, "data": data})

@@ -16,6 +16,14 @@ import (
 // Sets are the corpus's two readings of the phrase list (definition of done, live check 2).
 var Sets = []string{"clean", "noisy"}
 
+// WakeSets hold the maintainer saying "Koinon" once per file at three distances, and
+// BackgroundSets long recordings with no "Koinon" in them, for the wake bench (definition of
+// done, live check 4).
+var (
+	WakeSets       = []string{"wake/near", "wake/mid", "wake/far"}
+	BackgroundSets = []string{"background/music", "background/podcast", "background/coffee"}
+)
+
 // Corpus is the recordings directory, ~/.local/share/koinon-voice/corpus by default:
 // SET/NN.wav and SET/manifest.tsv for each set. It is private to its owner.
 type Corpus struct {
@@ -37,10 +45,15 @@ func (c Corpus) Path(set string, n int) string {
 // Prepare makes the set's directory, readable only by its owner, and returns its path.
 func (c Corpus) Prepare(set string) (string, error) {
 	if !validSet(set) {
-		return "", fmt.Errorf("corpus set %q: want one of %s", set, strings.Join(Sets, ", "))
+		return "", fmt.Errorf("corpus set %q: want one of %s", set, strings.Join(allSets(), ", "))
 	}
 	dir := filepath.Join(c.Dir, set)
-	for _, d := range []string{c.Dir, dir} {
+	// Every directory from the corpus down is the owner's only, "wake" as well as "wake/near".
+	dirs := []string{c.Dir}
+	if parent := filepath.Dir(set); parent != "." {
+		dirs = append(dirs, filepath.Join(c.Dir, parent))
+	}
+	for _, d := range append(dirs, dir) {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return "", err
 		}
@@ -51,8 +64,12 @@ func (c Corpus) Prepare(set string) (string, error) {
 	return dir, nil
 }
 
+func allSets() []string {
+	return append(append(append([]string(nil), Sets...), WakeSets...), BackgroundSets...)
+}
+
 func validSet(set string) bool {
-	for _, s := range Sets {
+	for _, s := range allSets() {
 		if s == set {
 			return true
 		}

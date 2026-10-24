@@ -32,7 +32,7 @@ func fakeHelper() {
 		out.Flush()
 	}
 	send(sidecar.Message{Type: "hello", Protocol: sidecar.Version, Helper: "fake", HelperVer: "0.0.1",
-		Capabilities: []string{"speak", "synthesize", "transcribe"}, Info: json.RawMessage(`{"speech":"1.2.3"}`)})
+		Capabilities: []string{"duplex", "speak", "synthesize", "transcribe", "wake"}, Info: json.RawMessage(`{"speech":"1.2.3"}`)})
 	in := bufio.NewReader(os.Stdin)
 	for {
 		m, err := sidecar.ReadMessage(in)
@@ -53,6 +53,31 @@ func fakeHelper() {
 			default:
 				send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"text":"Koinon, read my inbox."}`)})
 			}
+		case m.Type == "request" && m.Method == "duplex":
+			// The interruption is heard, with one of the bridge's words leaking through.
+			var p struct {
+				Capture      string
+				StopOnSpeech bool `json:"stop_on_speech"`
+			}
+			json.Unmarshal(m.Params, &p)
+			os.WriteFile(p.Capture, []byte("RIFF"), 0o600)
+			send(sidecar.Message{Type: "event", ID: m.ID, Event: "speaking"})
+			send(sidecar.Message{Type: "event", ID: m.ID, Event: "barge_in", Data: json.RawMessage(`{"since_start_ms":3100}`)})
+			send(sidecar.Message{Type: "event", ID: m.ID, Event: "final", Data: json.RawMessage(`{"text":"Stop, wait. I have a question about the hotfix."}`)})
+			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"transcript":"Stop, wait. I have a question about the hotfix.","voice":"fake-voice","spoken_seconds":15.7,"barge_in_ms":3100,"listened_seconds":25,"voice_processing":true}`)})
+		case m.Type == "request" && m.Method == "wake":
+			// A take wakes once (two firings), music wakes once, and the podcast never.
+			var p struct{ Path string }
+			json.Unmarshal(m.Params, &p)
+			events := `[]`
+			switch {
+			case strings.Contains(p.Path, "/wake/near/02.wav"):
+			case strings.Contains(p.Path, "/wake/"):
+				events = `[0.88, 0.96]`
+			case strings.Contains(p.Path, "/background/music/"):
+				events = `[12.5]`
+			}
+			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"events":` + events + `,"max_score":0.9}`)})
 		case m.Type == "request" && m.Method == "synthesize":
 			var p struct{ Text, Output string }
 			json.Unmarshal(m.Params, &p)
@@ -74,7 +99,7 @@ func TestHelperCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	for _, want := range []string{"hello: fake 0.0.1, capabilities [speak synthesize transcribe]", `{"speech":"1.2.3"}`,
+	for _, want := range []string{"hello: fake 0.0.1, capabilities [duplex speak synthesize transcribe wake]", `{"speech":"1.2.3"}`,
 		`transcribe: {"text":"Koinon, read my inbox."}`, "speak: first audio", `speak: {"voice":"fake-voice"}`} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout lacks %q:\n%s", want, stdout.String())
