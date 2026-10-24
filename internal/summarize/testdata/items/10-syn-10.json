@@ -1,0 +1,40 @@
+{
+  "item": {
+    "reference": "SYN-10",
+    "title": "Comment on Koinon issue 470",
+    "kind": "decision",
+    "where": "rwcii/koinon issue 470",
+    "agent_text": "Issue 470 asks for a maintainer MCP mode. I drafted a comment that supports a hashed secret stored by the daemon.",
+    "context": "",
+    "recommendation": "Post the comment as drafted.",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "470",
+        "four seventy",
+        "four hundred seventy",
+        "four hundred and seventy"
+      ]
+    ],
+    "options": [
+      [
+        "post"
+      ]
+    ],
+    "recommendation": [
+      [
+        "post"
+      ]
+    ],
+    "deadline": []
+  }
+}

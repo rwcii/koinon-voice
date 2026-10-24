@@ -1,0 +1,42 @@
+{
+  "item": {
+    "reference": "SYN-08",
+    "title": "Revert commit 9f3c2ab on develop",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Commit 9f3c2ab4e1d07b55c0a9e8f2d3b1c6a7e5f40912 broke the macOS build. Reverting it restores green CI.",
+    "context": "The alternative is a forward fix, which needs about two hours.",
+    "recommendation": "Revert now and fix forward later.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "revert"
+      ]
+    ],
+    "options": [
+      [
+        "revert"
+      ],
+      [
+        "forward fix",
+        "fix forward",
+        "fix it forward"
+      ]
+    ],
+    "recommendation": [
+      [
+        "revert"
+      ]
+    ],
+    "deadline": []
+  }
+}

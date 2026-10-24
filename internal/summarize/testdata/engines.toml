@@ -1,0 +1,62 @@
+# Example engines file. The real one is ~/.config/koinon-voice/engines.toml, outside the
+# repository (ADR 003). Keys come from the Keychain item koinon-voice-<key>; prices are US
+# dollars per million tokens, from each provider's price list on the day of the run.
+#
+# Store a key with its value, not at the prompt, which keeps only the first 128 characters
+# and so cuts OpenAI service-account keys:
+#   security add-generic-password -U -a koinon-voice -s koinon-voice-openai -w "$(tr -d '\n' < FILE)"
+
+[[engine]]
+name = "claude-haiku"
+adapter = "anthropic"
+model = "claude-haiku-5-5"
+provider = "Anthropic"
+key = "anthropic"
+effort = "low"
+input_price = 0.10
+output_price = 0.50
+
+[[engine]]
+name = "claude-sonnet"
+adapter = "anthropic"
+model = "claude-sonnet-5-5"
+provider = "Anthropic"
+key = "anthropic"
+effort = "low"
+input_price = 2.00
+output_price = 10.00
+
+[[engine]]
+name = "claude-opus"
+adapter = "anthropic"
+model = "claude-opus-5-5"
+provider = "Anthropic"
+key = "anthropic"
+effort = "low"
+input_price = 4.00
+output_price = 20.00
+
+[[engine]]
+name = "openai"
+adapter = "openai"
+base_url = "https://api.openai.com/v1"
+model = "MODEL"
+provider = "OpenAI"
+key = "openai"
+
+[[engine]]
+name = "openrouter"
+adapter = "openai"
+base_url = "https://openrouter.ai/api/v1"
+model = "MODEL"
+provider = "OpenRouter"
+key = "openrouter"
+deny_data_collection = true
+note = "provider.data_collection deny: only hosts that neither retain nor train on prompts"
+
+[[engine]]
+name = "omlx-qwen3-4b"
+adapter = "openai"
+base_url = "http://127.0.0.1:8000/v1"
+model = "qwen3-4b-instruct-2507-4bit"
+local = true

@@ -1,0 +1,41 @@
+{
+  "item": {
+    "reference": "SYN-04",
+    "title": "Run the full race test suite before the release",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "The race tests take about 25 minutes on this machine. Approve to let me run them now; the machine will be slow while they run.",
+    "context": "",
+    "recommendation": "Approve, so the release has a full race run.",
+    "commands": [
+      "go test -race -timeout 30m ./..."
+    ],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "test"
+      ]
+    ],
+    "options": [
+      [
+        "approve",
+        "run"
+      ]
+    ],
+    "recommendation": [
+      [
+        "approve",
+        "run"
+      ]
+    ],
+    "deadline": []
+  }
+}

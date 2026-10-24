@@ -1,0 +1,46 @@
+{
+  "item": {
+    "reference": "SYN-12",
+    "title": "Upgrade golang.org/x/net",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "A security advisory affects the HTTP/2 server in the version we use.",
+    "context": "The upgrade is a patch release. The bridge does not run an HTTP/2 server, so the risk is low either way.",
+    "recommendation": "Upgrade in the next pull request.",
+    "commands": [],
+    "author_family": "deepseek",
+    "author_name": "deepseek-koinon-7c"
+  },
+  "key": {
+    "asker": [
+      [
+        "deepseek"
+      ]
+    ],
+    "ask": [
+      [
+        "upgrade",
+        "update"
+      ],
+      [
+        "net"
+      ]
+    ],
+    "options": [
+      [
+        "upgrade",
+        "update"
+      ]
+    ],
+    "recommendation": [
+      [
+        "upgrade",
+        "update"
+      ],
+      [
+        "next"
+      ]
+    ],
+    "deadline": []
+  }
+}

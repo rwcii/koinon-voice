@@ -4,8 +4,7 @@ Reviewer: Codex. Driver: Claude.
 
 ## Plan (ad2afc1)
 
-Peer review, changes requested
-([comment](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6374749646)):
+Peer review, changes requested:
 
 1. **F1 (P2). The required local open-weight run had no owner.** Criterion 1 requires one, but
    chunk 02 left it to "any local server the maintainer installs". Disposition: fixed. Chunk
@@ -18,8 +17,7 @@ Peer review, changes requested
    complete sentence; first token, first sentence and synthesis first audio stay as
    diagnostic columns. `sprint.md` lists criterion 1's spoken latency under chunk 03.
 
-Refusal review, changes requested
-([comment](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6374749952)):
+Refusal review, changes requested:
 
 3. **R1 (P2). Local-speech and engine quotes lacked their question.** Disposition: fixed.
    PDR 001, Decision 2 now states the design session's fourth question and its trade-off, that
@@ -35,4 +33,9 @@ Also updated: the definition of done records that Apple Intelligence is now on a
 answered a prompt.
 
 Status note: the reviewer's sandbox cannot write commit statuses, so neither `peer-review` nor
-`refusal-review` is set on ad2afc1; the comments are the verdicts.
+`refusal-review` is set on ad2afc1; the comments were the verdicts. They were on the first
+`rwcii/koinon-voice` repository, which was deleted and recreated on 2026-10-23 because its
+Actions created no check suites, and went with it. The approving verdicts on the merged plan,
+8f9c859, are on the new repository's pull request #2:
+[peer review](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6375491807) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6375492089).

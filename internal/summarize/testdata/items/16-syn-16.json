@@ -1,0 +1,51 @@
+{
+  "item": {
+    "reference": "SYN-16",
+    "title": "Roll back the daemon upgrade",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "After the upgrade, two sessions lost their participant addresses.",
+    "context": "Rolling back restores them. Staying keeps the new memory sync. This needs an answer within the hour, before the nightly jobs start at 22:00.",
+    "recommendation": "Roll back now.",
+    "commands": [],
+    "author_family": "deepseek",
+    "author_name": "deepseek-koinon-7c"
+  },
+  "key": {
+    "asker": [
+      [
+        "deepseek"
+      ]
+    ],
+    "ask": [
+      [
+        "roll back",
+        "rollback",
+        "downgrade"
+      ]
+    ],
+    "options": [
+      [
+        "roll back",
+        "rollback"
+      ],
+      [
+        "stay",
+        "keep"
+      ]
+    ],
+    "recommendation": [
+      [
+        "roll back",
+        "rollback"
+      ]
+    ],
+    "deadline": [
+      [
+        "hour",
+        "22",
+        "ten"
+      ]
+    ]
+  }
+}

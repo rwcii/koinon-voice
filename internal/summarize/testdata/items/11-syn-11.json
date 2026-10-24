@@ -1,0 +1,45 @@
+{
+  "item": {
+    "reference": "SYN-11",
+    "title": "Retire the expired Codex session",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Session codex-koinon-voice-af expired an hour ago and still holds a work claim.",
+    "context": "Retiring it releases the claim. Keeping it changes nothing until the lease ends tomorrow at noon.",
+    "recommendation": "Retire it.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "retire",
+        "remove",
+        "clean"
+      ]
+    ],
+    "options": [
+      [
+        "retire",
+        "remove"
+      ],
+      [
+        "keep",
+        "wait"
+      ]
+    ],
+    "recommendation": [
+      [
+        "retire",
+        "remove"
+      ]
+    ],
+    "deadline": []
+  }
+}

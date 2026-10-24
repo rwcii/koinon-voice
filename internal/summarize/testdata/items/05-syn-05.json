@@ -1,0 +1,40 @@
+{
+  "item": {
+    "reference": "SYN-05",
+    "title": "Adopt the shared review checklist",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "The Koinon repository has a review checklist. See https://github.com/rwcii/koinon/blob/develop/docs/review.md for the text.",
+    "context": "Adopting it means copying the file and citing it from AGENTS.md. Not adopting keeps the current free-form reviews.",
+    "recommendation": "",
+    "commands": [],
+    "author_family": "deepseek",
+    "author_name": "deepseek-koinon-7c"
+  },
+  "key": {
+    "asker": [
+      [
+        "deepseek"
+      ]
+    ],
+    "ask": [
+      [
+        "checklist"
+      ]
+    ],
+    "options": [
+      [
+        "adopt",
+        "copy"
+      ],
+      [
+        "keep",
+        "not adopt",
+        "current",
+        "free form"
+      ]
+    ],
+    "recommendation": [],
+    "deadline": []
+  }
+}

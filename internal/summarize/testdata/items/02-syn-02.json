@@ -1,0 +1,51 @@
+{
+  "item": {
+    "reference": "SYN-02",
+    "title": "Choose the wake word engine for Phase 1",
+    "kind": "decision",
+    "where": "rwcii/koinon-voice issue 1",
+    "agent_text": "Phase 0 measured three ways to detect the wake word.",
+    "context": "openWakeWord missed 4 of 60 calls at three metres and woke 0.3 times per hour on music. Recognition plus phrase matching missed 1 of 60 but woke 2.1 times per hour and used 9 percent CPU all the time. Porcupine needs a paid licence for a custom word. Phase 1 planning starts on Friday, so a choice is needed by Friday.",
+    "recommendation": "Use openWakeWord and train a custom Koinon model.",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "wake word"
+      ]
+    ],
+    "options": [
+      [
+        "openwakeword",
+        "open wake word"
+      ],
+      [
+        "recognition",
+        "phrase matching",
+        "transcription"
+      ],
+      [
+        "porcupine"
+      ]
+    ],
+    "recommendation": [
+      [
+        "openwakeword",
+        "open wake word"
+      ]
+    ],
+    "deadline": [
+      [
+        "friday"
+      ]
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "item": {
+    "reference": "SYN-03",
+    "title": "Release v0.4.1 is published",
+    "kind": "fyi",
+    "where": "",
+    "agent_text": "Koinon v0.4.1 is on GitHub with binaries for four targets. No action is needed.",
+    "context": "",
+    "recommendation": "",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "0 4 1",
+        "zero point four point one",
+        "four one",
+        "released",
+        "published",
+        "v0 4 1"
+      ]
+    ],
+    "options": [],
+    "recommendation": [],
+    "deadline": []
+  }
+}

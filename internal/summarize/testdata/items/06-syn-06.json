@@ -1,0 +1,47 @@
+{
+  "item": {
+    "reference": "SYN-06",
+    "title": "Approve the hotfix for the dashboard login",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Dashboard logins fail after a daemon restart. The fix rereads the CSRF key.",
+    "context": "The maintainer's afternoon demo needs it. It must merge by 17:00 UTC today to make the build.",
+    "recommendation": "Approve the hotfix.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "hotfix",
+        "fix"
+      ],
+      [
+        "login"
+      ]
+    ],
+    "options": [
+      [
+        "approve"
+      ]
+    ],
+    "recommendation": [
+      [
+        "approve"
+      ]
+    ],
+    "deadline": [
+      [
+        "17",
+        "five",
+        "seventeen"
+      ]
+    ]
+  }
+}

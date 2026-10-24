@@ -1,0 +1,41 @@
+{
+  "item": {
+    "reference": "SYN-01",
+    "title": "Merge pull request 12",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Pull request 12 adds the summarize command. Checks pass on Linux and macOS.",
+    "context": "",
+    "recommendation": "Merge it.",
+    "commands": [],
+    "author_family": "codex",
+    "author_name": "codex-koinon-voice-38"
+  },
+  "key": {
+    "asker": [
+      [
+        "codex"
+      ]
+    ],
+    "ask": [
+      [
+        "merge"
+      ],
+      [
+        "12",
+        "twelve"
+      ]
+    ],
+    "options": [
+      [
+        "merge"
+      ]
+    ],
+    "recommendation": [
+      [
+        "merge"
+      ]
+    ],
+    "deadline": []
+  }
+}

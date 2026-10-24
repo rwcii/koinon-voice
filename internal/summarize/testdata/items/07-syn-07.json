@@ -1,0 +1,37 @@
+{
+  "item": {
+    "reference": "SYN-07",
+    "title": "Pick the speech synthesis voice",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Two voices scored close in the blind test.",
+    "context": "Apple's Ava (Premium) rated 4.1. Kokoro af_heart rated 4.0 and starts 80 milliseconds sooner. I have no preference between them.",
+    "recommendation": "",
+    "commands": [],
+    "author_family": "claude",
+    "author_name": "claude-koinon-voice-b9"
+  },
+  "key": {
+    "asker": [
+      [
+        "claude"
+      ]
+    ],
+    "ask": [
+      [
+        "voice"
+      ]
+    ],
+    "options": [
+      [
+        "ava",
+        "apple"
+      ],
+      [
+        "kokoro"
+      ]
+    ],
+    "recommendation": [],
+    "deadline": []
+  }
+}

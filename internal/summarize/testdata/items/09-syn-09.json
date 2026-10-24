@@ -1,0 +1,53 @@
+{
+  "item": {
+    "reference": "SYN-09",
+    "title": "Choose a local model server",
+    "kind": "decision",
+    "where": "",
+    "agent_text": "Four servers can host the local model.",
+    "context": "oMLX, mlx-lm server, Ollama and LM Studio. oMLX and mlx-lm use MLX; Ollama uses llama.cpp; LM Studio is a desktop app.",
+    "recommendation": "oMLX, because it caches prompt prefixes.",
+    "commands": [],
+    "author_family": "deepseek",
+    "author_name": "deepseek-koinon-7c"
+  },
+  "key": {
+    "asker": [
+      [
+        "deepseek"
+      ]
+    ],
+    "ask": [
+      [
+        "server"
+      ]
+    ],
+    "options": [
+      [
+        "omlx",
+        "o mlx",
+        "o m l x",
+        "oh m l x"
+      ],
+      [
+        "mlx lm",
+        "m l x l m"
+      ],
+      [
+        "ollama"
+      ],
+      [
+        "lm studio"
+      ]
+    ],
+    "recommendation": [
+      [
+        "omlx",
+        "o mlx",
+        "o m l x",
+        "oh m l x"
+      ]
+    ],
+    "deadline": []
+  }
+}
