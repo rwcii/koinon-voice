@@ -48,7 +48,10 @@ holds scores, transcripts of the committed phrases, versions and hashes.
 Word error rate is substitutions, deletions and insertions over the reference words, after
 the normalization the phrase list describes. The Koinon-term rate counts only errors on the
 bracketed words, including a word inserted inside a term, and not words inserted around one.
-Spellings that are the same spoken word are equal: British and American spellings
+Medians are sample medians: the mean of the two middle values of an even count. The
+recognition medians were recomputed after review from the per-file latencies below (whole
+milliseconds) and the manifests' file lengths, and the synthesis medians from the renditions,
+without a new run. Spellings that are the same spoken word are equal: British and American spellings
 ("summarise"), an ordinal written as digits ("1st"), "good night" and "goodnight", and an
 issue number split by a comma ("four, 64"); these were found in the first run and the bench
 was run again.
@@ -92,13 +95,13 @@ was run again.
 
 | Engine | Set | Files | Failed | WER | Koinon-term WER | Median latency | Median RTF |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| apple | clean | 60 | 0 | 11.4% (35/307) | 28.7% (25/87) | 87 ms | 0.024 |
-| apple | noisy | 60 | 0 | 14.3% (44/307) | 29.9% (26/87) | 89 ms | 0.023 |
-| apple-keywords | clean | 60 | 0 | 11.4% (35/307) | 28.7% (25/87) | 87 ms | 0.023 |
-| apple-keywords | noisy | 60 | 0 | 14.3% (44/307) | 29.9% (26/87) | 90 ms | 0.024 |
-| apple-dictation-keywords | clean | 60 | 0 | 13.0% (40/307) | 32.2% (28/87) | 208 ms | 0.058 |
+| apple | clean | 60 | 0 | 11.4% (35/307) | 28.7% (25/87) | 87 ms | 0.023 |
+| apple | noisy | 60 | 0 | 14.3% (44/307) | 29.9% (26/87) | 88 ms | 0.023 |
+| apple-keywords | clean | 60 | 0 | 11.4% (35/307) | 28.7% (25/87) | 86 ms | 0.023 |
+| apple-keywords | noisy | 60 | 0 | 14.3% (44/307) | 29.9% (26/87) | 89 ms | 0.024 |
+| apple-dictation-keywords | clean | 60 | 0 | 13.0% (40/307) | 32.2% (28/87) | 208 ms | 0.057 |
 | apple-dictation-keywords | noisy | 60 | 0 | 15.3% (47/307) | 28.7% (25/87) | 214 ms | 0.058 |
-| parakeet | clean | 60 | 0 | 11.1% (34/307) | 29.9% (26/87) | 40 ms | 0.011 |
+| parakeet | clean | 60 | 0 | 11.1% (34/307) | 29.9% (26/87) | 40 ms | 0.010 |
 | parakeet | noisy | 60 | 0 | 12.7% (39/307) | 33.3% (29/87) | 40 ms | 0.010 |
 | whistle | clean | 60 | 0 | 25.4% (78/307) | 37.9% (33/87) | 16 ms | 0.004 |
 | whistle | noisy | 60 | 0 | 35.5% (109/307) | 56.3% (49/87) | 16 ms | 0.004 |
@@ -851,13 +854,18 @@ Observations:
 - **The choppiness is Apple's voice, not the bench's.** Text 01 rendered by Zoe has 304
   sample-to-sample jumps above 0.3 of full scale (clicks), against 3 for Kokoro, and macOS's
   own `say -v "Zoe (Premium)"` renders the same text with the same 304.
-- **Kokoro is slower to start and to speak**: a median of 818 ms to first audio against
-  536 ms, and about 15% longer audio for the same text (15.3 s against 13.2 s for text 01).
+- **Kokoro is slower to start and to speak**: a median of 787 ms to first audio against
+  489 ms, and about 15% longer audio for the same text (15.3 s against 13.2 s for text 01).
   Its speed setting was left at 1.0.
 - **Speed.** After the rating, text 01 was played with Kokoro at speeds 1.0, 1.1 and 1.2
   (15.3 s, 14.5 s and 13.2 s of audio). The maintainer: "1.1 is the smoothest speed up, 1.2
-  is acceptable, but pauses get very short". Apple's Zoe stays the speaking voice until
-  Kokoro is wired in, as the maintainer decided.
+  is acceptable, but pauses get very short".
+- **The voice until Kokoro is wired in.** On 2026-10-23, after the rating, the maintainer was
+  asked which voice `summarize --speak` should use meanwhile, since it can speak only Apple
+  voices until a Kokoro engine exists and ADR 002 decides product engines: switch to Evan or
+  Ava, which come from the same Apple synthesizer and may be as choppy, or leave Zoe. The
+  maintainer answered: "try kokoro at 1.1 and 1.2, stay with zoe until kokaro is wired in".
+  The engines file keeps `com.apple.voice.premium.en-US.Zoe`.
 
 ### Engines
 
@@ -870,8 +878,8 @@ Observations:
 
 | Engine | Texts | Failed | Median first audio | Mean rating |
 | --- | --- | --- | --- | --- |
-| apple | 6 | 0 | 536 ms | 3.2 (6) |
-| kokoro | 6 | 0 | 818 ms | 4.7 (6) |
+| apple | 6 | 0 | 489 ms | 3.2 (6) |
+| kokoro | 6 | 0 | 787 ms | 4.7 (6) |
 
 ### Renditions
 

@@ -127,14 +127,24 @@ func RunSTT(ctx context.Context, engines []Recognizer, files []File, opts BenchO
 		}
 		for _, f := range files {
 			t := Transcript{Engine: e.Name, Set: f.Set, Phrase: f.Phrase, Seconds: f.Audio.Seconds()}
-			if h.Err() != nil {
-				// The last request killed the helper (a deadline); start a new one.
-				h.Close()
-				if h, err = e.Start(ctx); err != nil {
-					t.Err = err
+			if h == nil || h.Err() != nil {
+				// The last request killed the helper (a deadline), or a restart failed; start
+				// a new one. A file with no helper fails and counts as nothing heard.
+				if h != nil {
+					h.Close()
+					h = nil
+				}
+				nh, err := e.Start(ctx)
+				if err != nil {
+					t.Err = fmt.Errorf("restart: %w", err)
+					t.Score = Compare(f.Phrase, "")
+					if opts.Progress != nil {
+						opts.Progress(t)
+					}
 					out = append(out, t)
 					continue
 				}
+				h = nh
 			}
 			rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 			start := time.Now()
@@ -154,7 +164,9 @@ func RunSTT(ctx context.Context, engines []Recognizer, files []File, opts BenchO
 			}
 			out = append(out, t)
 		}
-		h.Close()
+		if h != nil {
+			h.Close()
+		}
 	}
 	return infos, out
 }
@@ -258,20 +270,25 @@ func cell(s string) string {
 	return strings.NewReplacer("|", "\\|", "\n", " ").Replace(s)
 }
 
+// medianDuration is the sample median: the middle value, or the mean of the two middle
+// values of an even count.
 func medianDuration(ds []time.Duration) time.Duration {
-	if len(ds) == 0 {
-		return 0
+	fs := make([]float64, len(ds))
+	for i, d := range ds {
+		fs[i] = float64(d)
 	}
-	s := append([]time.Duration(nil), ds...)
-	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
-	return s[len(s)/2]
+	return time.Duration(medianFloat(fs))
 }
 
+// medianFloat is the sample median of fs.
 func medianFloat(fs []float64) float64 {
 	if len(fs) == 0 {
 		return 0
 	}
 	s := append([]float64(nil), fs...)
 	sort.Float64s(s)
+	if n := len(s); n%2 == 0 {
+		return (s[n/2-1] + s[n/2]) / 2
+	}
 	return s[len(s)/2]
 }
