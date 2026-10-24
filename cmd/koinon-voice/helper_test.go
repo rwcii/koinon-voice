@@ -12,8 +12,9 @@ import (
 	"github.com/rwcii/koinon-voice/internal/sidecar"
 )
 
-// The test binary is also a synthetic helper: with fakeHelperMode set it answers transcribe
-// and speak instead of running the tests (WDR 006: no audio, no recognition).
+// The test binary is also a synthetic helper: with fakeHelperMode set it answers transcribe,
+// speak and synthesize instead of running the tests (WDR 006: no audio, no recognition). It
+// stands in for both the Apple helper and the bench helper, whose arguments it ignores.
 const fakeHelperMode = "KOINON_VOICE_FAKE_CMD_HELPER"
 
 func TestMain(m *testing.M) {
@@ -31,7 +32,7 @@ func fakeHelper() {
 		out.Flush()
 	}
 	send(sidecar.Message{Type: "hello", Protocol: sidecar.Version, Helper: "fake", HelperVer: "0.0.1",
-		Capabilities: []string{"speak", "transcribe"}, Info: json.RawMessage(`{"speech":"1.2.3"}`)})
+		Capabilities: []string{"speak", "synthesize", "transcribe"}, Info: json.RawMessage(`{"speech":"1.2.3"}`)})
 	in := bufio.NewReader(os.Stdin)
 	for {
 		m, err := sidecar.ReadMessage(in)
@@ -42,11 +43,22 @@ func fakeHelper() {
 		case m.Type == "request" && m.Method == "transcribe":
 			var p struct{ Path string }
 			json.Unmarshal(m.Params, &p)
-			if strings.HasSuffix(p.Path, ".aiff") {
+			switch {
+			case strings.HasSuffix(p.Path, ".aiff"):
 				send(sidecar.Message{Type: "error", ID: m.ID, Code: "bad_audio", Message: "want 16 kHz mono"})
-			} else {
+			case strings.HasSuffix(p.Path, "/02.wav"):
+				send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"text":"Approved pull request 12."}`)})
+			case strings.HasSuffix(p.Path, "/03.wav"):
+				send(sidecar.Message{Type: "error", ID: m.ID, Code: "engine_error", Message: "decoder failed"})
+			default:
 				send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"text":"Koinon, read my inbox."}`)})
 			}
+		case m.Type == "request" && m.Method == "synthesize":
+			var p struct{ Text, Output string }
+			json.Unmarshal(m.Params, &p)
+			os.WriteFile(p.Output, []byte(p.Text), 0o600)
+			send(sidecar.Message{Type: "event", ID: m.ID, Event: "first_audio", Data: json.RawMessage(`{"since_request_ms":7}`)})
+			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"audio_seconds":1.5}`)})
 		case m.Type == "input" && !m.End:
 			send(sidecar.Message{Type: "event", ID: m.ID, Event: "first_audio", Data: json.RawMessage(`{"since_request_ms":2}`)})
 		case m.Type == "input" && m.End:
@@ -62,7 +74,7 @@ func TestHelperCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	for _, want := range []string{"hello: fake 0.0.1, capabilities [speak transcribe]", `{"speech":"1.2.3"}`,
+	for _, want := range []string{"hello: fake 0.0.1, capabilities [speak synthesize transcribe]", `{"speech":"1.2.3"}`,
 		`transcribe: {"text":"Koinon, read my inbox."}`, "speak: first audio", `speak: {"voice":"fake-voice"}`} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout lacks %q:\n%s", want, stdout.String())

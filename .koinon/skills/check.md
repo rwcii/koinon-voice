@@ -26,6 +26,7 @@ For shell edits: bash -n scripts/setup-repo.sh, sh -n .githooks/pre-commit,
 sh -n .githooks/commit-msg, sh -n scripts/check-attribution.sh and sh -n helpers/apple/test.sh.
 For edits under helpers/apple, on macOS: swift build -c release --package-path helpers/apple
 and helpers/apple/test.sh.
+For edits under helpers/bench: python3 -m py_compile helpers/bench/bench_helper.py.
 Runtime changes: four CGO_ENABLED=0 builds of ./cmd/koinon-voice (linux/amd64, linux/arm64,
 darwin/amd64, darwin/arm64).
 When adding a decision record or changing its status under docs/architecture/adr,

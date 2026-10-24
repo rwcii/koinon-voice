@@ -103,3 +103,7 @@ definition of done gives the runner image version, 20261013.0424.1, and the runn
 [Refusal review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6379992662):
 approved. The provider label's move after the summary was accepted, and the check's
 limitation recorded in the scorecard was carried forward.
+
+With F1 to F3 fixed, both reviews approved 5a2b516, which merged as 747c6c3:
+[peer review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6380052405) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6380052585).
