@@ -1,9 +1,14 @@
-# The speech bench's engines (chunk 04), installed in a virtual environment outside the
-# repository with a Homebrew Python 3.11:
+# The speech and wake bench's engines (chunks 04 and 05), installed in a virtual environment
+# outside the repository with a Homebrew Python 3.11:
 #   python3.11 -m venv ~/.local/share/koinon-voice/venv
 #   ~/.local/share/koinon-voice/venv/bin/pip install -r helpers/bench/requirements.txt
 # The models download on first use: Cactus-Compute/whistle, mlx-community/parakeet-tdt-0.6b-v2
-# and mlx-community/Kokoro-82M-bf16.
+# and mlx-community/Kokoro-82M-bf16. openWakeWord's feature models, melspectrogram.onnx and
+# embedding_model.onnx from its release v0.5.1, go in the installed package's
+# resources/models; the "Koinon" model itself is trained outside the repository
+# (scorecard-wake.md in the sprint directory).
 mlx-audio==0.6.1
 cactus-needle==3.2.8
 misaki[en]==0.9.4
+openwakeword @ git+https://github.com/dscripka/openWakeWord@368c03716d1e92591906a84949bc477f3a834455
+silero-vad==6.2.3

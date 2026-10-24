@@ -17,7 +17,8 @@ holds scores, transcripts of the committed phrases, versions and hashes.
   the MacBook Pro microphone and then a 14-channel USB mixer (silent until one channel was
   chosen, then peaking at 5–6%), were replaced, and the clean set was then recorded again from
   the start. `clean`: 60 files, 245 s, manifest SHA-256 prefix `2bf760cf1256f545`. `noisy`:
-  60 files, 244 s, with background noise playing, manifest SHA-256 prefix
+  60 files, 244 s, with coffee shop sounds (a YouTube recording) playing through the
+  speakers, as the maintainer reported afterwards; manifest SHA-256 prefix
   `b233dcdc5bae5ef0`. Clean phrase 31 was recorded again with a longer window after its
   first take cut off "the spike is done".
 - Apple: the helper `koinon-voice-apple` 0.1.0, Speech framework 3525.2.2, `SpeechTranscriber`

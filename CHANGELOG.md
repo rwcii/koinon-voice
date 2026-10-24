@@ -4,6 +4,13 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The wake and interruption bench: `koinon-voice corpus wake --distance near|mid|far` records
+  takes of "Koinon" and `corpus background --source music|meeting|podcast|coffee` long
+  background recordings; `koinon-voice bench wake` scores openWakeWord with a custom "Koinon"
+  model and phrase matching (Silero VAD, then Whistle biased to Koinon names) for misses per
+  distance and false wakes per hour. The Apple helper gains `duplex`, which speaks through the
+  speakers while it listens with Apple's voice processing (echo cancellation) and stops on
+  barge-in; `koinon-voice bench interrupt` runs the interruption check and its echo control.
 - The speech bench: `koinon-voice corpus record` prompts each phrase of a committed list of
   60 Koinon phrases and records it, clean or with background noise, from one channel of the
   input device into a private corpus with a SHA-256 manifest; `koinon-voice bench stt`

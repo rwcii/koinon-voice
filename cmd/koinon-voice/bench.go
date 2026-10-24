@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,12 +19,16 @@ import (
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-const benchUsage = `Usage: koinon-voice bench (stt | tts) [flags]
+const benchUsage = `Usage: koinon-voice bench (stt | tts | wake | interrupt) [flags]
 
 stt runs each recognition engine over the recorded corpus and writes word error rate,
 overall and on Koinon terms, latency and real-time factor. tts speaks each synthesis text
 with each synthesis engine, in a shuffled order with the engines' names hidden, plays it and
-asks for a 1 to 5 listenability rating; it writes time to first audio and the ratings.
+asks for a 1 to 5 listenability rating; it writes time to first audio and the ratings. wake
+runs each wake detector over the recorded "Koinon" takes and background recordings and writes
+misses per distance and false wakes per hour. interrupt speaks a summary through the
+speakers while listening with echo cancellation, for the maintainer to interrupt; with
+--control nobody speaks, and any transcript is the bridge's own speech leaking through.
 
 `
 
@@ -94,7 +99,7 @@ func selected(only, name string) bool {
 }
 
 func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 || (args[0] != "stt" && args[0] != "tts") {
+	if len(args) == 0 || (args[0] != "stt" && args[0] != "tts" && args[0] != "wake" && args[0] != "interrupt") {
 		fmt.Fprint(stderr, benchUsage)
 		return 2
 	}
@@ -116,6 +121,32 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return 2
 		}
 		return benchSTT(&b, *phrases, *dir, strings.Split(*sets, ","), stdout, stderr)
+	}
+	if args[0] == "interrupt" {
+		texts := fs.String("texts", ttsFile, "synthesis texts")
+		n := fs.Int("text", 3, "the synthesis text to speak")
+		say := fs.String("say", interruptPhrase, "what the maintainer says to interrupt")
+		control := fs.Bool("control", false, "nobody speaks: measure the bridge's own speech leaking through")
+		seconds := fs.Float64("seconds", 25, "how long to listen")
+		dir := fs.String("dir", defaultShare("interruption"), "directory for the captured audio")
+		fs.StringVar(&b.out, "out", "interruption-run.md", "report file")
+		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 || *seconds <= 0 {
+			fs.Usage()
+			return 2
+		}
+		return benchInterrupt(&b, *texts, *n, *say, *control, *seconds, *dir, bufio.NewScanner(stdin), stdout, stderr)
+	}
+	if args[0] == "wake" {
+		phrases := fs.String("phrases", phrasesFile, "phrase list, for the biasing list")
+		dir := fs.String("dir", defaultCorpus(), "corpus directory")
+		model := fs.String("model", defaultShare("wake-train", "model", "koinon.onnx"), "openWakeWord model")
+		threshold := fs.Float64("threshold", 0.5, "openWakeWord score that counts as a wake")
+		fs.StringVar(&b.out, "out", "scorecard-wake.md", "scorecard file")
+		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
+			fs.Usage()
+			return 2
+		}
+		return benchWake(&b, *phrases, *dir, *model, *threshold, stdout, stderr)
 	}
 	texts := fs.String("texts", ttsFile, "synthesis texts")
 	dir := fs.String("dir", defaultShare("bench", "tts"), "directory for the synthesized audio")
@@ -295,4 +326,186 @@ func benchTTS(b *benchFlags, textsPath, dir, kokoroVoice string, rate bool, in *
 		}
 	}
 	return writeCard(b.out, func(w io.Writer) { speech.WriteTTSScorecard(w, infos, rs) }, stdout, stderr)
+}
+
+func benchWake(b *benchFlags, phrases, dir, model string, threshold float64, stdout, stderr io.Writer) int {
+	raw, err := os.ReadFile(phrases)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench: phrase list:", err)
+		return 1
+	}
+	keywords := speech.Keywords(string(raw))
+	files, skipped, err := speech.WakeFiles(speech.Corpus{Dir: dir})
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	for _, s := range skipped {
+		fmt.Fprintln(stderr, "skipped", s)
+	}
+	if len(files) == 0 {
+		fmt.Fprintln(stderr, "koinon-voice bench: no wake takes or background recordings; record them with koinon-voice corpus wake and corpus background")
+		return 1
+	}
+	shown := model // the scorecard is committed: no home directory in it
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(model, home+string(filepath.Separator)) {
+		shown = "~" + model[len(home):]
+	}
+	modelNote := "openWakeWord, model " + shown
+	if sum, err := speech.Hash(model); err == nil {
+		modelNote += " (SHA-256 prefix " + sum[:16]
+		// Current exporters keep the weights in an external data file beside the model.
+		if data, err := speech.Hash(model + ".data"); err == nil {
+			modelNote += "; weights " + filepath.Base(model) + ".data " + data[:16]
+		}
+		modelNote += ")"
+	}
+	all := []speech.WakeDetector{
+		{Name: "openwakeword", Note: fmt.Sprintf("%s, threshold %.2f", modelNote, threshold), Start: b.starter("openwakeword"),
+			Params: func(p string) any { return map[string]any{"path": p, "model": model, "threshold": threshold} }},
+		{Name: "phrase", Note: "Silero VAD, then Cactus Whistle biased to: " + strings.Join(keywords, ", ") + "; wakes on the word koinon", Start: b.starter("phrase"),
+			Params: func(p string) any { return map[string]any{"path": p, "keywords": keywords} }},
+	}
+	var detectors []speech.WakeDetector
+	for _, d := range all {
+		if selected(b.only, d.Name) {
+			detectors = append(detectors, d)
+		}
+	}
+	fmt.Fprintf(stdout, "Scoring %d files with %d detectors.\n", len(files), len(detectors))
+	infos, runs := speech.RunWake(context.Background(), detectors, files, speech.BenchOptions{Timeout: b.timeout, Warmup: b.warmup})
+	for _, e := range infos {
+		if e.Err != nil {
+			fmt.Fprintf(stdout, "%s: not runnable: %v\n", e.Name, e.Err)
+		}
+	}
+	return writeCard(b.out, func(w io.Writer) { speech.WriteWakeScorecard(w, infos, runs) }, stdout, stderr)
+}
+
+// interruptPhrase is what the maintainer says over the bridge: no Koinon term, so a miss is
+// the echo canceller's or the transcriber's, not the vocabulary's.
+const interruptPhrase = "Stop, wait, I have a question."
+
+func benchInterrupt(b *benchFlags, textsPath string, n int, say string, control bool, seconds float64, dir string, in *bufio.Scanner, stdout, stderr io.Writer) int {
+	f, err := os.Open(textsPath)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench: synthesis texts:", err)
+		return 1
+	}
+	texts, err := speech.ParseTexts(f)
+	f.Close()
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	var text string
+	for _, t := range texts {
+		if t.N == n {
+			text = t.Text
+		}
+	}
+	if text == "" {
+		fmt.Fprintf(stderr, "koinon-voice bench: no synthesis text %d\n", n)
+		return 1
+	}
+	apple, voice, err := b.apple()
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	kind := "interrupt"
+	if control {
+		kind, say = "control", ""
+	}
+	capture := filepath.Join(dir, fmt.Sprintf("%s-%s.wav", kind, time.Now().Format("20060102-150405")))
+	if control {
+		fmt.Fprintf(stdout, "Control run: the bridge speaks text %02d for about %.0f s and nobody speaks. Press Enter to start.\n", n, seconds)
+	} else {
+		fmt.Fprintf(stdout, "The bridge will speak text %02d. A few seconds in, interrupt it by saying:\n\n    %s\n\nPress Enter to start.\n", n, say)
+	}
+	if !in.Scan() {
+		return 1
+	}
+	ctx := context.Background()
+	h, err := apple(ctx)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	defer h.Close()
+	if !h.Hello().Has("duplex") {
+		fmt.Fprintln(stderr, "koinon-voice bench: the Apple helper does not offer duplex; install the current helper")
+		return 1
+	}
+	params := map[string]any{"text": text, "seconds": seconds, "capture": capture, "stop_on_speech": !control}
+	if voice != "" {
+		params["voice"] = voice
+	}
+	rctx, cancel := context.WithTimeout(ctx, time.Duration(seconds*float64(time.Second))+b.timeout)
+	defer cancel()
+	data, err := h.Call(rctx, "duplex", params, func(e sidecar.Event) {
+		switch e.Name {
+		case "speaking":
+			fmt.Fprintln(stdout, "Speaking…")
+		case "barge_in":
+			fmt.Fprintf(stdout, "Barge-in: %s\n", e.Data)
+		case "final":
+			fmt.Fprintf(stdout, "Heard: %s\n", e.Data)
+		}
+	})
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench: duplex:", err)
+		return 1
+	}
+	var r struct {
+		Transcript      string  `json:"transcript"`
+		Voice           string  `json:"voice"`
+		SpokenSeconds   float64 `json:"spoken_seconds"`
+		BargeInMS       *int    `json:"barge_in_ms"`
+		ListenedSeconds float64 `json:"listened_seconds"`
+		VoiceProcessing bool    `json:"voice_processing"`
+	}
+	if err := json.Unmarshal(data, &r); err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench: duplex result:", err)
+		return 1
+	}
+	score := speech.ScoreInterruption(text, say, r.Transcript)
+	sum, _ := speech.Hash(capture)
+	if len(sum) > 16 {
+		sum = sum[:16]
+	}
+	barge := "none"
+	if r.BargeInMS != nil {
+		barge = fmt.Sprintf("%d ms after the start", *r.BargeInMS)
+	}
+	verdict := "passed"
+	if why := score.Verdict(control, r.BargeInMS != nil, r.VoiceProcessing); len(why) > 0 {
+		verdict = "failed: " + strings.Join(why, "; ")
+	}
+	report := fmt.Sprintf(`## %s run, %s
+
+- Bridge text %02d, voice %s, %.1f s of speech; listened %.1f s; voice processing %v.
+- Interruption said: %q
+- Barge-in: %s.
+- Transcript: %q
+- Interruption words heard: %v; missed: %v.
+- Bridge words in the transcript: %v.
+- Result: %s.
+- Captured input: SHA-256 prefix %s (not in Git).
+`, kind, time.Now().Format("2006-01-02 15:04"), n, r.Voice, r.SpokenSeconds, r.ListenedSeconds, r.VoiceProcessing,
+		say, barge, r.Transcript, score.Heard, score.Missed, score.Leaked, verdict, sum)
+	fmt.Fprint(stdout, "\n"+report)
+	out, err := os.OpenFile(b.out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	fmt.Fprint(out, report+"\n")
+	out.Close()
+	fmt.Fprintln(stdout, "Appended to", b.out)
+	return 0
 }

@@ -132,10 +132,113 @@ func TestBenchTTS(t *testing.T) {
 }
 
 func TestBenchUsage(t *testing.T) {
-	for _, args := range [][]string{{"bench"}, {"bench", "wake"}, {"bench", "stt", "extra"}, {"bench", "tts", "--nope"}} {
+	for _, args := range [][]string{{"bench"}, {"bench", "listen"}, {"bench", "stt", "extra"}, {"bench", "wake", "extra"}, {"bench", "tts", "--nope"}} {
 		var stdout, stderr bytes.Buffer
 		if code := run(args, nil, &stdout, &stderr); code != 2 {
 			t.Errorf("%q: exit %d", args, code)
 		}
+	}
+}
+
+func TestBenchWake(t *testing.T) {
+	t.Setenv(fakeHelperMode, "1")
+	phrases, _ := benchCorpus(t)
+	dir := filepath.Join(t.TempDir(), "corpus")
+	c := speech.Corpus{Dir: dir}
+	tone := make([]int16, 16000)
+	for i := range tone {
+		tone[i] = int16((i % 40) * 400)
+	}
+	record := func(set string, ns ...int) {
+		if _, err := c.Prepare(set); err != nil {
+			t.Fatal(err)
+		}
+		m := map[int]speech.Entry{}
+		for _, n := range ns {
+			speech.WriteWAV(c.Path(set, n), 16000, tone)
+			sum, _ := speech.Hash(c.Path(set, n))
+			m[n] = speech.Entry{N: n, SHA256: sum, Seconds: 1}
+		}
+		c.WriteManifest(set, m)
+	}
+	record("wake/near", 1, 2)
+	record("wake/far", 1)
+	record("background/music", 1)
+	record("background/podcast", 1)
+	out := filepath.Join(t.TempDir(), "card.md")
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"bench", "wake", "--phrases", phrases, "--dir", dir, "--python", os.Args[0], "--engines", "/nonexistent",
+		"--model", "/nonexistent/koinon.onnx", "--out", out}, nil, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d: %s%s", code, stdout.String(), stderr.String())
+	}
+	card, _ := os.ReadFile(out)
+	for _, want := range []string{
+		"| openwakeword | wake/near | 2 | 0 | 1 | 1 |", "| phrase | wake/far | 1 | 0 | 1 | 0 |",
+		// One second of music is 1/3600 hour: one false wake is 3600 per hour.
+		"| openwakeword | background/music | 1 | 0 | 0.00 | 0.00 | 1 | 3600.00 |", "| openwakeword | background/podcast | 1 | 0 | 0.00 | 0.00 | 0 | 0.00 |",
+		"| openwakeword | all | 2 | 0 | 0.00 | 0.00 | 1 | 1800.00 |",
+		"threshold 0.50", "wakes on the word koinon",
+		"| openwakeword | wake/near | 01 | 1 | 0.88 0.96 | 0.900 |",
+	} {
+		if !strings.Contains(string(card), want) {
+			t.Errorf("scorecard lacks %q:\n%s", want, card)
+		}
+	}
+
+	var e bytes.Buffer
+	if code := run([]string{"bench", "wake", "--phrases", phrases, "--dir", t.TempDir(), "--python", os.Args[0]}, nil, &stdout, &e); code != 1 ||
+		!strings.Contains(e.String(), "no wake takes or background recordings") {
+		t.Errorf("empty corpus: exit %d %s", code, e.String())
+	}
+}
+
+func TestBenchInterrupt(t *testing.T) {
+	t.Setenv(fakeHelperMode, "1")
+	tmp := t.TempDir()
+	texts := filepath.Join(tmp, "texts.md")
+	os.WriteFile(texts, []byte("04. Codex asks you to decide whether to approve the dashboard login hotfix. [SYN-06, test]\n"), 0o600)
+	out := filepath.Join(tmp, "run.md")
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"bench", "interrupt", "--texts", texts, "--text", "4", "--helper", os.Args[0], "--engines", "/nonexistent",
+		"--dir", filepath.Join(tmp, "audio"), "--out", out}, strings.NewReader("\n"), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d: %s%s", code, stdout.String(), stderr.String())
+	}
+	report, _ := os.ReadFile(out)
+	for _, want := range []string{"## interrupt run", `Interruption said: "Stop, wait, I have a question."`, "Barge-in: 3100 ms after the start.",
+		"Interruption words heard: [a have i question stop wait]; missed: [].", "Bridge words in the transcript: [hotfix].",
+		"Result: failed: the bridge's words leaked: hotfix.",
+		"voice processing true"} {
+		if !strings.Contains(string(report), want) {
+			t.Errorf("report lacks %q:\n%s", want, report)
+		}
+	}
+	if fi, err := os.Stat(filepath.Join(tmp, "audio")); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Errorf("capture directory %v %v", fi.Mode(), err)
+	}
+	// The control appends a second run, which fails on the fake's leak.
+	if code := run([]string{"bench", "interrupt", "--control", "--texts", texts, "--text", "4", "--helper", os.Args[0], "--engines", "/nonexistent",
+		"--dir", filepath.Join(tmp, "audio"), "--out", out}, strings.NewReader("\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("control exit %d", code)
+	}
+	report, _ = os.ReadFile(out)
+	if strings.Count(string(report), "## ") != 2 || !strings.Contains(string(report), "## control run") || !strings.Contains(string(report), "Result: failed: the bridge's words leaked: hotfix.") {
+		t.Errorf("report:\n%s", report)
+	}
+	// Every word heard, but after the bridge finished: not an interruption (peer review F2).
+	t.Setenv(fakeDuplexAfter, "1")
+	after := filepath.Join(tmp, "after.md")
+	if code := run([]string{"bench", "interrupt", "--texts", texts, "--text", "4", "--helper", os.Args[0], "--engines", "/nonexistent",
+		"--dir", filepath.Join(tmp, "audio"), "--out", after}, strings.NewReader("\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("after exit %d", code)
+	}
+	report, _ = os.ReadFile(after)
+	if !strings.Contains(string(report), "Barge-in: none.") || !strings.Contains(string(report), "missed: [].") ||
+		!strings.Contains(string(report), "Result: failed: no barge-in during playback.") {
+		t.Errorf("after report:\n%s", report)
+	}
+	if code := run([]string{"bench", "interrupt", "--texts", texts, "--text", "9", "--helper", os.Args[0]}, strings.NewReader("\n"), &stdout, &stderr); code != 1 {
+		t.Errorf("missing text: exit %d", code)
 	}
 }

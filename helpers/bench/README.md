@@ -1,10 +1,12 @@
 # Bench helpers
 
-`bench_helper.py` runs one engine of chunk 04's speech bench behind the sidecar protocol
-(`internal/sidecar`): Cactus Whistle and Parakeet for recognition, Kokoro for synthesis. It
-is for the bench only; ADR 002 decides whether any of them becomes a product engine.
+`bench_helper.py` runs one engine of the speech and wake bench behind the sidecar protocol
+(`internal/sidecar`): Cactus Whistle and Parakeet for recognition, Kokoro for synthesis
+(chunk 04), and openWakeWord and phrase matching (Silero VAD, then Whistle) for wake
+detection (chunk 05). It is for the bench only; ADR 002 decides whether any of them becomes a
+product engine.
 
 Install the engines into a virtual environment outside the repository, as
-`requirements.txt` describes, then run `koinon-voice bench stt` or `koinon-voice bench tts`,
+`requirements.txt` describes, then run `koinon-voice bench stt`, `bench tts` or `bench wake`,
 which start the helper with that environment's Python. The helper turns off the libraries'
 telemetry before it loads them.
