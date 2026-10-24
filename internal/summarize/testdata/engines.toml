@@ -6,6 +6,11 @@
 # and so cuts OpenAI service-account keys:
 #   security add-generic-password -U -a koinon-voice -s koinon-voice-openai -w "$(tr -d '\n' < FILE)"
 
+# The Apple helper (helpers/apple), for the apple engine and for --speak.
+helper = "/Users/NAME/.local/share/koinon-voice/bin/koinon-voice-apple"
+# The voice that speaks summaries; empty is the system's en-US voice.
+voice = "com.apple.voice.enhanced.en-US.Evan"
+
 [[engine]]
 name = "claude-haiku"
 adapter = "anthropic"
@@ -59,4 +64,10 @@ name = "omlx-qwen3-4b"
 adapter = "openai"
 base_url = "http://127.0.0.1:8000/v1"
 model = "qwen3-4b-instruct-2507-4bit"
+local = true
+
+[[engine]]
+name = "apple"
+adapter = "apple"
+model = "SystemLanguageModel.default"
 local = true

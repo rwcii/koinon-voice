@@ -26,11 +26,16 @@ type Anthropic struct {
 // Summarize streams one summary. A refusal, an unfinished answer or an empty answer is an
 // error.
 func (a *Anthropic) Summarize(ctx context.Context, item Item) (Summary, error) {
-	s, err := a.summarize(ctx, item)
+	return a.Stream(ctx, item, nil)
+}
+
+// Stream is Summarize with each text delta handed to onText.
+func (a *Anthropic) Stream(ctx context.Context, item Item, onText func(string)) (Summary, error) {
+	s, err := a.summarize(ctx, item, onText)
 	return s, scrub(err, a.Key)
 }
 
-func (a *Anthropic) summarize(ctx context.Context, item Item) (Summary, error) {
+func (a *Anthropic) summarize(ctx context.Context, item Item, onText func(string)) (Summary, error) {
 	opts := []option.RequestOption{
 		option.WithAPIKey(a.Key),
 		// A retry would hide the latency being measured; a failed row says what happened.
@@ -57,7 +62,7 @@ func (a *Anthropic) summarize(ctx context.Context, item Item) (Summary, error) {
 		params.OutputConfig = anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffort(a.Effort)}
 	}
 
-	t := newTimer(a.now)
+	t := newTimer(a.now, onText)
 	stream := client.Messages.NewStreaming(ctx, params)
 	defer stream.Close()
 	var message anthropic.Message

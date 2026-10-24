@@ -9,7 +9,8 @@ import (
 )
 
 // WriteScorecard writes the results as Markdown: one table of engine totals, then one row per
-// engine and item. Timings are diagnostic; spoken latency is chunk 03's.
+// engine and item. The first spoken word is criterion 1's latency; first token, first
+// sentence and synthesis first audio are diagnostic.
 func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 	var b strings.Builder
 	b.WriteString("## Engines\n\n| Engine | Adapter | Model | Where | Note |\n| --- | --- | --- | --- | --- |\n")
@@ -17,7 +18,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", r.Name, r.Adapter, r.Model, where(r), cell(r.Note))
 	}
 
-	b.WriteString("\n## Totals\n\n| Engine | Rows | Failed | Correct | Median first token | Median first sentence | Median total | Cost | Mean rating |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("\n## Totals\n\n| Engine | Rows | Failed | Correct | Median first spoken word | Median first token | Median first sentence | Median synthesis first audio | Median total | Cost | Mean rating |\n|" + strings.Repeat(" --- |", 11) + "\n")
 	for _, r := range rows {
 		var mine []Result
 		for _, res := range results {
@@ -28,8 +29,8 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		fmt.Fprintf(&b, "| %s | %s |\n", r.Name, strings.Join(totals(mine), " | "))
 	}
 
-	b.WriteString("\n## Rows\n\n| Item | Engine | " + strings.Join(Fields, " | ") + " | First token | First sentence | Total | Tokens in/out | Cost | Rating | Summary |\n")
-	b.WriteString("|" + strings.Repeat(" --- |", 9+len(Fields)) + "\n")
+	b.WriteString("\n## Rows\n\n| Item | Engine | " + strings.Join(Fields, " | ") + " | First spoken word | First token | First sentence | Synthesis first audio | Total | Tokens in/out | Cost | Rating | Summary |\n")
+	b.WriteString("|" + strings.Repeat(" --- |", 11+len(Fields)) + "\n")
 	for _, res := range results {
 		verdicts := res.Verdicts
 		if verdicts == nil {
@@ -41,9 +42,16 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		}
 		s := res.Summary
 		if res.Err != nil {
-			cols = append(cols, "", "", "", "", "", "", "failed: "+cell(res.Err.Error()))
+			cols = append(cols, "", "", "", "", "", "", "", "", "failed: "+cell(res.Err.Error()))
 		} else {
-			cols = append(cols, ms(s.FirstToken), ms(s.FirstSentence), ms(s.Total), tokens(s), cost(s.Cost, s.CostKnown), rating(res.Rating), cell(s.Text))
+			spoken, synthesis := "", ""
+			switch {
+			case res.Spoken != nil:
+				spoken, synthesis = ms(res.Spoken.FirstWord), ms(res.Spoken.Synthesis)
+			case res.SpeechErr != nil:
+				spoken = "speech failed: " + cell(res.SpeechErr.Error())
+			}
+			cols = append(cols, spoken, ms(s.FirstToken), ms(s.FirstSentence), synthesis, ms(s.Total), tokens(s), cost(s.Cost, s.CostKnown), rating(res.Rating), cell(s.Text))
 		}
 		b.WriteString("| " + strings.Join(cols, " | ") + " |\n")
 	}
@@ -53,7 +61,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 
 func totals(results []Result) []string {
 	var failed, correct, rated, ratingSum int
-	var first, sentence, total []time.Duration
+	var spoken, first, sentence, synthesis, total []time.Duration
 	var spend float64
 	spendKnown := len(results) > 0
 	for _, r := range results {
@@ -63,6 +71,10 @@ func totals(results []Result) []string {
 		}
 		if Correct(r.Verdicts) {
 			correct++
+		}
+		if r.Spoken != nil {
+			spoken = append(spoken, r.Spoken.FirstWord)
+			synthesis = append(synthesis, r.Spoken.Synthesis)
 		}
 		first = append(first, r.Summary.FirstToken)
 		sentence = append(sentence, r.Summary.FirstSentence)
@@ -80,7 +92,7 @@ func totals(results []Result) []string {
 	}
 	return []string{
 		fmt.Sprint(len(results)), fmt.Sprint(failed), fmt.Sprintf("%d/%d", correct, len(results)-failed),
-		median(first), median(sentence), median(total), cost(spend, spendKnown), mean,
+		median(spoken), median(first), median(sentence), median(synthesis), median(total), cost(spend, spendKnown), mean,
 	}
 }
 

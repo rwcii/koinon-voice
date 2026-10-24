@@ -188,22 +188,27 @@ func verdicts(vs []Verdict) []string {
 }
 
 func TestLoadEngines(t *testing.T) {
-	rows, err := LoadEngines("testdata/engines.toml")
+	config, err := LoadConfig("testdata/engines.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 6 || rows[0].Model != "claude-haiku-5-5" || !rows[5].Local || rows[2].InputPrice != 4 || !rows[4].DenyDataCollection {
+	rows := config.Engine
+	if len(rows) != 7 || rows[0].Model != "claude-haiku-5-5" || !rows[5].Local || rows[2].InputPrice != 4 || !rows[4].DenyDataCollection {
 		t.Errorf("rows %+v", rows)
+	}
+	if !strings.HasSuffix(config.Helper, "/koinon-voice-apple") || config.Voice != "com.apple.voice.enhanced.en-US.Evan" || rows[6].Adapter != "apple" || !rows[6].Local {
+		t.Errorf("helper %q, apple row %+v", config.Helper, rows[6])
 	}
 	dir := t.TempDir()
 	for name, body := range map[string]string{
-		"empty":       ``,
-		"no name":     "[[engine]]\nadapter = \"openai\"\nmodel = \"m\"\nbase_url = \"u\"\nlocal = true\n",
-		"bad adapter": "[[engine]]\nname = \"a\"\nadapter = \"grpc\"\nmodel = \"m\"\nlocal = true\n",
-		"no base":     "[[engine]]\nname = \"a\"\nadapter = \"openai\"\nmodel = \"m\"\nlocal = true\n",
-		"no provider": "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\n",
-		"unknown":     "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\ntemperature = 1\n",
-		"duplicate":   "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
+		"empty":        ``,
+		"no name":      "[[engine]]\nadapter = \"openai\"\nmodel = \"m\"\nbase_url = \"u\"\nlocal = true\n",
+		"bad adapter":  "[[engine]]\nname = \"a\"\nadapter = \"grpc\"\nmodel = \"m\"\nlocal = true\n",
+		"no base":      "[[engine]]\nname = \"a\"\nadapter = \"openai\"\nmodel = \"m\"\nlocal = true\n",
+		"no provider":  "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\n",
+		"apple remote": "[[engine]]\nname = \"a\"\nadapter = \"apple\"\nmodel = \"m\"\nprovider = \"Apple\"\n",
+		"unknown":      "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\ntemperature = 1\n",
+		"duplicate":    "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
 	} {
 		p := filepath.Join(dir, strings.ReplaceAll(name, " ", "-")+".toml")
 		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
@@ -256,15 +261,15 @@ func TestKeychain(t *testing.T) {
 
 func TestBuildMissingKey(t *testing.T) {
 	keys := Keychain{Command: fakeSecurity(t), GOOS: "darwin"}
-	_, err := Build(context.Background(), Row{Name: "o", Adapter: "openai", BaseURL: "u", Model: "m", Key: "openai", Provider: "OpenAI"}, keys, nil)
+	_, err := Build(context.Background(), Row{Name: "o", Adapter: "openai", BaseURL: "u", Model: "m", Key: "openai", Provider: "OpenAI"}, Env{Keys: keys})
 	if err == nil || !strings.Contains(err.Error(), "no key for openai") {
 		t.Errorf("error %v", err)
 	}
-	e, err := Build(context.Background(), Row{Name: "a", Adapter: "anthropic", Model: "m", Key: "anthropic", Provider: "Anthropic", Effort: "low"}, keys, nil)
+	e, err := Build(context.Background(), Row{Name: "a", Adapter: "anthropic", Model: "m", Key: "anthropic", Provider: "Anthropic", Effort: "low"}, Env{Keys: keys})
 	if a, ok := e.(*Anthropic); err != nil || !ok || a.Key != "sk-test-anthropic" || a.Effort != "low" {
 		t.Errorf("anthropic %+v %v", e, err)
 	}
-	if e, err := Build(context.Background(), Row{Name: "l", Adapter: "openai", BaseURL: "u", Model: "m", Local: true}, keys, nil); err != nil || e.(*OpenAI).Key != "" {
+	if e, err := Build(context.Background(), Row{Name: "l", Adapter: "openai", BaseURL: "u", Model: "m", Local: true}, Env{Keys: keys}); err != nil || e.(*OpenAI).Key != "" {
 		t.Errorf("local %+v %v", e, err)
 	}
 }
@@ -275,6 +280,10 @@ type stubEngine struct {
 }
 
 func (s stubEngine) Summarize(ctx context.Context, item Item) (Summary, error) {
+	return s.Stream(ctx, item, nil)
+}
+
+func (s stubEngine) Stream(ctx context.Context, item Item, onText func(string)) (Summary, error) {
 	return Summary{Text: s.text, FirstToken: time.Millisecond, FirstSentence: 2 * time.Millisecond, Total: 3 * time.Millisecond}, s.err
 }
 
@@ -289,7 +298,7 @@ func TestRunAndScorecard(t *testing.T) {
 		{Name: "one", Item: testItem, Key: &Key{Asker: Field{{"codex"}}, Ask: Field{{"merge"}}}},
 		{Name: "two", Item: testItem},
 	}
-	results := Run(context.Background(), engines, items, time.Second)
+	results, _ := Run(context.Background(), engines, items, Options{Timeout: time.Second})
 	if len(results) != 6 {
 		t.Fatalf("%d results", len(results))
 	}
@@ -311,7 +320,7 @@ func TestRunAndScorecard(t *testing.T) {
 	out := b.String()
 	for _, want := range []string{
 		"| good | openai | m | local |", "| down | openai | m | external: OpenRouter |",
-		"| good | 2 | 0 | 1/2 | 1 ms | 2 ms | 3 ms | $0.000000 | 4.0 (1) |",
+		"| good | 2 | 0 | 1/2 |  | 1 ms | 2 ms |  | 3 ms | $0.000000 | 4.0 (1) |",
 		"| down | 2 | 2 | 0/0 |", "failed: HTTP 503: down for [key redacted]", "failed: no key for anthropic",
 		`merge twelve \| now.`,
 	} {
@@ -321,8 +330,8 @@ func TestRunAndScorecard(t *testing.T) {
 	}
 	rowsTable := out[strings.Index(out, "| Item "):]
 	for _, line := range strings.Split(strings.TrimSpace(rowsTable), "\n") {
-		// 14 columns: item, engine, five verdicts, seven measures.
-		if n := strings.Count(strings.ReplaceAll(line, `\|`, ""), "|"); n != 15 {
+		// 16 columns: item, engine, five verdicts, nine measures.
+		if n := strings.Count(strings.ReplaceAll(line, `\|`, ""), "|"); n != 17 {
 			t.Errorf("%d separators in %q", n, line)
 		}
 	}

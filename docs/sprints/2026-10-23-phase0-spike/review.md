@@ -65,3 +65,9 @@ requested:
 
 [Refusal review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378366349):
 approved.
+
+With F1 to F4 fixed, both reviews approved e6e2dbf, which merged as 6d1b90d:
+[peer review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378422323) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378422499).
+Chunk 03 moves F4's provider label after the summary ("Summary by PROVIDER."), so that the
+label is not the first spoken word that criterion 1 times; the screen line is unchanged.

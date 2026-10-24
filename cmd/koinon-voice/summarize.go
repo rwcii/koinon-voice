@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,9 +17,10 @@ import (
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-// speak plays a summary; tests replace it.
-var speak = func(ctx context.Context, text string) error {
-	return exec.CommandContext(ctx, "say", text).Run()
+// newSpeaker makes the voice that speaks summaries; tests replace it so no test plays audio
+// (WDR 006).
+var newSpeaker = func(helper *summarize.Launcher, voice string) summarize.Speaker {
+	return &summarize.Voice{Helper: helper, Voice: voice}
 }
 
 // keys reads API keys; tests replace it so no test reads the Keychain (WDR 006).
@@ -48,7 +48,9 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	only := fs.String("engine", "", "comma-separated engine names to run (default all)")
 	out := fs.String("out", "", "write the scorecard to this file (default stdout)")
 	timeout := fs.Duration("timeout", 90*time.Second, "per-request timeout")
-	doSpeak := fs.Bool("speak", false, "play each summary with macOS say")
+	doSpeak := fs.Bool("speak", false, "speak each summary through the Apple helper as it streams, and time the first spoken word")
+	helper := fs.String("helper", "", "the Apple helper's path (default: helper in the engines file)")
+	voice := fs.String("voice", "", "an AVSpeechSynthesisVoice identifier (default: voice in the engines file, else the system's en-US voice)")
 	blind := fs.Bool("blind", false, "hide engine names and ask for a 1 to 5 listenability rating per summary; q stops rating")
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
 	if err := fs.Parse(args); err != nil {
@@ -72,9 +74,10 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
 		return 1
 	}
-	rows, err := summarize.LoadEngines(*engines)
+	config, err := summarize.LoadConfig(*engines)
+	var rows []summarize.Row
 	if err == nil {
-		rows, err = selectRows(rows, *only)
+		rows, err = selectRows(config.Engine, *only)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
@@ -82,29 +85,49 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	}
 
 	ctx := context.Background()
+	launcher := &summarize.Launcher{Path: config.Helper}
+	if *helper != "" {
+		launcher.Path = *helper
+	}
+	if *voice == "" {
+		*voice = config.Voice
+	}
+	defer launcher.Close()
 	configured := make([]summarize.Configured, len(rows))
 	for i, r := range rows {
-		e, err := summarize.Build(ctx, r, keys, nil)
+		e, err := summarize.Build(ctx, r, summarize.Env{Keys: keys, Helper: launcher})
 		configured[i] = summarize.Configured{Row: r, Engine: e, Err: err}
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v\n", r.Name, err)
 		}
 	}
 
-	results := summarize.Run(ctx, configured, items, *timeout)
+	opts := summarize.Options{Timeout: *timeout, Label: !*blind}
+	var speaker summarize.Speaker
+	if *doSpeak {
+		speaker = newSpeaker(launcher, *voice)
+		opts.Voice = speaker
+	}
+	var r *rater
 	if *blind {
-		if err := rate(ctx, results, stdin, stdout, *doSpeak, *rateItems); err != nil {
-			fmt.Fprintln(stderr, "koinon-voice summarize:", err)
-			return 1
-		}
-	} else {
+		// Engines take turns in a new order for each item, so a listener cannot tell them
+		// apart by their place, and no line names them until the ratings are in. Each
+		// summary is rated right after it is heard.
+		opts.Order = shuffle
+		r = &rater{in: bufio.NewScanner(stdin), out: stdout, items: *rateItems}
+		opts.After = r.after
+	}
+	results, err := summarize.Run(ctx, configured, items, opts)
+	if r != nil {
+		r.printKey()
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
+		return 1
+	}
+	if !*blind {
 		for _, r := range results {
 			fmt.Fprintln(stdout, line(r))
-			if *doSpeak && r.Err == nil {
-				if err := speak(ctx, spoken(r)); err != nil {
-					fmt.Fprintln(stderr, "say:", err)
-				}
-			}
 		}
 	}
 
@@ -158,71 +181,78 @@ func line(r summarize.Result) string {
 		return fmt.Sprintf("%s\t%s\tfailed: %v", r.Item, r.Row.Name, r.Err)
 	}
 	s := r.Summary
+	// An external engine is labeled on screen; in speech, Run says "Summary by PROVIDER."
+	// after its summary (ADR 003, Decision 2; PDR 004, Decision 1).
 	where := "local"
 	if !r.Row.Local {
 		where = "external: " + r.Row.Provider
 	}
-	return fmt.Sprintf("%s\t%s\t%s\tfirst token %d ms\ttotal %d ms\t%s", r.Item, r.Row.Name, where, s.FirstToken.Milliseconds(), s.Total.Milliseconds(), s.Text)
-}
-
-// spoken is the summary as played outside the blind rating: an external engine's summary
-// names its provider first (ADR 003, Decision 2; PDR 004, Decision 1).
-func spoken(r summarize.Result) string {
-	if r.Row.Local {
-		return r.Summary.Text
+	spoken := ""
+	switch {
+	case r.Spoken != nil:
+		spoken = fmt.Sprintf("\tfirst spoken word %d ms", r.Spoken.FirstWord.Milliseconds())
+	case r.SpeechErr != nil:
+		spoken = fmt.Sprintf("\tspeech failed: %v", r.SpeechErr)
 	}
-	return "From " + r.Row.Provider + ". " + r.Summary.Text
+	return fmt.Sprintf("%s\t%s\t%s%s\tfirst token %d ms\ttotal %d ms\t%s", r.Item, r.Row.Name, where, spoken, s.FirstToken.Milliseconds(), s.Total.Milliseconds(), s.Text)
 }
 
 // errStop is a q at a rating prompt: rating ends and the ratings so far are kept.
 var errStop = errors.New("stop")
 
-// rate runs the blind listenability rating: per item, the summaries in shuffled order under
-// letters, each rated 1 to 5 before the engine names are shown. It rates the first items
-// items (all when 0) and stops early at a q.
-func rate(ctx context.Context, results []summarize.Result, stdin io.Reader, stdout io.Writer, doSpeak bool, items int) error {
-	in := bufio.NewScanner(stdin)
-	var key []string
-	defer func() {
-		fmt.Fprintln(stdout, "Engines:")
-		for _, k := range key {
-			fmt.Fprintln(stdout, k)
-		}
-	}()
-	for start, rated := 0, 0; start < len(results) && (items == 0 || rated < items); rated++ {
-		end := start
-		for end < len(results) && results[end].Item == results[start].Item {
-			end++
-		}
-		var round []int
-		for i := start; i < end; i++ {
-			if results[i].Err == nil {
-				round = append(round, i)
-			}
-		}
-		shuffle(len(round), func(i, j int) { round[i], round[j] = round[j], round[i] })
-		fmt.Fprintf(stdout, "Item %s\n", results[start].Item)
-		for n, i := range round {
-			label := string(rune('A' + n))
-			fmt.Fprintf(stdout, "%s: %s\n", label, results[i].Summary.Text)
-			if doSpeak {
-				if err := speak(ctx, results[i].Summary.Text); err != nil {
-					fmt.Fprintln(stdout, "say:", err)
-				}
-			}
-			r, err := ask(in, stdout, label)
-			if errors.Is(err, errStop) {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			results[i].Rating = r
-			key = append(key, fmt.Sprintf("%s %s = %s", results[start].Item, label, results[i].Row.Name))
-		}
-		start = end
+// rater runs the blind listenability rating during the run: for the first items items (all
+// when 0), each summary is shown under a letter in the run's shuffled order and rated 1 to
+// 5 after it has been heard. A q stops rating; the run goes on and keeps the ratings so far.
+type rater struct {
+	in      *bufio.Scanner
+	out     io.Writer
+	items   int
+	item    string
+	started int
+	letter  int
+	stopped bool
+	key     []string
+}
+
+func (r *rater) after(res *summarize.Result) error {
+	if r.stopped {
+		return nil
 	}
+	if res.Item != r.item {
+		if r.items > 0 && r.started == r.items {
+			r.stopped = true
+			fmt.Fprintln(r.out, "Rating done; the run goes on.")
+			return nil
+		}
+		r.item, r.letter = res.Item, 0
+		r.started++
+		fmt.Fprintf(r.out, "Item %s\n", res.Item)
+	}
+	if res.Err != nil {
+		return nil
+	}
+	label := string(rune('A' + r.letter))
+	r.letter++
+	fmt.Fprintf(r.out, "%s: %s\n", label, res.Summary.Text)
+	n, err := ask(r.in, r.out, label)
+	if errors.Is(err, errStop) {
+		r.stopped = true
+		fmt.Fprintln(r.out, "Rating stopped; the run goes on.")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	res.Rating = n
+	r.key = append(r.key, fmt.Sprintf("%s %s = %s", res.Item, label, res.Row.Name))
 	return nil
+}
+
+func (r *rater) printKey() {
+	fmt.Fprintln(r.out, "Engines:")
+	for _, k := range r.key {
+		fmt.Fprintln(r.out, k)
+	}
 }
 
 func ask(in *bufio.Scanner, stdout io.Writer, label string) (int, error) {

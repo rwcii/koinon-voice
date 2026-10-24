@@ -344,7 +344,7 @@ func TestOpenAITimeout(t *testing.T) {
 
 func TestTimerFirstSentence(t *testing.T) {
 	clock := time.Unix(0, 0)
-	tm := newTimer(func() time.Time { return clock })
+	tm := newTimer(func() time.Time { return clock }, nil)
 	step := func(d string) {
 		clock = clock.Add(10 * time.Millisecond)
 		tm.add(d)
@@ -373,11 +373,11 @@ func TestEchoedKeyStaysOutOfScorecard(t *testing.T) {
 	}})
 	defer srv.Close()
 	row := Row{Name: "compat", Adapter: "openai", BaseURL: srv.URL + "/v1", Model: "m", Provider: "Example", Key: "compat"}
-	e, err := Build(context.Background(), row, staticKeys{secret}, nil)
+	e, err := Build(context.Background(), row, Env{Keys: staticKeys{secret}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	results := Run(context.Background(), []Configured{{Row: row, Engine: e}}, []Fixture{{Name: "SYN-01", Item: testItem}}, time.Second)
+	results, _ := Run(context.Background(), []Configured{{Row: row, Engine: e}}, []Fixture{{Name: "SYN-01", Item: testItem}}, Options{Timeout: time.Second})
 	var b strings.Builder
 	if err := WriteScorecard(&b, results, []Row{row}); err != nil {
 		t.Fatal(err)
