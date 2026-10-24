@@ -854,6 +854,10 @@ Observations:
 - **Kokoro is slower to start and to speak**: a median of 818 ms to first audio against
   536 ms, and about 15% longer audio for the same text (15.3 s against 13.2 s for text 01).
   Its speed setting was left at 1.0.
+- **Speed.** After the rating, text 01 was played with Kokoro at speeds 1.0, 1.1 and 1.2
+  (15.3 s, 14.5 s and 13.2 s of audio). The maintainer: "1.1 is the smoothest speed up, 1.2
+  is acceptable, but pauses get very short". Apple's Zoe stays the speaking voice until
+  Kokoro is wired in, as the maintainer decided.
 
 ### Engines
 
