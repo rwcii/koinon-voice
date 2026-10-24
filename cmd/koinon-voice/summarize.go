@@ -101,7 +101,7 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 		for _, r := range results {
 			fmt.Fprintln(stdout, line(r))
 			if *doSpeak && r.Err == nil {
-				if err := speak(ctx, r.Summary.Text); err != nil {
+				if err := speak(ctx, spoken(r)); err != nil {
 					fmt.Fprintln(stderr, "say:", err)
 				}
 			}
@@ -158,7 +158,20 @@ func line(r summarize.Result) string {
 		return fmt.Sprintf("%s\t%s\tfailed: %v", r.Item, r.Row.Name, r.Err)
 	}
 	s := r.Summary
-	return fmt.Sprintf("%s\t%s\tfirst token %d ms\ttotal %d ms\t%s", r.Item, r.Row.Name, s.FirstToken.Milliseconds(), s.Total.Milliseconds(), s.Text)
+	where := "local"
+	if !r.Row.Local {
+		where = "external: " + r.Row.Provider
+	}
+	return fmt.Sprintf("%s\t%s\t%s\tfirst token %d ms\ttotal %d ms\t%s", r.Item, r.Row.Name, where, s.FirstToken.Milliseconds(), s.Total.Milliseconds(), s.Text)
+}
+
+// spoken is the summary as played outside the blind rating: an external engine's summary
+// names its provider first (ADR 003, Decision 2; PDR 004, Decision 1).
+func spoken(r summarize.Result) string {
+	if r.Row.Local {
+		return r.Summary.Text
+	}
+	return "From " + r.Row.Provider + ". " + r.Summary.Text
 }
 
 // errStop is a q at a rating prompt: rating ends and the ratings so far are kept.

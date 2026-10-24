@@ -23,8 +23,14 @@ type Anthropic struct {
 	now       func() time.Time
 }
 
-// Summarize streams one summary. A refusal or an empty answer is an error.
+// Summarize streams one summary. A refusal, an unfinished answer or an empty answer is an
+// error.
 func (a *Anthropic) Summarize(ctx context.Context, item Item) (Summary, error) {
+	s, err := a.summarize(ctx, item)
+	return s, scrub(err, a.Key)
+}
+
+func (a *Anthropic) summarize(ctx context.Context, item Item) (Summary, error) {
 	opts := []option.RequestOption{
 		option.WithAPIKey(a.Key),
 		// A retry would hide the latency being measured; a failed row says what happened.
@@ -76,5 +82,14 @@ func (a *Anthropic) Summarize(ctx context.Context, item Item) (Summary, error) {
 		s, _ := t.finish()
 		return s, fmt.Errorf("%w (category %q)", ErrRefused, message.StopDetails.Category)
 	}
-	return t.finish()
+	switch message.StopReason {
+	case anthropic.StopReasonEndTurn, anthropic.StopReasonStopSequence:
+		return t.finish()
+	case "":
+		s, _ := t.finish()
+		return s, fmt.Errorf("%w: the stream ended without a stop reason", ErrIncomplete)
+	default:
+		s, _ := t.finish()
+		return s, fmt.Errorf("%w: stop reason %s", ErrIncomplete, message.StopReason)
+	}
 }

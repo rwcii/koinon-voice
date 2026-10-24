@@ -216,3 +216,41 @@ func TestSpeakFailureIsReported(t *testing.T) {
 		t.Errorf("stderr %q", stderr.String())
 	}
 }
+
+func TestSpeakLabelsExternal(t *testing.T) {
+	dir, _ := setup(t)
+	said := stubSpeak(t)
+	engines := filepath.Join(dir, "external.toml")
+	body := fmt.Sprintf(`[[engine]]
+name = "remote"
+adapter = "openai"
+base_url = %q
+model = "r"
+provider = "OpenRouter"
+key = "openrouter"
+
+[[engine]]
+name = "local"
+adapter = "openai"
+base_url = %q
+model = "l"
+local = true
+`, server(t, "Codex asks you to merge."), server(t, "Codex wants a merge."))
+	if err := os.WriteFile(engines, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keys = fakeKeys{"openrouter": "synthetic-key"}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--speak"}, nil, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	want := []string{"From OpenRouter. Codex asks you to merge.", "Codex wants a merge."}
+	if strings.Join(*said, "|") != strings.Join(want, "|") {
+		t.Errorf("spoke %q, want %q", *said, want)
+	}
+	for _, w := range []string{"F-1\tremote\texternal: OpenRouter\t", "F-1\tlocal\tlocal\t"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout lacks %q:\n%s", w, stdout.String())
+		}
+	}
+}

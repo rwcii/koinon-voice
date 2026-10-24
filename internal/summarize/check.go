@@ -82,23 +82,34 @@ func matches(norm string, f Field) bool {
 
 var (
 	recommendationClaim = regexp.MustCompile(` (recommend|recommends|recommended|recommendation|suggest|suggests|proposes|advises|prefers) `)
-	// A denial is a negation within a few words of the claim: "no recommendation", "does not
-	// give a recommendation", "no recommendation or deadline was given".
-	recommendationDenial = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)( \w+){0,6} (recommend|suggest|preference)`)
+	// A denial is a negation of the claim itself, with only filler words between: "no
+	// recommendation", "does not give a recommendation", "no recommendation or deadline was
+	// given". "does not require a paid licence and recommends Ava" is not one.
+	recommendationDenial = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)(` + denialFiller + `){0,5} (recommend|suggest|preference)`)
 	deadlineClaim        = regexp.MustCompile(` (deadline|due|by (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|today|noon|midnight|the end|end of|\d)|before (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|noon|midnight|the end|end of|\d)|until \w+day) `)
-	deadlineDenial       = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)( \w+){0,6} (deadline|due date)`)
+	deadlineDenial       = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)(` + denialFiller + `){0,5} (deadline|due date)`)
 )
+
+// denialFiller is a word that may stand between a negation and what it denies.
+const denialFiller = ` (a|an|the|any|or|and|nor|one|clear|explicit|specific|firm|set|give|gives|given|make|makes|made|offer|offers|state|states|stated|mention|mentions|mentioned|include|includes|provide|provides|express|expresses|have|has|had|is|was|there|recommendation|deadline)`
 
 // sentenceBreak splits a summary into sentences and clauses; "4.1" stays whole.
 var sentenceBreak = regexp.MustCompile(`[.!?;:](\s|$)`)
 
-// claims reports whether the text states a fact the item lacks. A sentence that only says
-// there is none does not count, and a denial counts only in its own sentence, so "without a
-// new build. Claude recommends the folder" is a claim.
+// claims reports whether the text states a fact the item lacks. Each claim counts unless a
+// denial ends on its own word, so "no recommendation" does not count but "does not
+// recommend Kokoro but recommends Ava" does. A denial counts only in its own sentence.
 func claims(text string, claim, denial *regexp.Regexp) bool {
 	for _, sentence := range sentenceBreak.Split(text, -1) {
 		norm := normalize(sentence)
-		if claim.MatchString(norm) && !denial.MatchString(norm) {
+		denied := denial.FindAllStringIndex(norm, -1)
+	next:
+		for _, c := range claim.FindAllStringIndex(norm, -1) {
+			for _, d := range denied {
+				if d[1] > c[0] && d[1] <= c[1] {
+					continue next
+				}
+			}
 			return true
 		}
 	}

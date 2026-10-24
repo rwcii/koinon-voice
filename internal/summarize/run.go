@@ -2,6 +2,7 @@ package summarize
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -44,7 +45,7 @@ func Run(ctx context.Context, engines []Configured, items []Fixture, timeout tim
 					r.Summary.Cost, r.Summary.CostKnown = 0, true
 				}
 			} else {
-				r.Err = redactedError{r.Err}
+				r.Err = redactedError{err: r.Err}
 			}
 			results = append(results, r)
 		}
@@ -52,9 +53,28 @@ func Run(ctx context.Context, engines []Configured, items []Fixture, timeout tim
 	return results
 }
 
-// redactedError keeps any adapter's error message free of key-shaped text, which the
-// scorecard would otherwise commit.
-type redactedError struct{ err error }
+// redactedError keeps an adapter's error message free of its configured key and of
+// key-shaped text, which the scorecard would otherwise commit.
+type redactedError struct {
+	err    error
+	secret string
+}
 
-func (e redactedError) Error() string { return redact(e.err.Error()) }
+func (e redactedError) Error() string {
+	s := e.err.Error()
+	if e.secret != "" {
+		s = strings.ReplaceAll(s, e.secret, "[key redacted]")
+	}
+	return redact(s)
+}
+
 func (e redactedError) Unwrap() error { return e.err }
+
+// scrub hides the adapter's own key in its error. A provider can echo any credential it
+// received, whatever its shape (ADR 003, Decision 2).
+func scrub(err error, key string) error {
+	if err == nil {
+		return nil
+	}
+	return redactedError{err: err, secret: key}
+}

@@ -33,18 +33,18 @@ fact and the summary claims none; `invented` means the summary claims a recommen
 deadline the item lacks. A `missing` is the maintainer's to confirm.
 
 Answer keys were widened during the chunk where a correct summary was marked wrong (spoken
-forms such as "seventeen", "v0 4 1" and "o m l x", and synonyms for the options). One
-widening came after this run: SYN-05's second option now also accepts "free form", which
-Haiku's correct "if you don't, reviews stay free-form" did not match. With it, Haiku's
-SYN-05 row is correct and Haiku is 20/20; the tables below are the run as recorded. Also
-after the first run, a denial ("no recommendation") now counts only within its own sentence:
-before, "without a new app build. Claude recommends…" read as a denial and hid Qwen's
-invented recommendation in SYN-18.
+forms such as "seventeen", "v0 4 1" and "o m l x", and synonyms for the options). After
+the run, SYN-05's second option also accepts "free form", which Haiku's correct "if you
+don't, reviews stay free-form" did not match, and the check changed twice: a denial ("no
+recommendation") counts only in its own sentence, since "without a new app build. Claude
+recommends…" had hidden Qwen's invented recommendation in SYN-18; and in peer review it
+must deny that very claim, with only filler words between, so "does not require a paid
+licence and recommends Ava" is a claim. The recorded summaries were rescored with the final
+check and keys, without a new provider run; only Haiku's SYN-05 row changed, to correct.
 
 ## Observations
 
-- Haiku, Sonnet, Opus and OpenRouter's Gemini got every fixture right (Haiku after the
-  SYN-05 key fix). Haiku is the fastest external engine, at a median of 639 ms to the first
+- Haiku, Sonnet, Opus and OpenRouter's Gemini got every fixture right. Haiku is the fastest external engine, at a median of 639 ms to the first
   token, and costs under a fifth of a cent for all 20 items. Sonnet matches its first-token
   time at twenty times the cost; Opus is about twice as slow.
 - OpenAI's `gpt-6-luna` missed one: SYN-14 omits that the item is a disagreement over chunk
@@ -73,7 +73,7 @@ invented recommendation in SYN-18.
 
 | Engine | Rows | Failed | Correct | Median first token | Median first sentence | Median total | Cost | Mean rating |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| claude-haiku | 20 | 0 | 19/20 | 639 ms | 874 ms | 1077 ms | $0.001832 |  |
+| claude-haiku | 20 | 0 | 20/20 | 639 ms | 874 ms | 1077 ms | $0.001832 |  |
 | claude-sonnet | 20 | 0 | 20/20 | 640 ms | 998 ms | 1462 ms | $0.037654 |  |
 | claude-opus | 20 | 0 | 20/20 | 1430 ms | 1928 ms | 2278 ms | $0.094588 |  |
 | openai | 20 | 0 | 19/20 | 1659 ms | 1864 ms | 1958 ms | $0.001793 |  |
@@ -108,7 +108,7 @@ invented recommendation in SYN-18.
 | SYN-04 | openai | ok | ok | ok | ok | none | 788 ms | 967 ms | 1191 ms | 261/48 | $0.000050 |  | Claude asks whether to run the full race test suite now, which will take about twenty-five minutes and slow the machine. The options are to approve or not, and Claude recommends approval so the release has a full race run. |
 | SYN-04 | openrouter | ok | ok | ok | ok | none | 4245 ms | 4439 ms | 4573 ms | 266/414 | $0.001752 |  | Claude asks whether to run the full race test suite now before the release, which will take about twenty-five minutes and slow down the machine. You can approve running the tests now or decline. Claude recommends approving so the release has a full race run. |
 | SYN-04 | omlx-qwen3-4b | ok | ok | ok | ok | none | 152 ms | 375 ms | 650 ms | 268/53 | $0.000000 |  | Claude asks the maintainer to decide whether to run the full race test suite before the release. The tests take about 25 minutes to complete and will slow down the machine while running. Claude recommends approving the run so the release includes a full race test. |
-| SYN-05 | claude-haiku | ok | ok | missing | none | none | 544 ms | 790 ms | 948 ms | 378/107 | $0.000091 |  | Deepseek, the agent called deepseek-koinon-7c, asks you to decide whether to adopt the shared review checklist from the Koinon repository. If you adopt it, the file gets copied in and cited from AGENTS.md; if you don't, reviews stay free-form. The item gives no recommendation and no deadline. |
+| SYN-05 | claude-haiku | ok | ok | ok | none | none | 544 ms | 790 ms | 948 ms | 378/107 | $0.000091 |  | Deepseek, the agent called deepseek-koinon-7c, asks you to decide whether to adopt the shared review checklist from the Koinon repository. If you adopt it, the file gets copied in and cited from AGENTS.md; if you don't, reviews stay free-form. The item gives no recommendation and no deadline. |
 | SYN-05 | claude-sonnet | ok | ok | ok | none | none | 648 ms | 1055 ms | 1178 ms | 378/100 | $0.001756 |  | deepseek-koinon-7c asks you to decide whether to adopt the shared review checklist from the Koinon repository. Adopting it means copying the checklist file over and citing it from the agents guidance file; not adopting keeps the current free-form reviews. The asker gives no recommendation and no deadline. |
 | SYN-05 | claude-opus | ok | ok | ok | none | none | 1282 ms | 1569 ms | 1907 ms | 378/101 | $0.003532 |  | Deepseek asks you to decide whether to adopt the Koinon repository's shared review checklist. Adopting it means copying the checklist file and citing it from the agents guide, while not adopting keeps the current free-form reviews. There is no recommendation and no deadline. |
 | SYN-05 | openai | ok | ok | ok | none | none | 2422 ms | 2624 ms | 2696 ms | 258/173 | $0.000112 |  | Deepseek asks whether to adopt the shared review checklist by copying it and citing it in the agent guidance, or keep reviews free-form. No recommendation or deadline is given. |

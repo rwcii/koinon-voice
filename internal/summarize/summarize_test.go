@@ -142,13 +142,17 @@ func TestCheck(t *testing.T) {
 
 	none := &Key{Asker: Field{{"codex"}}, Ask: Field{{"voice"}}}
 	for text, want := range map[string]Verdict{
-		"Codex asks you to pick a voice.":                                 Absent,
-		"Codex asks you to pick a voice and recommends Ava.":              Invented,
-		"Codex asks you to pick a voice. It makes no recommendation.":     Absent,
-		"Codex asks you to pick a voice. Codex doesn't recommend either.": Absent,
-		"Codex asks for voices. No recommendation or deadline was given.": Absent,
-		"Ava starts without a delay. Codex recommends Ava.":               Invented,
-		"Codex has no deadline; it recommends Ava.":                       Invented,
+		"Codex asks you to pick a voice.":                                                            Absent,
+		"Codex asks you to pick a voice and recommends Ava.":                                         Invented,
+		"Codex asks you to pick a voice. It makes no recommendation.":                                Absent,
+		"Codex asks you to pick a voice. Codex doesn't recommend either.":                            Absent,
+		"Codex asks for voices. No recommendation or deadline was given.":                            Absent,
+		"Ava starts without a delay. Codex recommends Ava.":                                          Invented,
+		"Codex has no deadline; it recommends Ava.":                                                  Invented,
+		"Claude asks you to choose a voice that does not require a paid licence and recommends Ava.": Invented,
+		"Codex gives no deadline but recommends Ava.":                                                Invented,
+		"Codex asks you to pick a voice and does not give a recommendation.":                         Absent,
+		"There's no recommendation and no deadline given.":                                           Absent,
 	} {
 		if got := Check(text, none)[3]; got != want {
 			t.Errorf("%q recommendation %v, want %v", text, got, want)
@@ -162,6 +166,9 @@ func TestCheck(t *testing.T) {
 		"Codex asks for voices. It does not give a recommendation or a deadline.": Absent,
 		"Codex asks for voices. No recommendation or deadline was given.":         Absent,
 		"Codex makes no recommendation. It is due by Friday.":                     Invented,
+		"Codex needs a voice that does not cost money, due by Friday.":            Invented,
+		"Codex has no preference and needs a voice by Friday.":                    Invented,
+		"Neither a recommendation nor a deadline is given.":                       Absent,
 	} {
 		if got := Check(text, none)[4]; got != want {
 			t.Errorf("%q deadline %v, want %v", text, got, want)

@@ -39,3 +39,29 @@ Actions created no check suites, and went with it. The approving verdicts on the
 8f9c859, are on the new repository's pull request #2:
 [peer review](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6375491807) and
 [refusal review](https://github.com/rwcii/koinon-voice/pull/2#issuecomment-6375492089).
+
+## Chunk 02, summarize (e774d39)
+
+[Peer review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378366124), changes
+requested:
+
+1. **F1 (P1). A compatible server could echo any key into the scorecard.** Redaction matched
+   only `sk-`, `pk-` and `rk-` shapes. Disposition: fixed. Each adapter scrubs its own
+   configured key from its errors before they leave it, and key-shaped text is still
+   redacted; a test runs an echoing server through `Run` and `WriteScorecard`.
+2. **F2 (P2). A stream that ended early passed as a summary.** Disposition: fixed. The
+   OpenAI-compatible adapter needs a finish reason or `[DONE]`, the Anthropic adapter needs
+   `end_turn` or `stop_sequence`, and a token-limit stop is incomplete too; all are the new
+   `ErrIncomplete`, with tests for partial text at EOF and for each stop.
+3. **F3 (P2). A negation hid a later claim in its sentence.** Disposition: fixed. A denial
+   must end on the claim it denies, with only filler words between the negation and it, so
+   unrelated negations and mixed claims ("does not recommend Kokoro but recommends Ava")
+   count; tests cover both fields. The recorded summaries were rescored: no verdict changed
+   from this, and Haiku's SYN-05 changed from the earlier key fix.
+4. **F4 (P2). Ordinary playback did not name an external provider.** Disposition: fixed.
+   Outside the blind rating, an external summary is spoken as "From PROVIDER." before its
+   text and its screen line says `external: PROVIDER`; the blind rating still hides both
+   until the ratings are in. A test covers external and local playback.
+
+[Refusal review](https://github.com/rwcii/koinon-voice/pull/4#issuecomment-6378366349):
+approved.

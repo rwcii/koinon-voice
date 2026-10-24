@@ -50,6 +50,10 @@ var ErrRefused = errors.New("refused")
 // ErrEmpty is an answer with no text.
 var ErrEmpty = errors.New("empty answer")
 
+// ErrIncomplete is an answer that stopped before it finished: a stream that ended without
+// its completion signal, or a token limit. Its text is a fragment, not a summary.
+var ErrIncomplete = errors.New("incomplete answer")
+
 var sentenceEnd = regexp.MustCompile(`[.!?]["')\]]?\s`)
 
 // timer records the streamed timings of one request.

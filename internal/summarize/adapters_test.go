@@ -130,9 +130,18 @@ func TestAnthropicFailures(t *testing.T) {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprint(w, `{"type":"error","error":{"type":"invalid_request_error","message":"bad model"}}`)
 		}, "400", nil},
-		"refusal": {func(w http.ResponseWriter) { sse(w, anthropicEvents("refusal")...) }, "", ErrRefused},
-		"empty":   {func(w http.ResponseWriter) { sse(w, anthropicEvents("end_turn", "  ")...) }, "", ErrEmpty},
-		"nothing": {func(w http.ResponseWriter) { sse(w) }, "", ErrEmpty},
+		"refusal":    {func(w http.ResponseWriter) { sse(w, anthropicEvents("refusal")...) }, "", ErrRefused},
+		"empty":      {func(w http.ResponseWriter) { sse(w, anthropicEvents("end_turn", "  ")...) }, "", ErrEmpty},
+		"nothing":    {func(w http.ResponseWriter) { sse(w) }, "", ErrIncomplete},
+		"max tokens": {func(w http.ResponseWriter) { sse(w, anthropicEvents("max_tokens", "Codex asks you to")...) }, "max_tokens", ErrIncomplete},
+		"cut off": {func(w http.ResponseWriter) {
+			events := anthropicEvents("end_turn", "Codex asks you to")
+			sse(w, events[:3]...)
+		}, "", ErrIncomplete},
+		"echoed key": {func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"type":"error","error":{"type":"authentication_error","message":"invalid key test-key"}}`)
+		}, "[key redacted]", nil},
 		"malformed": {func(w http.ResponseWriter) {
 			sse(w, "event: message_start\ndata: {not json\n\n")
 		}, "", nil},
@@ -144,6 +153,9 @@ func TestAnthropicFailures(t *testing.T) {
 			_, err := newAnthropic(srv.URL).Summarize(context.Background(), testItem)
 			if err == nil {
 				t.Fatal("no error")
+			}
+			if strings.Contains(err.Error(), "test-key") {
+				t.Errorf("error keeps the key: %v", err)
 			}
 			if c.is != nil && !errors.Is(err, c.is) {
 				t.Errorf("error %v, want %v", err, c.is)
@@ -273,7 +285,15 @@ func TestOpenAIFailures(t *testing.T) {
 		"server error": {func(w http.ResponseWriter) { w.WriteHeader(http.StatusBadGateway) }, "HTTP 502", nil},
 		"malformed":    {func(w http.ResponseWriter) { sse(w, "data: {nope\n\n") }, "malformed", nil},
 		"nothing":      {func(w http.ResponseWriter) { sse(w, "data: [DONE]\n\n") }, "", ErrEmpty},
-		"closed early": {func(w http.ResponseWriter) { sse(w) }, "", ErrEmpty},
+		"closed early": {func(w http.ResponseWriter) { sse(w) }, "", ErrIncomplete},
+		"partial text": {func(w http.ResponseWriter) { sse(w, openAIChunk("Codex asks you to")) }, "", ErrIncomplete},
+		"length": {func(w http.ResponseWriter) {
+			sse(w, openAIChunk("Codex asks you to"), `data: {"choices":[{"delta":{},"finish_reason":"length"}]}`+"\n\n", "data: [DONE]\n\n")
+		}, "length", ErrIncomplete},
+		"echoed key": {func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":{"message":"bad credential synthetic-api-secret-123456"}}`)
+		}, "bad credential [key redacted]", nil},
 		"refusal": {func(w http.ResponseWriter) {
 			sse(w, `data: {"choices":[{"delta":{"refusal":"I can't help."}}]}`+"\n\n", "data: [DONE]\n\n")
 		}, "", ErrRefused},
@@ -288,7 +308,9 @@ func TestOpenAIFailures(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			srv := httptest.NewServer(&recorder{reply: c.reply})
 			defer srv.Close()
-			_, err := newOpenAI(srv.URL).Summarize(context.Background(), testItem)
+			o := newOpenAI(srv.URL)
+			o.Key = "synthetic-api-secret-123456" // any shape a compatible server accepts
+			_, err := o.Summarize(context.Background(), testItem)
 			if err == nil {
 				t.Fatal("no error")
 			}
@@ -298,7 +320,7 @@ func TestOpenAIFailures(t *testing.T) {
 			if c.want != "" && !strings.Contains(err.Error(), c.want) {
 				t.Errorf("error %v, want %q", err, c.want)
 			}
-			if strings.Contains(err.Error(), "WXYZ") || strings.Contains(err.Error(), "abcdef") {
+			if strings.Contains(err.Error(), "WXYZ") || strings.Contains(err.Error(), "abcdef") || strings.Contains(err.Error(), "synthetic-api-secret") {
 				t.Errorf("error keeps key text: %v", err)
 			}
 		})
@@ -340,3 +362,34 @@ func TestTimerFirstSentence(t *testing.T) {
 		t.Errorf("timings %v %v %v", s.FirstToken, s.FirstSentence, s.Total)
 	}
 }
+
+// A compatible server that echoes the credential it received must not put it in Run's
+// error or the scorecard, whatever the key's shape.
+func TestEchoedKeyStaysOutOfScorecard(t *testing.T) {
+	const secret = "synthetic-api-secret-123456"
+	srv := httptest.NewServer(&recorder{reply: func(w http.ResponseWriter) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":{"message":"key `+secret+` is not valid"}}`)
+	}})
+	defer srv.Close()
+	row := Row{Name: "compat", Adapter: "openai", BaseURL: srv.URL + "/v1", Model: "m", Provider: "Example", Key: "compat"}
+	e, err := Build(context.Background(), row, staticKeys{secret}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := Run(context.Background(), []Configured{{Row: row, Engine: e}}, []Fixture{{Name: "SYN-01", Item: testItem}}, time.Second)
+	var b strings.Builder
+	if err := WriteScorecard(&b, results, []Row{row}); err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Err == nil || strings.Contains(results[0].Err.Error(), secret) || strings.Contains(b.String(), secret) {
+		t.Fatalf("key reached output: %v\n%s", results[0].Err, b.String())
+	}
+	if !strings.Contains(b.String(), "[key redacted]") {
+		t.Errorf("scorecard lacks the redacted error:\n%s", b.String())
+	}
+}
+
+type staticKeys struct{ key string }
+
+func (k staticKeys) Key(context.Context, string) (string, error) { return k.key, nil }

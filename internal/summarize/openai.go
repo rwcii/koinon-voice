@@ -77,9 +77,14 @@ type chatChunk struct {
 	} `json:"error"`
 }
 
-// Summarize streams one summary. A refusal, a content filter stop or an empty answer is an
-// error. A response without usage leaves the cost unknown.
+// Summarize streams one summary. A refusal, a content filter stop, an unfinished stream or
+// an empty answer is an error. A response without usage leaves the cost unknown.
 func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
+	s, err := o.summarize(ctx, item)
+	return s, scrub(err, o.Key)
+}
+
+func (o *OpenAI) summarize(ctx context.Context, item Item) (Summary, error) {
 	request := chatRequest{
 		Model: o.Model,
 		Messages: []chatMessage{
@@ -124,7 +129,7 @@ func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
 	}
 
 	var refusal strings.Builder
-	finish := ""
+	finish, done := "", false
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), 1<<20)
 	for scanner.Scan() {
@@ -135,6 +140,7 @@ func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
 		}
 		data = strings.TrimSpace(data)
 		if data == "[DONE]" {
+			done = true
 			break
 		}
 		var chunk chatChunk
@@ -148,7 +154,7 @@ func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
 			t.add(c.Delta.Content)
 			refusal.WriteString(c.Delta.Refusal)
 			if c.FinishReason != "" {
-				finish = c.FinishReason
+				finish, done = c.FinishReason, true
 			}
 		}
 		if u := chunk.Usage; u != nil {
@@ -165,6 +171,14 @@ func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
 	if refusal.Len() > 0 || finish == "content_filter" {
 		s, _ := t.finish()
 		return s, fmt.Errorf("%w: %s", ErrRefused, strings.TrimSpace(refusal.String()+" "+finish))
+	}
+	switch {
+	case !done:
+		s, _ := t.finish()
+		return s, fmt.Errorf("%w: the stream ended without a finish reason or [DONE]", ErrIncomplete)
+	case finish == "length":
+		s, _ := t.finish()
+		return s, fmt.Errorf("%w: finish reason length", ErrIncomplete)
 	}
 	return t.finish()
 }
