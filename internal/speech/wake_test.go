@@ -41,18 +41,43 @@ func TestScoreWake(t *testing.T) {
 		t.Errorf("far %+v", far)
 	}
 	music := ScoreWake(runs, "a", "background/music")
-	if music.Wakes != 3 || music.Hours != 0.5 || music.PerHour() != 6 {
-		t.Errorf("music %+v %v", music, music.PerHour())
+	if rate, ok := music.PerHour(); music.Wakes != 3 || music.Hours != 0.5 || rate != 6 || !ok {
+		t.Errorf("music %+v %v", music, rate)
 	}
-	if (WakeScore{}).PerHour() != 0 {
-		t.Error("no hours")
+	if _, ok := (WakeScore{}).PerHour(); ok {
+		t.Error("a rate with no hours")
+	}
+}
+
+// A failed recording's hours are not in the false-wake rate (peer review F1).
+func TestScoreWakeFailedBackground(t *testing.T) {
+	hour := func(set string, n int) WakeFile { return WakeFile{Set: set, N: n, Seconds: 3600} }
+	runs := []WakeRun{
+		{Detector: "a", File: hour("background/music", 1), Events: []float64{100}},
+		{Detector: "a", File: hour("background/music", 2), Err: errors.New("helper exited")},
+		{Detector: "a", File: hour("background/podcast", 1), Err: errors.New("helper exited")},
+	}
+	mixed := ScoreWake(runs, "a", "background/music")
+	if rate, ok := mixed.PerHour(); rate != 1 || !ok || mixed.Hours != 1 || mixed.FailedHours != 1 || mixed.Failed != 1 {
+		t.Errorf("mixed %+v %v %v", mixed, rate, ok)
+	}
+	failed := ScoreWake(runs, "a", "background/podcast")
+	if _, ok := failed.PerHour(); ok || failed.FailedHours != 1 {
+		t.Errorf("all failed %+v", failed)
+	}
+	var b strings.Builder
+	WriteWakeScorecard(&b, []EngineInfo{{Name: "a"}}, runs)
+	for _, want := range []string{"| a | background/music | 2 | 1 | 1.00 | 1.00 | 1 | 1.00 |", "| a | background/podcast | 1 | 1 | 0.00 | 1.00 | 0 | unavailable |", "| a | all | 3 | 2 | 1.00 | 2.00 | 1 | 1.00 |"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("scorecard lacks %q:\n%s", want, b.String())
+		}
 	}
 }
 
 func TestScoreInterruption(t *testing.T) {
 	bridge := "Codex asks you to approve pull request twelve. It recommends merging after the tests pass."
 	clean := ScoreInterruption(bridge, "Stop, wait, I have a question.", "Stop. Wait, I have a question.")
-	if !clean.Passed() || len(clean.Heard) != 4 {
+	if !clean.Passed() || clean.Said != 6 || len(clean.Heard) != 6 {
 		t.Errorf("clean %+v", clean)
 	}
 	leak := ScoreInterruption(bridge, "Stop, wait, I have a question.", "approve pull request stop wait I have a question")
@@ -60,8 +85,15 @@ func TestScoreInterruption(t *testing.T) {
 		t.Errorf("leak %+v", leak)
 	}
 	missed := ScoreInterruption(bridge, "Stop, wait, I have a question.", "stop")
-	if missed.Passed() || strings.Join(missed.Missed, ",") != "have,question,wait" {
+	if missed.Passed() || strings.Join(missed.Missed, ",") != "a,have,i,question,wait" {
 		t.Errorf("missed %+v", missed)
+	}
+	// A common word is still the interruption's content (peer review F3).
+	if no := ScoreInterruption(bridge, "No.", ""); no.Passed() || strings.Join(no.Missed, ",") != "no" {
+		t.Errorf("missed no %+v", no)
+	}
+	if no := ScoreInterruption(bridge, "No.", "No!"); !no.Passed() {
+		t.Errorf("heard no %+v", no)
 	}
 	// The echo control: nothing said, so only leaks count.
 	if c := ScoreInterruption(bridge, "", ""); !c.Passed() {
@@ -69,5 +101,31 @@ func TestScoreInterruption(t *testing.T) {
 	}
 	if c := ScoreInterruption(bridge, "", "It recommends merging."); c.Passed() || strings.Join(c.Leaked, ",") != "merging,recommends" {
 		t.Errorf("leaky control %+v", c)
+	}
+}
+
+// The whole check needs voice processing, and an interruption run a barge-in during playback
+// and a non-empty interruption (peer review F2 and F3).
+func TestInterruptionVerdict(t *testing.T) {
+	bridge := "Codex asks you to approve pull request twelve."
+	heard := ScoreInterruption(bridge, "Stop, wait.", "Stop, wait.")
+	for _, c := range []struct {
+		name                  string
+		score                 Interruption
+		control, bargedIn, vp bool
+		want                  string
+	}{
+		{"passed", heard, false, true, true, ""},
+		{"spoken after the bridge finished", heard, false, false, true, "no barge-in during playback"},
+		{"no voice processing", heard, false, true, false, "voice processing was off"},
+		{"nothing to check", ScoreInterruption(bridge, "", ""), false, true, true, "the interruption has no words to check"},
+		{"missed", ScoreInterruption(bridge, "No.", ""), false, true, true, "missed no"},
+		{"silent control", ScoreInterruption(bridge, "", ""), true, false, true, ""},
+		{"leaky control", ScoreInterruption(bridge, "", "approve twelve"), true, false, true, "the bridge's words leaked: 12, approve"},
+		{"control without voice processing", ScoreInterruption(bridge, "", ""), true, false, false, "voice processing was off"},
+	} {
+		if got := strings.Join(c.score.Verdict(c.control, c.bargedIn, c.vp), "; "); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
 	}
 }

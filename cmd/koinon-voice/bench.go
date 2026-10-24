@@ -483,11 +483,8 @@ func benchInterrupt(b *benchFlags, textsPath string, n int, say string, control 
 		barge = fmt.Sprintf("%d ms after the start", *r.BargeInMS)
 	}
 	verdict := "passed"
-	switch {
-	case control && len(score.Leaked) > 0:
-		verdict = "leaked"
-	case !control && !score.Passed():
-		verdict = "failed"
+	if why := score.Verdict(control, r.BargeInMS != nil, r.VoiceProcessing); len(why) > 0 {
+		verdict = "failed: " + strings.Join(why, "; ")
 	}
 	report := fmt.Sprintf(`## %s run, %s
 

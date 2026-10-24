@@ -59,21 +59,32 @@ func Wakes(events []float64) int {
 }
 
 // WakeScore is a detector's score on one set: for takes, how many it woke on; for background,
-// its wakes and their rate per hour.
+// its wakes and their rate over the hours it scored. A failed recording's hours are kept apart
+// in FailedHours and are not in the rate.
 type WakeScore struct {
 	Files, Failed, Woke, Wakes int
-	Hours                      float64
+	Hours, FailedHours         float64
 }
 
 // Misses is takes the detector did not wake on (failed files count as misses).
 func (s WakeScore) Misses() int { return s.Files - s.Woke }
 
-// PerHour is false wakes per hour of background audio.
-func (s WakeScore) PerHour() float64 {
+// PerHour is false wakes per scored hour of background audio; ok is false when no hour was
+// scored, as when every recording failed.
+func (s WakeScore) PerHour() (rate float64, ok bool) {
 	if s.Hours == 0 {
-		return 0
+		return 0, false
 	}
-	return float64(s.Wakes) / s.Hours
+	return float64(s.Wakes) / s.Hours, true
+}
+
+// perHourCell is PerHour for the scorecard.
+func (s WakeScore) perHourCell() string {
+	rate, ok := s.PerHour()
+	if !ok {
+		return "unavailable"
+	}
+	return fmt.Sprintf("%.2f", rate)
 }
 
 // ScoreWake sums a detector's runs on one set.
@@ -84,11 +95,12 @@ func ScoreWake(runs []WakeRun, detector, set string) WakeScore {
 			continue
 		}
 		s.Files++
-		s.Hours += r.File.Seconds / 3600
 		if r.Err != nil {
 			s.Failed++
+			s.FailedHours += r.File.Seconds / 3600
 			continue
 		}
+		s.Hours += r.File.Seconds / 3600
 		w := Wakes(r.Events)
 		s.Wakes += w
 		if w > 0 {
@@ -218,7 +230,7 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 			fmt.Fprintf(b, "| %s | %s | %d | %d | %d | %d |\n", e.Name, set, s.Files, s.Failed, s.Woke, s.Misses())
 		}
 	}
-	fmt.Fprintf(b, "\n## False wakes\n\nWakes on background audio, with firings closer than %.0f s counted once.\n\n| Detector | Set | Recordings | Failed | Hours | False wakes | Per hour |\n| --- | --- | --- | --- | --- | --- | --- |\n", Refractory)
+	fmt.Fprintf(b, "\n## False wakes\n\nWakes on background audio, with firings closer than %.0f s counted once. The rate is over the hours scored; a failed recording's hours are not in it.\n\n| Detector | Set | Recordings | Failed | Hours scored | Hours failed | False wakes | Per hour |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n", Refractory)
 	for _, e := range infos {
 		if e.Err != nil {
 			continue
@@ -233,10 +245,11 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 			total.Failed += s.Failed
 			total.Wakes += s.Wakes
 			total.Hours += s.Hours
-			fmt.Fprintf(b, "| %s | %s | %d | %d | %.2f | %d | %.2f |\n", e.Name, set, s.Files, s.Failed, s.Hours, s.Wakes, s.PerHour())
+			total.FailedHours += s.FailedHours
+			fmt.Fprintf(b, "| %s | %s | %d | %d | %.2f | %.2f | %d | %s |\n", e.Name, set, s.Files, s.Failed, s.Hours, s.FailedHours, s.Wakes, s.perHourCell())
 		}
 		if total.Files > 0 {
-			fmt.Fprintf(b, "| %s | all | %d | %d | %.2f | %d | %.2f |\n", e.Name, total.Files, total.Failed, total.Hours, total.Wakes, total.PerHour())
+			fmt.Fprintf(b, "| %s | all | %d | %d | %.2f | %.2f | %d | %s |\n", e.Name, total.Files, total.Failed, total.Hours, total.FailedHours, total.Wakes, total.perHourCell())
 		}
 	}
 	b.WriteString("\n## Runs\n\n| Detector | Set | File | Wakes | Firings | Max score | Latency |\n| --- | --- | --- | --- | --- | --- | --- |\n")

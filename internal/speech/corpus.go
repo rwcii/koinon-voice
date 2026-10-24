@@ -21,7 +21,7 @@ var Sets = []string{"clean", "noisy"}
 // done, live check 4).
 var (
 	WakeSets       = []string{"wake/near", "wake/mid", "wake/far"}
-	BackgroundSets = []string{"background/music", "background/podcast", "background/coffee"}
+	BackgroundSets = []string{"background/music", "background/meeting", "background/podcast", "background/coffee"}
 )
 
 // Corpus is the recordings directory, ~/.local/share/koinon-voice/corpus by default:

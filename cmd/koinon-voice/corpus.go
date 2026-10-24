@@ -18,7 +18,7 @@ import (
 )
 
 const corpusUsage = `Usage: koinon-voice corpus (record --set clean|noisy | wake --distance near|mid|far |
-       background --source music|podcast|coffee | status) [flags]
+       background --source music|meeting|podcast|coffee | status) [flags]
 
 record prompts each phrase of the phrase list and records it through the Apple helper as
 SET/NN.wav (16 kHz mono) under the corpus directory, with its SHA-256 in SET/manifest.tsv.
@@ -77,7 +77,7 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	only := fs.String("only", "", "with record, comma-separated phrase numbers to record again")
 	channel := fs.Int("channel", 1, "with record, wake and background, the input device's channel that carries the microphone")
 	distance := fs.String("distance", "", "with wake: near (about 0.5 m), mid (about 1.5 m) or far (about 3 m)")
-	source := fs.String("source", "", "with background: music, podcast or coffee")
+	source := fs.String("source", "", "with background: music, meeting, podcast or coffee")
 	count := fs.Int("count", 0, "with wake, the takes per distance (default 20); with background, the recordings per source (default 3)")
 	minutes := fs.Float64("minutes", 20, "with background, the length of each recording")
 	if err := fs.Parse(args[1:]); err != nil {

@@ -17,6 +17,9 @@ import (
 // stands in for both the Apple helper and the bench helper, whose arguments it ignores.
 const fakeHelperMode = "KOINON_VOICE_FAKE_CMD_HELPER"
 
+// fakeDuplexAfter makes duplex hear the interruption only after playback, with no barge-in.
+const fakeDuplexAfter = "KOINON_VOICE_FAKE_DUPLEX_AFTER"
+
 func TestMain(m *testing.M) {
 	if os.Getenv(fakeHelperMode) != "" {
 		fakeHelper()
@@ -62,6 +65,11 @@ func fakeHelper() {
 			json.Unmarshal(m.Params, &p)
 			os.WriteFile(p.Capture, []byte("RIFF"), 0o600)
 			send(sidecar.Message{Type: "event", ID: m.ID, Event: "speaking"})
+			if os.Getenv(fakeDuplexAfter) != "" {
+				// The whole interruption is heard, but only after the bridge finished speaking.
+				send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"transcript":"Stop, wait, I have a question.","voice":"fake-voice","spoken_seconds":15.7,"barge_in_ms":null,"listened_seconds":25,"voice_processing":true}`)})
+				continue
+			}
 			send(sidecar.Message{Type: "event", ID: m.ID, Event: "barge_in", Data: json.RawMessage(`{"since_start_ms":3100}`)})
 			send(sidecar.Message{Type: "event", ID: m.ID, Event: "final", Data: json.RawMessage(`{"text":"Stop, wait. I have a question about the hotfix."}`)})
 			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"transcript":"Stop, wait. I have a question about the hotfix.","voice":"fake-voice","spoken_seconds":15.7,"barge_in_ms":3100,"listened_seconds":25,"voice_processing":true}`)})

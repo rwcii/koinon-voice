@@ -145,3 +145,48 @@ changes requested:
 With F1 to F3 and R1 fixed, both reviews approved b9f11e2, which merged as 93e1008:
 [peer review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381108404) and
 [refusal review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381108577).
+
+## Chunk 05, wake and interruption (dc65532)
+
+[Peer review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6388579784), changes
+requested:
+
+1. **F1 (P2). Failed background recordings counted toward the hours.** A recording's hours
+   were added before its error was checked, so a failed one diluted the false-wake rate and a
+   wholly failed set read as no false wakes. Disposition: fixed. Failed hours are a separate
+   count and column, the rate is over the hours scored, and a set with none scored shows its
+   rate as unavailable. Tests cover a mixed set and a wholly failed one.
+2. **F2 (P2). An interruption run passed without a barge-in.** The verdict looked only at
+   the transcript's words. Disposition: fixed. A run fails without voice processing, and an
+   interruption run fails without a barge-in during playback; the result gives each reason.
+   A regression test in which the whole phrase is heard after playback ends, with no
+   barge-in, fails with "no barge-in during playback", apart from the silent echo control.
+3. **F3 (P2). Common words vanished from the interruption.** "No." scored as passed with an
+   empty transcript, because "no" was filtered out as a common word. Disposition: fixed.
+   Every word of the interruption must be heard; common words are left out only when
+   attributing transcript words to the bridge as leaks. An interruption with no words to
+   check fails. Tests cover "No." missed in an empty transcript, "No." heard as "No!", and an
+   interruption with no words.
+4. **F4 (P2). The meeting recording of criterion 4 was missing.** Disposition: fixed, after
+   the maintainer chose to record one (scorecard-wake.md, Decisions 4). The recorder gains a
+   `meeting` source, the maintainer recorded 20 minutes of a meeting playing in the room, and
+   the bench, rerun on every set, woke on none of it (openWakeWord's highest score 0.047).
+   The takes' counts are unchanged, and openWakeWord's rate is now 0.57 false wakes per hour
+   over 1.75 h.
+5. **Nonblocking. The scorecard said the first, model-loading request was unscored.**
+   Disposition: fixed in the scorecard, which now says the first request is scored and its
+   Latency includes the model load.
+
+[Refusal review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6388580013),
+changes requested:
+
+6. **R1 (P2). v3's and v4's settings had no quoted decisions.** Disposition: fixed. The
+   scorecard's Decisions section gives each question as put to the maintainer on 2026-10-24,
+   its options and the quoted answer, with the scope of each, and does the same for the music
+   and meeting recordings. v2's larger training set is identified as the experimenter's
+   choice, and the earlier choice of the background sources as recorded in a handoff without
+   its question or answer.
+
+On dc65532 the new `internal/speech` tests do not build (no `FailedHours`, `Said` or
+`Verdict`, and `PerHour` has one result), and in `cmd/koinon-voice` the wake table lacks the
+failed-hours column and the run with no barge-in prints "Result: passed".

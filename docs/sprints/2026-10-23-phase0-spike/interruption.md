@@ -42,6 +42,11 @@ hashes.
   echo, and only "wait, I have a question" reached the transcriber. The bench scores the run
   as failed for the missing word. An interruption word for the product needs to outlast the
   voice processing's adaptation to double talk, or the bridge needs another cue.
+- **Scoring after review.** Peer review of this chunk made the bench stricter: a run fails
+  without voice processing; an interruption run fails without a barge-in during playback or
+  with an interruption that has no words; and every word of the interruption must be heard,
+  common words included, which only leak attribution leaves out. Under these rules the
+  control still passes, and the interrupt run still fails, on "stop" alone.
 - **Barge-in latency.** The transcriber's first non-empty partial result came about 1.5 s
   after the maintainer finished speaking, and playback stopped then, 4.1 s after the start.
 

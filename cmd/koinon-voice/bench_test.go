@@ -176,8 +176,8 @@ func TestBenchWake(t *testing.T) {
 	for _, want := range []string{
 		"| openwakeword | wake/near | 2 | 0 | 1 | 1 |", "| phrase | wake/far | 1 | 0 | 1 | 0 |",
 		// One second of music is 1/3600 hour: one false wake is 3600 per hour.
-		"| openwakeword | background/music | 1 | 0 | 0.00 | 1 | 3600.00 |", "| openwakeword | background/podcast | 1 | 0 | 0.00 | 0 | 0.00 |",
-		"| openwakeword | all | 2 | 0 | 0.00 | 1 | 1800.00 |",
+		"| openwakeword | background/music | 1 | 0 | 0.00 | 0.00 | 1 | 3600.00 |", "| openwakeword | background/podcast | 1 | 0 | 0.00 | 0.00 | 0 | 0.00 |",
+		"| openwakeword | all | 2 | 0 | 0.00 | 0.00 | 1 | 1800.00 |",
 		"threshold 0.50", "wakes on the word koinon",
 		"| openwakeword | wake/near | 01 | 1 | 0.88 0.96 | 0.900 |",
 	} {
@@ -207,7 +207,8 @@ func TestBenchInterrupt(t *testing.T) {
 	}
 	report, _ := os.ReadFile(out)
 	for _, want := range []string{"## interrupt run", `Interruption said: "Stop, wait, I have a question."`, "Barge-in: 3100 ms after the start.",
-		"Interruption words heard: [have question stop wait]; missed: [].", "Bridge words in the transcript: [hotfix].", "Result: failed.",
+		"Interruption words heard: [a have i question stop wait]; missed: [].", "Bridge words in the transcript: [hotfix].",
+		"Result: failed: the bridge's words leaked: hotfix.",
 		"voice processing true"} {
 		if !strings.Contains(string(report), want) {
 			t.Errorf("report lacks %q:\n%s", want, report)
@@ -216,14 +217,26 @@ func TestBenchInterrupt(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(tmp, "audio")); err != nil || fi.Mode().Perm() != 0o700 {
 		t.Errorf("capture directory %v %v", fi.Mode(), err)
 	}
-	// The control appends a second run; with the fake's leak it is "leaked".
+	// The control appends a second run, which fails on the fake's leak.
 	if code := run([]string{"bench", "interrupt", "--control", "--texts", texts, "--text", "4", "--helper", os.Args[0], "--engines", "/nonexistent",
 		"--dir", filepath.Join(tmp, "audio"), "--out", out}, strings.NewReader("\n"), &stdout, &stderr); code != 0 {
 		t.Fatalf("control exit %d", code)
 	}
 	report, _ = os.ReadFile(out)
-	if strings.Count(string(report), "## ") != 2 || !strings.Contains(string(report), "## control run") || !strings.Contains(string(report), "Result: leaked.") {
+	if strings.Count(string(report), "## ") != 2 || !strings.Contains(string(report), "## control run") || !strings.Contains(string(report), "Result: failed: the bridge's words leaked: hotfix.") {
 		t.Errorf("report:\n%s", report)
+	}
+	// Every word heard, but after the bridge finished: not an interruption (peer review F2).
+	t.Setenv(fakeDuplexAfter, "1")
+	after := filepath.Join(tmp, "after.md")
+	if code := run([]string{"bench", "interrupt", "--texts", texts, "--text", "4", "--helper", os.Args[0], "--engines", "/nonexistent",
+		"--dir", filepath.Join(tmp, "audio"), "--out", after}, strings.NewReader("\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("after exit %d", code)
+	}
+	report, _ = os.ReadFile(after)
+	if !strings.Contains(string(report), "Barge-in: none.") || !strings.Contains(string(report), "missed: [].") ||
+		!strings.Contains(string(report), "Result: failed: no barge-in during playback.") {
+		t.Errorf("after report:\n%s", report)
 	}
 	if code := run([]string{"bench", "interrupt", "--texts", texts, "--text", "9", "--helper", os.Args[0]}, strings.NewReader("\n"), &stdout, &stderr); code != 1 {
 		t.Errorf("missing text: exit %d", code)
