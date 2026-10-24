@@ -4,6 +4,16 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The Apple helper (`helpers/apple`, a Swift package) behind a framed stdio sidecar protocol:
+  Foundation Models summaries, SpeechAnalyzer transcription of 16 kHz mono files, and
+  AVSpeechSynthesizer speech to the output device or a file. `summarize` gains the `apple`
+  engine, and `--speak` now streams each summary into the helper's speech sentence by sentence
+  and records every engine's time to its first spoken word; `--blind` rates each summary
+  right after it is heard. `koinon-voice helper` prints the helper's hello and can
+  transcribe a file or speak a text. An external engine's spoken summary ends with "Summary
+  by PROVIDER." The engines file's `voice` sets the speaking voice, and `koinon-voice-apple
+  record SECONDS FILE` records a 16 kHz mono file, refusing without microphone access or when
+  the recording is silent.
 - `koinon-voice summarize` turns decision items into spoken summaries with each engine in
   `~/.config/koinon-voice/engines.toml` (Claude through the Anthropic SDK, and OpenAI,
   OpenRouter or a local oMLX server through one OpenAI-compatible adapter), with API keys

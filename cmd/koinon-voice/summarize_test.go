@@ -12,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
 type fakeKeys map[string]string
@@ -44,7 +47,9 @@ func setup(t *testing.T) (dir, engines string) {
 		t.Fatal(err)
 	}
 	engines = filepath.Join(dir, "engines.toml")
-	body := fmt.Sprintf(`[[engine]]
+	body := fmt.Sprintf(`voice = "file-voice"
+
+[[engine]]
 name = "local-a"
 adapter = "openai"
 base_url = %q
@@ -74,19 +79,51 @@ key = "openrouter"
 	return dir, engines
 }
 
-func stubSpeak(t *testing.T) *[]string {
-	t.Helper()
-	var mu sync.Mutex
-	var said []string
-	old := speak
-	speak = func(ctx context.Context, text string) error {
-		mu.Lock()
-		defer mu.Unlock()
-		said = append(said, text)
-		return nil
+// fakeSpeaker records what would be spoken; fail makes every utterance fail.
+type fakeSpeaker struct {
+	mu    sync.Mutex
+	said  []string
+	fail  error
+	voice string
+}
+
+func (f *fakeSpeaker) Start(ctx context.Context) (summarize.Speech, error) {
+	if f.fail != nil {
+		return nil, f.fail
 	}
-	t.Cleanup(func() { speak = old })
-	return &said
+	return &fakeSpeech{f: f}, nil
+}
+
+type fakeSpeech struct {
+	f     *fakeSpeaker
+	text  strings.Builder
+	first time.Time
+}
+
+func (s *fakeSpeech) Write(delta string) {
+	if s.first.IsZero() {
+		s.first = time.Now()
+	}
+	s.text.WriteString(delta)
+}
+
+func (s *fakeSpeech) Finish() (summarize.Spoken, error) {
+	s.f.mu.Lock()
+	defer s.f.mu.Unlock()
+	s.f.said = append(s.f.said, s.text.String())
+	return summarize.Spoken{FirstSentence: s.first, FirstAudio: s.first.Add(time.Millisecond), Voice: "fake"}, nil
+}
+
+func stubSpeak(t *testing.T) *fakeSpeaker {
+	t.Helper()
+	f := &fakeSpeaker{}
+	old := newSpeaker
+	newSpeaker = func(_ *summarize.Launcher, voice string) summarize.Speaker {
+		f.voice = voice
+		return f
+	}
+	t.Cleanup(func() { newSpeaker = old })
+	return f
 }
 
 func TestSummarizeFixtures(t *testing.T) {
@@ -107,8 +144,8 @@ func TestSummarizeFixtures(t *testing.T) {
 			t.Errorf("stdout lacks %q:\n%s", want, lines)
 		}
 	}
-	if len(*said) != 2 {
-		t.Errorf("spoke %q", *said)
+	if len(said.said) != 2 || !strings.Contains(lines, "first spoken word") {
+		t.Errorf("spoke %q\n%s", said.said, lines)
 	}
 	card, err := os.ReadFile(out)
 	if err != nil {
@@ -119,9 +156,28 @@ func TestSummarizeFixtures(t *testing.T) {
 	}
 }
 
+// The engines file's voice speaks summaries unless --voice names another.
+func TestSummarizeVoice(t *testing.T) {
+	for flag, want := range map[string]string{"": "file-voice", "flag-voice": "flag-voice"} {
+		dir, engines := setup(t)
+		said := stubSpeak(t)
+		args := []string{"summarize", "--engines", engines, "--fixtures", dir, "--out", filepath.Join(dir, "card.md"), "--speak"}
+		if flag != "" {
+			args = append(args, "--voice", flag)
+		}
+		var stdout, stderr bytes.Buffer
+		if code := run(args, nil, &stdout, &stderr); code != 0 {
+			t.Fatalf("exit %d: %s", code, stderr.String())
+		}
+		if said.voice != want {
+			t.Errorf("--voice %q: spoke with %q, want %q", flag, said.voice, want)
+		}
+	}
+}
+
 func TestSummarizeBlind(t *testing.T) {
 	dir, engines := setup(t)
-	stubSpeak(t)
+	said := stubSpeak(t)
 	old := shuffle
 	shuffle = func(n int, swap func(i, j int)) { // local-b is A
 		if n > 1 {
@@ -147,6 +203,23 @@ func TestSummarizeBlind(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", want, got)
 		}
 	}
+	// Each summary is heard once, in the shuffled order, with no provider label.
+	if strings.Join(said.said, "|") != "Codex wants a merge.|Codex asks you to merge." {
+		t.Errorf("spoke %q", said.said)
+	}
+
+	// A summary whose playback failed is not shown or rated, and the next is.
+	said.fail = errors.New("no audio device")
+	stdout.Reset()
+	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--engine", "local-a,local-b", "--blind", "--speak"}, strings.NewReader("5\n5\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	got = stdout.String()
+	if !strings.Contains(got, "A: playback failed (no audio device); not rated.") || strings.Contains(got, "Rating for") ||
+		strings.Contains(got, "A: Codex") || strings.Contains(got, "(1) |") {
+		t.Errorf("after a playback failure:\n%s", got)
+	}
+	said.fail = nil
 
 	// q stops rating and keeps the ratings so far.
 	stdout.Reset()
@@ -205,15 +278,13 @@ func TestSummarizeItem(t *testing.T) {
 
 func TestSpeakFailureIsReported(t *testing.T) {
 	dir, engines := setup(t)
-	old := speak
-	speak = func(ctx context.Context, text string) error { return errors.New("no audio device") }
-	t.Cleanup(func() { speak = old })
+	stubSpeak(t).fail = errors.New("no audio device")
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--engine", "local-a", "--speak"}, nil, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	if !strings.Contains(stderr.String(), "say: no audio device") {
-		t.Errorf("stderr %q", stderr.String())
+	if !strings.Contains(stdout.String(), "speech failed: no audio device") {
+		t.Errorf("stdout %q", stdout.String())
 	}
 }
 
@@ -244,9 +315,10 @@ local = true
 	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--speak"}, nil, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	want := []string{"From OpenRouter. Codex asks you to merge.", "Codex wants a merge."}
-	if strings.Join(*said, "|") != strings.Join(want, "|") {
-		t.Errorf("spoke %q, want %q", *said, want)
+	// The label follows the summary, so it does not stand in for the first spoken word.
+	want := []string{"Codex asks you to merge. Summary by OpenRouter.", "Codex wants a merge."}
+	if strings.Join(said.said, "|") != strings.Join(want, "|") {
+		t.Errorf("spoke %q, want %q", said.said, want)
 	}
 	for _, w := range []string{"F-1\tremote\texternal: OpenRouter\t", "F-1\tlocal\tlocal\t"} {
 		if !strings.Contains(stdout.String(), w) {

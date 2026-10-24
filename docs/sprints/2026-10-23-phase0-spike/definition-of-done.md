@@ -22,6 +22,11 @@ Whether GitHub's `macos-latest` runner has the macOS 26 SDK is not known. Chunk 
 until it is shown, the Swift helper is built and tested on the maintainer's Mac and its CI
 build step reports the SDK it found.
 
+Chunk 03 found it on pull request #5: `macos-latest` was the `macos-26-arm64` image
+20261013.0424.1 on macOS 26.6.2 (25G83), with Xcode 26.6 (17F113) and the macOS 26.5 SDK,
+which has Foundation Models and Speech; CI built the helper and its six Swift tests passed
+([run 40063033352](https://github.com/rwcii/koinon-voice/actions/runs/40063033352)).
+
 ## Private data
 
 - Audio of the maintainer's voice, the corpus recordings and background recordings live under

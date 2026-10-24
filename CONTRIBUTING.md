@@ -78,7 +78,9 @@ Run `go vet ./...`, `gofmt -l .` (it must print nothing), `go test -race -timeou
 and `git diff --check`. Runtime changes also need the four `CGO_ENABLED=0` builds for
 linux/amd64, linux/arm64, darwin/amd64 and darwin/arm64. Go tests live beside packages;
 operating-system differences belong in `internal/platform`. For changed shell tooling, run
-`bash -n scripts/setup-repo.sh` and `sh -n` on `.githooks/*` and `scripts/check-attribution.sh`. Tests use temporary state
+`bash -n scripts/setup-repo.sh` and `sh -n` on `.githooks/*`, `scripts/check-attribution.sh` and
+`helpers/apple/test.sh`. For changes under `helpers/apple`, build it on macOS with `swift build -c
+release --package-path helpers/apple` and run `helpers/apple/test.sh`. Tests use temporary state
 and configuration, so they do not reach the person's services, terminals or agent
 configuration ([WDR 006](docs/engineering/wdr/006-native-integration-evidence.md)).
 

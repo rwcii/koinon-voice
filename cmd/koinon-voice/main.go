@@ -21,7 +21,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	case len(args) > 0 && args[0] == "summarize":
 		return runSummarize(args[1:], stdin, stdout, stderr)
+	case len(args) > 0 && args[0] == "helper":
+		return runHelper(args[1:], stdout, stderr)
 	}
-	fmt.Fprintln(stderr, "Usage: koinon-voice version | summarize")
+	fmt.Fprintln(stderr, "Usage: koinon-voice version | summarize | helper")
 	return 2
 }

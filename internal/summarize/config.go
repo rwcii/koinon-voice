@@ -2,6 +2,7 @@ package summarize
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,7 +12,7 @@ import (
 // Row is one engine in the engines file (ADR 003, Decision 1).
 type Row struct {
 	Name    string `toml:"name"`
-	Adapter string `toml:"adapter"` // anthropic or openai
+	Adapter string `toml:"adapter"` // anthropic, openai or apple
 	BaseURL string `toml:"base_url"`
 	Model   string `toml:"model"`
 	// Local is true when no text leaves the machine.
@@ -30,50 +31,78 @@ type Row struct {
 	Note string `toml:"note"`
 }
 
-type enginesFile struct {
-	Engine []Row `toml:"engine"`
+// Config is an engines file.
+type Config struct {
+	// Helper is the Apple helper's path, for the apple adapter and for speech.
+	Helper string `toml:"helper"`
+	// Voice is the AVSpeechSynthesisVoice identifier that speaks summaries; empty is the
+	// system's en-US voice.
+	Voice  string `toml:"voice"`
+	Engine []Row  `toml:"engine"`
 }
 
-// LoadEngines reads and checks an engines file.
+// LoadEngines reads and checks an engines file's rows.
 func LoadEngines(path string) ([]Row, error) {
+	c, err := LoadConfig(path)
+	return c.Engine, err
+}
+
+// LoadConfig reads and checks an engines file.
+func LoadConfig(path string) (Config, error) {
 	data, err := readLimited(path)
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
-	var f enginesFile
+	var f Config
 	meta, err := toml.Decode(string(data), &f)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		return nil, fmt.Errorf("%s: unknown field %s", path, undecoded[0])
+		return Config{}, fmt.Errorf("%s: unknown field %s", path, undecoded[0])
 	}
 	if len(f.Engine) == 0 {
-		return nil, fmt.Errorf("%s: no [[engine]] rows", path)
+		return Config{}, fmt.Errorf("%s: no [[engine]] rows", path)
 	}
 	seen := map[string]bool{}
 	for i, r := range f.Engine {
 		switch {
 		case r.Name == "":
-			return nil, fmt.Errorf("%s: engine %d has no name", path, i+1)
+			return Config{}, fmt.Errorf("%s: engine %d has no name", path, i+1)
 		case seen[r.Name]:
-			return nil, fmt.Errorf("%s: engine %s is listed twice", path, r.Name)
+			return Config{}, fmt.Errorf("%s: engine %s is listed twice", path, r.Name)
 		case r.Model == "":
-			return nil, fmt.Errorf("%s: engine %s has no model", path, r.Name)
-		case r.Adapter != "anthropic" && r.Adapter != "openai":
-			return nil, fmt.Errorf("%s: engine %s: adapter %q is not anthropic or openai", path, r.Name, r.Adapter)
+			return Config{}, fmt.Errorf("%s: engine %s has no model", path, r.Name)
+		case r.Adapter != "anthropic" && r.Adapter != "openai" && r.Adapter != "apple":
+			return Config{}, fmt.Errorf("%s: engine %s: adapter %q is not anthropic, openai or apple", path, r.Name, r.Adapter)
+		case r.Adapter == "apple" && !r.Local:
+			return Config{}, fmt.Errorf("%s: engine %s: Apple's model runs on this Mac; set local = true", path, r.Name)
 		case r.Adapter == "openai" && r.BaseURL == "":
-			return nil, fmt.Errorf("%s: engine %s: the openai adapter needs base_url", path, r.Name)
+			return Config{}, fmt.Errorf("%s: engine %s: the openai adapter needs base_url", path, r.Name)
 		case !r.Local && r.Provider == "":
-			return nil, fmt.Errorf("%s: engine %s is external and names no provider", path, r.Name)
+			return Config{}, fmt.Errorf("%s: engine %s is external and names no provider", path, r.Name)
 		}
 		seen[r.Name] = true
 	}
-	return f.Engine, nil
+	return f, nil
+}
+
+// Env is what Build needs beyond the row.
+type Env struct {
+	Keys   Keys
+	HTTP   *http.Client
+	Helper *Launcher
 }
 
 // Build makes the row's engine, reading its key. A missing key fails only this engine.
-func Build(ctx context.Context, r Row, keys Keys, client *http.Client) (Engine, error) {
+func Build(ctx context.Context, r Row, env Env) (Engine, error) {
+	keys, client := env.Keys, env.HTTP
+	if r.Adapter == "apple" {
+		if env.Helper == nil || env.Helper.Path == "" {
+			return nil, errors.New("no Apple helper: set helper in the engines file or pass --helper")
+		}
+		return &Apple{Helper: env.Helper}, nil
+	}
 	key := ""
 	if r.Key != "" {
 		var err error

@@ -80,11 +80,16 @@ type chatChunk struct {
 // Summarize streams one summary. A refusal, a content filter stop, an unfinished stream or
 // an empty answer is an error. A response without usage leaves the cost unknown.
 func (o *OpenAI) Summarize(ctx context.Context, item Item) (Summary, error) {
-	s, err := o.summarize(ctx, item)
+	return o.Stream(ctx, item, nil)
+}
+
+// Stream is Summarize with each text delta handed to onText.
+func (o *OpenAI) Stream(ctx context.Context, item Item, onText func(string)) (Summary, error) {
+	s, err := o.summarize(ctx, item, onText)
 	return s, scrub(err, o.Key)
 }
 
-func (o *OpenAI) summarize(ctx context.Context, item Item) (Summary, error) {
+func (o *OpenAI) summarize(ctx context.Context, item Item, onText func(string)) (Summary, error) {
 	request := chatRequest{
 		Model: o.Model,
 		Messages: []chatMessage{
@@ -117,7 +122,7 @@ func (o *OpenAI) summarize(ctx context.Context, item Item) (Summary, error) {
 		client = http.DefaultClient
 	}
 
-	t := newTimer(o.now)
+	t := newTimer(o.now, onText)
 	resp, err := client.Do(req)
 	if err != nil {
 		return Summary{}, err

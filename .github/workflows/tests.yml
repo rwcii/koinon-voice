@@ -30,6 +30,23 @@ jobs:
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
       - run: go test -race -timeout 30m ./...
+      - name: Build and test the Apple helper
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # The helper needs FoundationModels and Speech from a macOS 26.4 SDK or later; the
+          # runner's SDK is reported either way (definition of done, The machine).
+          sdk="$(xcrun --show-sdk-path)"
+          version="$(xcrun --show-sdk-version)"
+          echo "SDK $version at $sdk; $(xcodebuild -version | tr '\n' ' ')"
+          frameworks="$sdk/System/Library/Frameworks"
+          if [ -d "$frameworks/FoundationModels.framework" ] && [ -d "$frameworks/Speech.framework" ] &&
+            [ "$(printf '%s\n' 26.4 "$version" | sort -V | head -1)" = 26.4 ]; then
+            swift build -c release --package-path helpers/apple
+            helpers/apple/test.sh
+          else
+            echo "::notice::The macOS $version SDK lacks what the Apple helper needs; it was not built."
+          fi
       - name: Build the four CGO-free targets
         shell: bash
         run: |

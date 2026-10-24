@@ -11,6 +11,9 @@ import (
 // Engine produces one summary for one item.
 type Engine interface {
 	Summarize(ctx context.Context, item Item) (Summary, error)
+	// Stream is Summarize that also hands each text delta to onText as it arrives, so
+	// speech can start before the summary ends.
+	Stream(ctx context.Context, item Item, onText func(string)) (Summary, error)
 }
 
 // Summary is one engine's result for one item.
@@ -64,13 +67,15 @@ type timer struct {
 	s     Summary
 	first bool
 	sent  bool
+	// onText, when set, receives each delta.
+	onText func(string)
 }
 
-func newTimer(now func() time.Time) *timer {
+func newTimer(now func() time.Time, onText func(string)) *timer {
 	if now == nil {
 		now = time.Now
 	}
-	return &timer{start: now(), now: now}
+	return &timer{start: now(), now: now, onText: onText}
 }
 
 // add appends a streamed text delta.
@@ -84,6 +89,9 @@ func (t *timer) add(delta string) {
 		t.s.FirstToken = elapsed
 	}
 	t.text.WriteString(delta)
+	if t.onText != nil {
+		t.onText(delta)
+	}
 	if !t.sent && sentenceEnd.MatchString(t.text.String()) {
 		t.sent = true
 		t.s.FirstSentence = elapsed
