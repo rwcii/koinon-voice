@@ -4,6 +4,14 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The speech bench: `koinon-voice corpus record` prompts each phrase of a committed list of
+  60 Koinon phrases and records it, clean or with background noise, from one channel of the
+  input device into a private corpus with a SHA-256 manifest; `koinon-voice bench stt`
+  scores Apple SpeechAnalyzer, Parakeet and Cactus Whistle (with and without keyword
+  biasing) on it, with word error rate overall and on Koinon terms, latency and real-time
+  factor; `koinon-voice bench tts` times Apple speech synthesis and Kokoro to first audio and
+  takes a blind listenability rating. Parakeet, Whistle and Kokoro run in a Python bench
+  helper (`helpers/bench`) from a virtual environment outside the repository.
 - The Apple helper (`helpers/apple`, a Swift package) behind a framed stdio sidecar protocol:
   Foundation Models summaries, SpeechAnalyzer transcription of 16 kHz mono files, and
   AVSpeechSynthesizer speech to the output device or a file. `summarize` gains the `apple`

@@ -1,0 +1,9 @@
+# The speech bench's engines (chunk 04), installed in a virtual environment outside the
+# repository with a Homebrew Python 3.11:
+#   python3.11 -m venv ~/.local/share/koinon-voice/venv
+#   ~/.local/share/koinon-voice/venv/bin/pip install -r helpers/bench/requirements.txt
+# The models download on first use: Cactus-Compute/whistle, mlx-community/parakeet-tdt-0.6b-v2
+# and mlx-community/Kokoro-82M-bf16.
+mlx-audio==0.6.1
+cactus-needle==3.2.8
+misaki[en]==0.9.4

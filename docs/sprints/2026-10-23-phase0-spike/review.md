@@ -103,3 +103,41 @@ definition of done gives the runner image version, 20261013.0424.1, and the runn
 [Refusal review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6379992662):
 approved. The provider label's move after the summary was accepted, and the check's
 limitation recorded in the scorecard was carried forward.
+
+With F1 to F3 fixed, both reviews approved 5a2b516, which merged as 747c6c3:
+[peer review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6380052405) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/5#issuecomment-6380052585).
+
+## Chunk 04, speech bench (ff53c26)
+
+[Peer review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381064645), changes
+requested:
+
+1. **F1 (P2). A failed helper restart panicked the recognition bench.** After a request killed
+   its helper, a failed start left no helper and the next file dereferenced it. Disposition:
+   fixed. A file with no helper tries a new start; if that fails, the file is a failed row
+   scored as nothing heard, and the bench goes on to the next engine. A test with a timed-out
+   request and a failing restart covers it.
+2. **F2 (P2). The WAV reader divided by zero on a 1-bit header and accepted truncated
+   data.** Disposition: fixed. Bit depths other than 8, 16, 24 and 32, no channels, a chunk
+   that runs past the end of the file, and data that ends inside a frame are `ErrBadAudio`;
+   every chunk is checked against the file's size before it is read, which bounds memory.
+   Tests cover each with synthetic files.
+3. **F3 (P2). Medians of even counts took the upper middle value.** Disposition: fixed. Both
+   medians are now sample medians, with odd and even tests. Every set has 60 files and the
+   synthesis bench six texts, so the scorecard's medians were recomputed from its recorded
+   per-file latencies, the manifests' lengths and the renditions, without a new run: Apple's
+   first audio is 489 ms and Kokoro's 787 ms, and the recognition latencies and real-time
+   factors moved by at most 1 ms and 0.001.
+
+The three tests fail on ff53c26: the restart and WAV tests panic, and the median test gets
+536 ms.
+
+[Refusal review](https://github.com/rwcii/koinon-voice/pull/6#issuecomment-6381064802),
+changes requested:
+
+4. **R1 (P2). Keeping Zoe until Kokoro is wired in had no quoted decision.** Disposition:
+   fixed. The scorecard now gives the question put to the maintainer on 2026-10-23, its
+   options (Evan or Ava, from the same Apple synthesizer, or leaving Zoe) and the reason for
+   asking (`summarize --speak` speaks only Apple voices until a Kokoro engine exists, and
+   ADR 002 decides product engines), with the maintainer's answer quoted.

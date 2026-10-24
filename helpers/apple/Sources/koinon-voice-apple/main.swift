@@ -50,12 +50,13 @@ case nil:
     await serve(handlers: ["summarize": summarize, "transcribe": transcribe, "speak": speak], info: Info())
 case "record":
     let rest = Array(args.dropFirst())
-    guard rest.count == 2, let seconds = Double(rest[0]), seconds > 0 else {
-        FileHandle.standardError.write(Data("usage: koinon-voice-apple record SECONDS FILE.wav\n".utf8))
+    guard rest.count == 2 || rest.count == 3, let seconds = Double(rest[0]), seconds > 0,
+          let channel = rest.count == 3 ? Int(rest[2]) : 1 else {
+        FileHandle.standardError.write(Data("usage: koinon-voice-apple record SECONDS FILE.wav [CHANNEL]\n".utf8))
         exit(2)
     }
     do {
-        try await record(seconds: seconds, to: rest[1])
+        try await record(seconds: seconds, to: rest[1], channel: channel)
     } catch {
         let reason = (error as? HelperError)?.message ?? "\(error)"
         FileHandle.standardError.write(Data("koinon-voice-apple record: \(reason)\n".utf8))
@@ -64,6 +65,6 @@ case "record":
 case "version":
     print(helperVersion)
 default:
-    FileHandle.standardError.write(Data("usage: koinon-voice-apple [record SECONDS FILE.wav | version]\n".utf8))
+    FileHandle.standardError.write(Data("usage: koinon-voice-apple [record SECONDS FILE.wav [CHANNEL] | version]\n".utf8))
     exit(2)
 }

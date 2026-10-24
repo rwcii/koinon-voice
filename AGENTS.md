@@ -4,7 +4,8 @@ Koinon Voice is a voice interface to [Koinon](https://github.com/rwcii/koinon), 
 repository of it: the same process, structure, language and decision records (WDR 001,
 Decision 7). README.md describes the product and CONTRIBUTING.md the contribution steps.
 Commands live in `cmd/koinon-voice`, implementation packages in `internal/`, the macOS
-engine helper (a Swift package) in `helpers/apple`, and operating-system differences in
+engine helper (a Swift package) in `helpers/apple`, the speech bench's Python helper in
+`helpers/bench`, and operating-system differences in
 `internal/platform` once there are any. Tests live beside
 their packages. The shared skills are in `agents/skills/`; `.claude/skills`, `.agents/skills`
 and `.codex/skills` are symlinks to it, and `agents/skills/AGENTS.md` holds the rules for
@@ -41,6 +42,7 @@ git diff --check
 bash -n scripts/setup-repo.sh     # when shell files change
 sh -n .githooks/pre-commit .githooks/commit-msg scripts/check-attribution.sh helpers/apple/test.sh  # when shell files change
 swift build -c release --package-path helpers/apple && helpers/apple/test.sh  # when helpers/apple changes, on macOS
+python3 -m py_compile helpers/bench/bench_helper.py  # when helpers/bench changes
 ```
 
 Runtime changes also need the four `CGO_ENABLED=0` builds: linux/amd64, linux/arm64,
