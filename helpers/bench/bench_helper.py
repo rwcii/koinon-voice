@@ -158,14 +158,20 @@ class Engine:
             vad, needle = self.model
             audio = samples.astype(np.float32) / 32768
             pad = 3200  # 200 ms around each segment
-            for seg in get_speech_timestamps(torch.from_numpy(audio), vad, sampling_rate=16000):
+            segments = get_speech_timestamps(torch.from_numpy(audio), vad, sampling_rate=16000)
+            for seg in segments:
                 a, b = max(seg["start"] - pad, 0), min(seg["end"] + pad, len(audio))
                 text = needle.transcribe(audio[a:b], language="en", keywords=params.get("keywords") or None)["text"]
                 if "koinon" in re.findall(r"[a-z]+", text.lower()):
                     events.append(seg["start"] / 16000)
                     best = 1.0
-        return {"events": events, "max_score": best, "audio_seconds": len(samples) / 16000,
-                "elapsed_ms": (time.perf_counter() - start) * 1000}
+        result = {"events": events, "max_score": best, "audio_seconds": len(samples) / 16000,
+                  "elapsed_ms": (time.perf_counter() - start) * 1000}
+        if self.name == "phrase":
+            # How many speech segments voice activity found, so a miss can be told apart:
+            # none found, or found and not heard as "Koinon".
+            result["segments"] = len(segments)
+        return result
 
     def synthesize(self, request_id, params, started):
         import numpy as np

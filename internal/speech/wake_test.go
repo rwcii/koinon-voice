@@ -129,3 +129,31 @@ func TestInterruptionVerdict(t *testing.T) {
 		}
 	}
 }
+
+// A phrase-matching miss is told apart by whether voice activity found speech (#10).
+func TestWakeSilentMisses(t *testing.T) {
+	take := func(n int) WakeFile { return WakeFile{Set: "wake/far", N: n, Seconds: 3, Positive: true} }
+	zero, one := 0, 1
+	runs := []WakeRun{
+		{Detector: "phrase", File: take(1), Events: []float64{1}, Segments: &one},
+		{Detector: "phrase", File: take(2), Segments: &zero},
+		{Detector: "phrase", File: take(3), Segments: &one},
+		{Detector: "oww", File: take(1)},
+	}
+	if s := ScoreWake(runs, "phrase", "wake/far"); !s.Segmented || s.Silent != 1 || s.Misses() != 2 {
+		t.Errorf("phrase %+v", s)
+	}
+	if s := ScoreWake(runs, "oww", "wake/far"); s.Segmented || s.Silent != 0 {
+		t.Errorf("oww %+v", s)
+	}
+	var b strings.Builder
+	WriteWakeScorecard(&b, []EngineInfo{{Name: "phrase"}, {Name: "oww"}}, runs)
+	for _, want := range []string{
+		"| phrase | wake/far | 3 | 0 | 1 | 2 | 1 |", "| oww | wake/far | 1 | 0 | 0 | 1 |  |",
+		"| phrase | wake/far | 02 | 0 |  | 0.000 | 0 | 0 ms |", "| oww | wake/far | 01 | 0 |  | 0.000 |  | 0 ms |",
+	} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("scorecard lacks %q:\n%s", want, b.String())
+		}
+	}
+}

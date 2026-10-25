@@ -125,8 +125,8 @@ matching all but 7 of the 40 beyond 0.5 m. openWakeWord's misses do not grow wit
 and its scores are near 0 or 1, which points to the model rather than the audio: it woke on 65%
 of held-out synthetic speech and on 48% of the maintainer's, and on none of macOS's voices
 reading "Koinon". Phrase matching keeps a recognizer running on every sound and fails at
-distance, and the bench does not show whether its misses come from the voice activity step
-or the recognizer.
+distance; after Phase 0, the bench showed that 31 of its 36 misses had speech that the
+recognizer did not hear as "Koinon", and 5 had no speech found (#10).
 
 ## Echo cancellation and interruption
 
