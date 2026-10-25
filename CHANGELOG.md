@@ -4,6 +4,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice bench wake` records how many speech segments phrase matching's voice
+  activity step found per file, and its Misses table counts the takes missed with no speech
+  found (#10).
 - `koinon-voice bench names` resolves Koinon's names in a recognition scorecard's
   transcripts after recognition, by sound against the keyword list, and reports the error
   rates before and after, with wrong resolutions in held-out text (#11). Its report on

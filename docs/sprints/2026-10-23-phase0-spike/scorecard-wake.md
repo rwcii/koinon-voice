@@ -142,13 +142,17 @@ this sound source".
   60 (17, 2 and 5) with none.
 - **openWakeWord does not get worse with distance**, but misses half the takes at each: its
   scores are near 1 or near 0, with few between: only 3 of its 31 misses scored above 0.2
-  (0.39 to 0.44), so a threshold of 0.35 would wake on 32 takes. Its recall on the
+  (0.39 to 0.44), so a threshold of 0.35 would wake on 32 takes. A rerun after Phase 0 at
+  0.40, 0.35 and 0.30 woke on 31, 32 and 32 with the same one false wake (#10). Its recall on the
   maintainer's voice, 48%, is below its 65% on held-out generated speech, and
   it missed every `say` voice reading "Koinon": it likely learned the generator's
   pronunciation more than the word.
 - **Phrase matching is the best at 0.5 m and fails beyond it.** It woke on 17 of 20 near
-  takes and 7 of 40 farther ones. The bench does not record whether Silero VAD found no
-  segment in a quieter take or Whistle's transcript lacked the word.
+  takes and 7 of 40 farther ones. The bench did not record whether Silero VAD found no
+  segment in a quieter take or Whistle's transcript lacked the word; after Phase 0 (#10) it
+  does, and a rerun of phrase matching on the same takes, with the same wakes (17, 2 and 5),
+  found no speech segment in 5 of its 36 misses (0 near, 2 mid, 3 far): the other 31 had
+  speech that Whistle did not hear as "Koinon".
 - **False wakes are rare for both.** openWakeWord's one, at 9.6 min of the coffee shop
   recording, scored 0.578; the highest score in the other recordings was 0.047, in the
   meeting. Neither detector woke on the vocals or the meeting, which hold the most words.

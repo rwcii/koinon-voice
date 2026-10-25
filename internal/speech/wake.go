@@ -39,6 +39,9 @@ type WakeRun struct {
 	File     WakeFile
 	Events   []float64 // seconds into the file
 	MaxScore float64
+	// Segments is how many speech segments the detector's voice activity step found, when
+	// it reports them (phrase matching); nil when it does not.
+	Segments *int
 	Latency  time.Duration
 	Err      error
 }
@@ -63,7 +66,11 @@ func Wakes(events []float64) int {
 // in FailedHours and are not in the rate.
 type WakeScore struct {
 	Files, Failed, Woke, Wakes int
-	Hours, FailedHours         float64
+	// Silent is takes missed because no speech segment was found, for a detector that
+	// reports segments; Segmented is whether it does.
+	Silent             int
+	Segmented          bool
+	Hours, FailedHours float64
 }
 
 // Misses is takes the detector did not wake on (failed files count as misses).
@@ -105,6 +112,12 @@ func ScoreWake(runs []WakeRun, detector, set string) WakeScore {
 		s.Wakes += w
 		if w > 0 {
 			s.Woke++
+		}
+		if r.Segments != nil {
+			s.Segmented = true
+			if w == 0 && *r.Segments == 0 {
+				s.Silent++
+			}
 		}
 	}
 	return s
@@ -190,9 +203,10 @@ func RunWake(ctx context.Context, detectors []WakeDetector, files []WakeFile, op
 				var res struct {
 					Events   []float64 `json:"events"`
 					MaxScore float64   `json:"max_score"`
+					Segments *int      `json:"segments"`
 				}
 				if err = json.Unmarshal(data, &res); err == nil {
-					r.Events, r.MaxScore = res.Events, res.MaxScore
+					r.Events, r.MaxScore, r.Segments = res.Events, res.MaxScore, res.Segments
 				}
 			}
 			r.Err = err
@@ -217,7 +231,7 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 		}
 		fmt.Fprintf(b, "| %s | %s | %s | %s |\n", e.Name, helper, cell(string(e.Info)), cell(e.Note))
 	}
-	b.WriteString("\n## Misses\n\nTakes of \"Koinon\" the detector did not wake on; a failed file counts as a miss.\n\n| Detector | Set | Takes | Failed | Woke | Misses |\n| --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("\n## Misses\n\nTakes of \"Koinon\" the detector did not wake on; a failed file counts as a miss.\n\n| Detector | Set | Takes | Failed | Woke | Misses | No speech found |\n| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, e := range infos {
 		if e.Err != nil {
 			continue
@@ -227,7 +241,11 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 			if s.Files == 0 {
 				continue
 			}
-			fmt.Fprintf(b, "| %s | %s | %d | %d | %d | %d |\n", e.Name, set, s.Files, s.Failed, s.Woke, s.Misses())
+			silent := ""
+			if s.Segmented {
+				silent = fmt.Sprint(s.Silent)
+			}
+			fmt.Fprintf(b, "| %s | %s | %d | %d | %d | %d | %s |\n", e.Name, set, s.Files, s.Failed, s.Woke, s.Misses(), silent)
 		}
 	}
 	fmt.Fprintf(b, "\n## False wakes\n\nWakes on background audio, with firings closer than %.0f s counted once. The rate is over the hours scored; a failed recording's hours are not in it.\n\n| Detector | Set | Recordings | Failed | Hours scored | Hours failed | False wakes | Per hour |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n", Refractory)
@@ -252,7 +270,7 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 			fmt.Fprintf(b, "| %s | all | %d | %d | %.2f | %.2f | %d | %s |\n", e.Name, total.Files, total.Failed, total.Hours, total.FailedHours, total.Wakes, total.perHourCell())
 		}
 	}
-	b.WriteString("\n## Runs\n\n| Detector | Set | File | Wakes | Firings | Max score | Latency |\n| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("\n## Runs\n\n| Detector | Set | File | Wakes | Firings | Max score | Speech segments | Latency |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, r := range runs {
 		firings := ""
 		if r.Err != nil {
@@ -267,7 +285,11 @@ func WriteWakeScorecard(w io.Writer, infos []EngineInfo, runs []WakeRun) {
 			}
 			firings = strings.Join(ts, " ")
 		}
-		fmt.Fprintf(b, "| %s | %s | %02d | %d | %s | %.3f | %d ms |\n", r.Detector, r.File.Set, r.File.N, Wakes(r.Events), firings, r.MaxScore, r.Latency.Milliseconds())
+		segments := ""
+		if r.Segments != nil {
+			segments = fmt.Sprint(*r.Segments)
+		}
+		fmt.Fprintf(b, "| %s | %s | %02d | %d | %s | %.3f | %s | %d ms |\n", r.Detector, r.File.Set, r.File.N, Wakes(r.Events), firings, r.MaxScore, segments, r.Latency.Milliseconds())
 	}
 	io.WriteString(w, b.String())
 }
