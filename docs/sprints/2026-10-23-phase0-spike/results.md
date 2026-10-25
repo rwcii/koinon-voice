@@ -181,8 +181,8 @@ in for SSH.
 Filed during this chunk:
 
 - #8: ordinary playback may be silent on multichannel outputs.
-- #9: the summarize check marks a denial after its claim as a claim, and does not count
-  text that should not be read aloud.
+- #9 (fixed in #17): the summarize check marked a denial after its claim as a claim, and did
+  not count text that should not be read aloud.
 - #10: retrain the "Koinon" wake word model to a usable miss rate.
 - #11: resolve Koinon names after recognition, and measure it on the recorded transcripts
   (measured in `scorecard-names.md`).
