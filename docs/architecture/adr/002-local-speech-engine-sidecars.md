@@ -159,8 +159,10 @@ wired in" (scorecard-speech.md).
 
 ### Trade-offs Accepted
 
-Name matching after recognition is not measured yet; Phase 1 measures it on the recorded
-transcripts before it relies on it. Kokoro starts about 0.3 s later than Apple's voice.
+Name matching after recognition was measured on Phase 0's transcripts only (#11). It resolves
+peer and repository names, but the bare word "Koinon" also matches ordinary words such as
+"canon" and "can in", so where the bridge resolves it is left to Phase 1's design. Kokoro
+starts about 0.3 s later than Apple's voice.
 
 ---
 
@@ -226,3 +228,4 @@ engines ship is open.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Revised from Phase 0: proposed default engines, the audio path with voice processing, and the open runtime question |
+| 2026-10-24 | Decision 2's trade-off: name matching measured on Phase 0's transcripts (#11) |

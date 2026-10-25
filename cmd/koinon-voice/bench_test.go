@@ -242,3 +242,41 @@ func TestBenchInterrupt(t *testing.T) {
 		t.Errorf("missing text: exit %d", code)
 	}
 }
+
+// bench names resolves the names in a scorecard's transcripts without recordings.
+func TestBenchNames(t *testing.T) {
+	dir := t.TempDir()
+	phrases := filepath.Join(dir, "phrases.md")
+	card := filepath.Join(dir, "card.md")
+	near := filepath.Join(dir, "near.txt")
+	out := filepath.Join(dir, "names.md")
+	for path, text := range map[string]string{
+		phrases: "01. [Koinon], what's waiting?\n02. Ask [codex-koinon-voice-af].\n",
+		card:    "| 01 | clean | e | 1/3 | 1/1 | 9 ms | Quinan, what's waiting? |\n| 02 | clean | e | 3/6 | 3/5 | 9 ms | Ask codex coin invoice AF. |\n",
+		near:    "Fire the cannon.\nCarry on.\n",
+	} {
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"bench", "names", "--phrases", phrases, "--scorecard", card, "--ordinary", near, "--out", out}, nil, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Koinon, codex koinon voice af",
+		"| e | clean | 2 | 37.5% (3/8) | 0.0% (0/8) | 60.0% (3/5) | 0.0% (0/5) | 2 | 0 | 0 |",
+		"| near.txt | 2 | 1 | Fire the cannon.: cannon → koinon |",
+	} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("report lacks %q:\n%s", want, got)
+		}
+	}
+	if code := run([]string{"bench", "names", "--phrases", phrases, "--scorecard", filepath.Join(dir, "missing.md"), "--out", out}, nil, &stdout, &stderr); code != 1 {
+		t.Errorf("missing scorecard: exit %d", code)
+	}
+}

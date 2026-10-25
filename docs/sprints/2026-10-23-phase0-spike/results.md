@@ -72,7 +72,10 @@ The decision verbs are "approve", "reject", "confirm" and "merge" in the phrase 
 
 **Proposal.** Apple `SpeechTranscriber` recognizes, in the Swift helper. Koinon's names (the
 word "Koinon", peers, repositories) are matched against the names the connected daemons
-report, after recognition, and Phase 1 measures that matching on the recorded transcripts.
+report, after recognition. Measured after Phase 0 on the recorded transcripts (#11,
+`scorecard-names.md`), matching takes `SpeechTranscriber`'s Koinon-term rate from 28.7% and
+29.9% to 5.7% in both sets, with no wrong name in its 720 transcripts; the bare word "Koinon" also matches
+ordinary words such as "canon" and "can in", which peer names do not.
 
 **Reason.** A misheard verb is the costly error: the read-back of PDR 002, Decision 2 catches
 it only if "confirm" is heard. The two engines given the keyword list heard Koinon's names
@@ -178,10 +181,11 @@ in for SSH.
 Filed during this chunk:
 
 - #8: ordinary playback may be silent on multichannel outputs.
-- #9: the summarize check marks a denial after its claim as a claim, and does not count
-  text that should not be read aloud.
+- #9 (fixed in #17): the summarize check marked a denial after its claim as a claim, and did
+  not count text that should not be read aloud.
 - #10: retrain the "Koinon" wake word model to a usable miss rate.
-- #11: resolve Koinon names after recognition, and measure it on the recorded transcripts.
+- #11: resolve Koinon names after recognition, and measure it on the recorded transcripts
+  (measured in `scorecard-names.md`).
 - #12: speak with Kokoro, once ADR 002, Decision 4 is decided.
 - #13: summaries that speak names as a person would, rated on more items.
 - #14: score a larger local summarization model.
