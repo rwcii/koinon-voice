@@ -88,24 +88,24 @@ var (
 	recommendationDenial = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)(` + denialFiller + `){0,5} (recommend|suggest|preference)`)
 	// A denial can also follow the noun it denies: "a recommendation is not given". A verb
 	// is not denied this way, since "recommends not merging" recommends.
-	recommendationDenialAfter = regexp.MustCompile(` (recommendation|preference)(` + afterFiller + `){0,3} (` + afterDenial + `)` + afterLimit)
+	recommendationDenialAfter = regexp.MustCompile(` (recommendation|preference)(` + afterFiller + `){0,3} (` + afterDenial + `) `)
 	// "due" claims a deadline only with a time after it: "due to an advisory" does not.
 	deadlineClaim       = regexp.MustCompile(` (deadline|due (by|on|at|in|before|this|next|tomorrow|tonight|today|date|\w+day|\d+)|by (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|today|noon|midnight|the end|end of|\d)|before (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|noon|midnight|the end|end of|\d)|until \w+day) `)
 	deadlineDenial      = regexp.MustCompile(` (no|not|nor|without|neither|doesnt|didnt)(` + denialFiller + `){0,5} (deadline|due date)`)
-	deadlineDenialAfter = regexp.MustCompile(` (deadline|due date)(` + afterFiller + `){0,3} (` + afterDenial + `)` + afterLimit)
+	deadlineDenialAfter = regexp.MustCompile(` (deadline|due date)(` + afterFiller + `){0,3} (` + afterDenial + `) `)
 )
 
 // denialFiller is a word that may stand between a negation and what it denies.
 const denialFiller = ` (a|an|the|any|or|and|nor|one|clear|explicit|specific|firm|set|give|gives|given|make|makes|made|offer|offers|state|states|stated|mention|mentions|mentioned|include|includes|provide|provides|express|expresses|have|has|had|is|was|there|recommendation|deadline)`
 
 // afterFiller is a word that may stand between a noun and the denial after it ("the deadline
-// is not"); afterDenial is that denial. "The deadline is Friday, not Monday" is a claim,
-// since "Friday" is not filler. afterLimit captures a word that turns the denial into a
-// claim: "the deadline is not until Friday".
+// is not"); afterDenial is that denial, which must state an absence: a word such as
+// "unspecified", or a negation of a word such as "given". "The deadline is not Monday but
+// Friday", "the deadline is not until Friday" and "the recommendation is not to wait" are
+// claims.
 const (
 	afterFiller = ` (is|was|are|were|has|had|have|been|yet|also|still|or|and|deadline|recommendation)`
-	afterDenial = `not|isnt|wasnt|arent|werent|hasnt|none|unspecified|unstated|unknown|unclear`
-	afterLimit  = `( until| before| after| later| past)? `
+	afterDenial = `none|unspecified|unstated|unknown|unclear|undecided|(not|isnt|wasnt|arent|werent|hasnt|havent)( been| yet| a| any){0,2} (specified|given|stated|set|mentioned|provided|included|known|clear|decided|named|offered|made)`
 )
 
 // sentenceBreak splits a summary into sentences and clauses; "4.1" stays whole.
@@ -119,12 +119,7 @@ func claims(text string, claim, before, after *regexp.Regexp) bool {
 	for _, sentence := range sentenceBreak.Split(text, -1) {
 		norm := normalize(sentence)
 		denied := before.FindAllStringIndex(norm, -1)
-		var deniedAfter [][]int
-		for _, d := range after.FindAllStringSubmatchIndex(norm, -1) {
-			if d[len(d)-2] < 0 { // no afterLimit word
-				deniedAfter = append(deniedAfter, d)
-			}
-		}
+		deniedAfter := after.FindAllStringIndex(norm, -1)
 	next:
 		for _, c := range claim.FindAllStringIndex(norm, -1) {
 			for _, d := range denied {

@@ -155,6 +155,8 @@ func TestCheck(t *testing.T) {
 		"There's no recommendation and no deadline given.":                                           Absent,
 		"Codex asks you to pick a voice. A recommendation is not given.":                             Absent,
 		"Codex asks you to pick a voice and recommends not waiting.":                                 Invented,
+		"Codex asks you to merge. The recommendation is not to wait.":                                Invented,
+		"The recommendation is unclear.":                                                             Absent,
 	} {
 		if got := Check(text, none)[3]; got != want {
 			t.Errorf("%q recommendation %v, want %v", text, got, want)
@@ -176,6 +178,8 @@ func TestCheck(t *testing.T) {
 		"The deadline has not been set.":                                          Absent,
 		"The deadline is Friday, not Monday.":                                     Invented,
 		"The deadline is not until Friday.":                                       Invented,
+		"The deadline is not Monday but Friday.":                                  Invented,
+		"The deadline has not yet been set, but Codex recommends Ava.":            Absent,
 		"Codex asks you to upgrade due to a security advisory.":                   Absent,
 		"The review is due Friday.":                                               Invented,
 		"Codex needs it due tomorrow; it gives no recommendation.":                Invented,
@@ -409,5 +413,59 @@ func TestRescore(t *testing.T) {
 	}
 	if _, _, err := Rescore(old, nil); err == nil {
 		t.Error("rescore without the fixture")
+	}
+}
+
+// A scorecard written by WriteScorecard rescores unchanged, Markdown in a multiline summary
+// included, and a malformed table is an error, not a panic.
+func TestRescoreRoundTrip(t *testing.T) {
+	key := &Key{Asker: Field{{"codex"}}, Ask: Field{{"merge"}}}
+	rows := []Row{{Name: "test", Adapter: "openai", Model: "m", Local: true}}
+	var results []Result
+	for i, text := range []string{
+		"Codex asks you to merge.\n- Merge now.\n- Wait until tomorrow.",
+		"# Merge\nCodex asks you to merge.",
+		"Codex asks you to merge 4f2e9a1c.",
+	} {
+		results = append(results, Result{Item: fmt.Sprintf("SYN-0%d", i+1), Row: rows[0], Summary: Summary{Text: text}, Verdicts: Check(text, key)})
+	}
+	var b strings.Builder
+	if err := WriteScorecard(&b, results, rows); err != nil {
+		t.Fatal(err)
+	}
+	card := b.String()
+	if !strings.Contains(card, "| test | 3 | 0 | 3/3 | 3 |") {
+		t.Fatalf("scorecard:\n%s", card)
+	}
+	fixtures := []Fixture{{Name: "SYN-01", Key: key}, {Name: "SYN-02", Key: key}, {Name: "SYN-03", Key: key}}
+	got, changes, err := Rescore(card, fixtures)
+	if err != nil || got != card || len(changes) != 0 {
+		t.Errorf("rescore %v %q:\n%s", err, changes, got)
+	}
+
+	lines := strings.Split(card, "\n")
+	find := func(prefix string) int {
+		for i, l := range lines {
+			if strings.HasPrefix(l, prefix) {
+				return i
+			}
+		}
+		t.Fatalf("no line %q", prefix)
+		return 0
+	}
+	totalsHeader, totalsRow, rowsHeader := find("| Engine | Rows |"), find("| test | 3 |"), find("| Item |")
+	for name, edit := range map[string]func([]string){
+		"short totals row":   func(l []string) { l[totalsRow] = "| test |" },
+		"short totals head":  func(l []string) { l[totalsHeader] = "| Engine |" },
+		"short separator":    func(l []string) { l[totalsHeader+1] = "| --- |" },
+		"no separator":       func(l []string) { l[rowsHeader+1] = strings.ReplaceAll(l[rowsHeader+1], "---", "x") },
+		"short rows header":  func(l []string) { l[rowsHeader] = "| Item | Engine |" },
+		"short rows content": func(l []string) { l[rowsHeader+2] = "| SYN-01 |" },
+	} {
+		bad := append([]string(nil), lines...)
+		edit(bad)
+		if _, _, err := Rescore(strings.Join(bad, "\n"), fixtures); err == nil {
+			t.Errorf("%s: no error", name)
+		}
 	}
 }

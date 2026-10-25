@@ -19,15 +19,17 @@ var (
 	// A path starts with /, ~/ or ./, has two slashes, or ends in a file extension.
 	pathWord = regexp.MustCompile(`(^|[\s(])(~|\.\.?)?/[\w.-]+|\b[\w-]+(/[\w.-]+){2,}|\b[\w./-]+\.(go|md|json|toml|ya?ml|sh|swift|py|txt|onnx)\b`)
 	urlWord  = regexp.MustCompile(`\bhttps?://\S+`)
-	// Markdown is a list or heading marker at a line start, an asterisk (a list marker in a
-	// summary whose lines were joined, or emphasis) or code.
-	markdownMark = regexp.MustCompile("(?m)^\\s*([-+]|#+)\\s|\\*|`")
+	// Markdown is a list or heading marker at the start of the text or after a sentence's
+	// end, an asterisk (a list marker or emphasis) or code. Line breaks do not count, so the
+	// result is the same for a summary and its scorecard cell, which joins its lines.
+	markdownMark = regexp.MustCompile("(^|[:.!?] )([-+]|#+) \\S|\\*|`")
 )
 
 // NotForSpeech reports the kinds of text in a summary that should not be read aloud: commit
 // hashes, file paths, URLs and Markdown. A summary is spoken as written, so each is heard
 // character by character or as a symbol's name.
 func NotForSpeech(text string) []string {
+	text = strings.Join(strings.Fields(text), " ")
 	var kinds []string
 	for _, w := range hexWord.FindAllString(text, -1) {
 		if strings.ContainsAny(w, "0123456789") && strings.ContainsAny(strings.ToLower(w), "abcdef") {

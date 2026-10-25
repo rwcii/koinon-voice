@@ -29,6 +29,9 @@ func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 	// Item, engine, the verdicts and eight measures, then "Not for speech" and the summary.
 	unspokenCol := 2 + len(Fields) + 8
 	summaryCol := unspokenCol + 1
+	if err := header(lines, rows, unspokenCol, summaryCol+1); err != nil {
+		return "", nil, fmt.Errorf("Rows table: %w", err)
+	}
 	if !strings.Contains(lines[rows], notForSpeechHeader) {
 		lines[rows] = insertCell(lines[rows], unspokenCol, notForSpeechHeader)
 		lines[rows+1] = insertCell(lines[rows+1], unspokenCol, "---")
@@ -81,6 +84,10 @@ func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 	if !ok {
 		return "", nil, fmt.Errorf("no Totals table")
 	}
+	// Engine, rows, failed, correct, "Not for speech" and seven measures.
+	if err := header(lines, totals, 4, 12); err != nil {
+		return "", nil, fmt.Errorf("Totals table: %w", err)
+	}
 	added := !strings.Contains(lines[totals], notForSpeechHeader)
 	if added {
 		lines[totals] = insertCell(lines[totals], 4, notForSpeechHeader)
@@ -88,6 +95,13 @@ func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 	}
 	for i := totals + 2; i < len(lines) && strings.HasPrefix(lines[i], "|"); i++ {
 		cells := splitRow(lines[i])
+		want := 12
+		if added {
+			want = 11
+		}
+		if len(cells) != want {
+			return "", nil, fmt.Errorf("totals row %q has %d cells, want %d", lines[i], len(cells), want)
+		}
 		t := tallies[cells[0]]
 		if t == nil {
 			return "", nil, fmt.Errorf("no rows for engine %s", cells[0])
@@ -100,6 +114,29 @@ func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 		lines[i] = joinRow(cells)
 	}
 	return strings.Join(lines, "\n"), changes, nil
+}
+
+// header checks a table's header and separator: n cells with "Not for speech" at col, or
+// n-1 cells from before it existed.
+func header(lines []string, at, col, n int) error {
+	if at+1 >= len(lines) {
+		return fmt.Errorf("no separator row")
+	}
+	h, sep := splitRow(lines[at]), splitRow(lines[at+1])
+	switch {
+	case len(h) == n && h[col] != notForSpeechHeader:
+		return fmt.Errorf("header %q has no %q column", lines[at], notForSpeechHeader)
+	case len(h) != n && len(h) != n-1:
+		return fmt.Errorf("header %q has %d cells, want %d or %d", lines[at], len(h), n-1, n)
+	case len(sep) != len(h):
+		return fmt.Errorf("separator %q has %d cells, want %d", lines[at+1], len(sep), len(h))
+	}
+	for _, c := range sep {
+		if strings.Trim(c, "-:") != "" || c == "" {
+			return fmt.Errorf("separator %q is not a separator row", lines[at+1])
+		}
+	}
+	return nil
 }
 
 // table returns the index of the header line of the first table under heading.
