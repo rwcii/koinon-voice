@@ -211,7 +211,7 @@ PR closes all but the notices, and its third PR closes those. Koinon v0.4.3 has 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
 | Scrape the dashboard | Drive the HTML dashboard with its login cookie, now also with the secret's password login | Undocumented and fragile; breaks with any dashboard change. Phase 0 showed it works from `curl`, including verdicts, which does not change the reason |
-| Register as an agent session | Use the MCP tools as a peer | Peer messages are data and carry no maintainer authority (Koinon WDR 002, Decision 3) |
+| Register as an agent session | Use the MCP tools as a peer | Koinon records an agent session's messages and posts as that agent's; only the `maintainer` session's actions are the maintainer's |
 | The secret in a file | `--secret-file` with mode 0600 | A plain-text file on disk; the Keychain keeps it in the maintainer's login and off disk in plain text |
 
 ### Rationale
@@ -248,3 +248,4 @@ built. The record is a proposal for the maintainer's decision.
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Revised from Phase 0: the helper captures audio, the login over SSH, and the gaps in Koinon v0.4.1 |
 | 2026-10-25 | Revised to Koinon PDR 009: connectors run `koinon mcp --maintainer` on stdio, locally or over SSH, in place of SSH forwards and dashboard logins; the secret in the Keychain; the client recorded as `mcp:koinon-voice` |
+| 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |

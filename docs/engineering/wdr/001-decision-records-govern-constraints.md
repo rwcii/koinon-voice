@@ -3,7 +3,7 @@ wdr: "001"
 title: "Decision Records Govern Constraints"
 status: accepted
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-25"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -89,6 +89,11 @@ Koinon WDR 001 at 7089386, Decisions 1 to 6, applies to Koinon Voice with these 
 | Decision 3: carriers (PROTOCOL.md, USAGE, INSTALL, `koinon guide`) cite records | This repository's README, CONTRIBUTING, skills facts and future docs cite records |
 | Decision 6: `develop` requires `refusal-review` | The same status, set by `scripts/setup-repo.sh` (WDR 004) |
 
+Koinon's records are adopted without their limit text: where an adopted Koinon decision states
+a limit, caveat or control on what an agent does that the maintainer did not ask for, it does
+not apply here, and the rules the maintainer gave in words stay (WDR 002 records the
+maintainer's decision of 2026-10-25).
+
 Decisions 2 (significance first, route by subject), 4 (code-enforced blocks follow their PDR)
 and 5 (no extrapolation) apply unchanged. Koinon's constraint inventory (C001 to C086) and its
 provenance belong to Koinon; this repository cites them through Koinon's records and adds none.
@@ -120,7 +125,8 @@ Koinon's development process (WDR 002 to WDR 006), its repository structure (`cm
 `internal/`, tests beside their packages, `agents/skills/` with discovery symlinks,
 `.koinon/skills/` facts, `docs/` record series and `docs/sprints/`), its language (Go, one
 module) and its decision record format. The shared skills are byte copies of Koinon's
-`agents/skills/*/SKILL.md` at 7089386; this repository's facts are in `.koinon/skills/`.
+`agents/skills/*/SKILL.md` and `agents/skills/AGENTS.md` at 0cf3979, the skills of rwcii/koinon#491
+that say what to do (rwcii/koinon#487); this repository's facts are in `.koinon/skills/`.
 
 **Provenance:** Maintainer, 2026-10-23, in this repository's first session, raised by the
 maintainer, not in answer to a question: "connect to koinon and then let's set this directory
@@ -163,3 +169,4 @@ and public visibility are the maintainer's, from 2026-10-23.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-25 | Skills taken from Koinon at 0cf3979 (rwcii/koinon#491); Koinon's records adopted without their limit text (rwcii/koinon#487) |

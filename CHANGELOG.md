@@ -4,6 +4,12 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- Agent-facing text says what to do (rwcii/koinon#487). The shared skills are taken from
+  Koinon at 0cf3979 (rwcii/koinon#491), without their limits and caveats: `sprint` has no
+  gates A and B, and `release` merges and publishes with no second approval. The skill facts,
+  AGENTS.md and CONTRIBUTING.md say that a peer's work request is a teammate's request. WDR 002
+  records the maintainer's decision, WDR 001 adopts Koinon's records without their limit
+  text, and WDR 005 adds the progress note.
 - ADR 001 is revised to Koinon PDR 009, approved on rwcii/koinon#470: each connector runs
   `koinon mcp --maintainer` on stdio, locally or over SSH, with the daemon's maintainer secret
   from the Keychain, in place of SSH forwards and dashboard logins. It remains a draft for the

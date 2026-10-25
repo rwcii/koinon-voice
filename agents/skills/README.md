@@ -1,7 +1,7 @@
 # Shared agent skills
 
 The skills in this directory work in every agent that develops Koinon Voice. They are byte
-copies of [Koinon's shared skills](https://github.com/rwcii/koinon/tree/7089386ce4d85758f991f5b56c8de0e13fe2e754/agents/skills)
+copies of [Koinon's shared skills](https://github.com/rwcii/koinon/tree/0cf39799503d2de01c0be371195c729e65a3cece/agents/skills)
 (WDR 001, Decision 7); this repository's facts for them are in `.koinon/skills/`. Claude Code, Codex
 and OpenCode discover the canonical skills through symlinks. OpenCode also has generated
 slash-command wrappers that load these same skills. Rules for writing a skill are in
@@ -17,13 +17,13 @@ slash-command wrappers that load these same skills. Rules for writing a skill ar
 | [check](check/SKILL.md) | Run the checks that must pass before a push. |
 | [pair](pair/SKILL.md) | Share one checkout, trade the driver role at committed checkpoints, and finish within fixed criteria and bounded review. |
 | [ship](ship/SKILL.md) | Take one change through the project's branch, review and merge policy. |
-| [peer-tmux](peer-tmux/SKILL.md) | Inspect a peer terminal or run an authorized handoff, context reset and pickup cycle through tmux. |
+| [peer-tmux](peer-tmux/SKILL.md) | Inspect a peer terminal or run a handoff, context reset and pickup cycle through tmux. |
 | [peer-review](peer-review/SKILL.md) | Review another agent's frozen commit and record the verdict bound to it. |
 | [refusal-review](refusal-review/SKILL.md) | Check another agent's frozen commit for new refusals, gates and restrictions without a source, and for maintainer decisions recorded without their context. |
 | [release](release/SKILL.md) | Promote and publish a release after project-specific checks. |
-| [spin-up](spin-up/SKILL.md) | Prepare and execute an authorized team launch, including first-run prompts. |
+| [spin-up](spin-up/SKILL.md) | Prepare and carry out a team launch, including first-run prompts. |
 | [spin-down](spin-down/SKILL.md) | Collect each session's handoff and complete the team stop plan. |
-| [recover-team](recover-team/SKILL.md) | Reconcile team state and carry out a reviewed restart plan. |
+| [recover-team](recover-team/SKILL.md) | Reconcile team state and carry out a restart plan. |
 | [koinon-guide](koinon-guide/SKILL.md) | Read installed runtime guidance and catalog recommendations. |
 
 A typical change runs `check`, then `ship`, with the other agent family running `peer-review` and `refusal-review`.
@@ -67,10 +67,10 @@ See OpenCode's [commands](https://opencode.ai/docs/commands/) and
 
 ## Handoffs
 
-Each agent writes only `_handoff/<agent>/` in the main checkout, and `pickup` reads only the
-caller's own directory unless the maintainer names another agent. `_handoff/` is ignored by Git:
-handoffs are session state, not part of the product, and are never committed. Never keep a
-handoff in a linked worktree: worktrees are removed when their work merges.
+Each agent writes its own `_handoff/<agent>/` in the main checkout, and `pickup` reads the
+caller's own directory, or another agent's when the maintainer names it. `_handoff/` is ignored
+by Git: handoffs are session state, not part of the product. They go in the main checkout
+because a linked worktree is removed when its work merges.
 
 ## Layout
 

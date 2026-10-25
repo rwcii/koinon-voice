@@ -3,7 +3,7 @@ pdr: "002"
 title: "Spoken Maintainer Decisions"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-25"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -90,7 +90,7 @@ dashboard decisions. same weight."
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
 | Spoken words as drafts | Voice drafts; the maintainer approves on the dashboard | The maintainer decided spoken words carry full weight |
-| Spoken words as peer messages | The bridge posts as an agent session | Peer messages are data and grant no permission (Koinon WDR 002, Decision 3) |
+| Spoken words as peer messages | The bridge posts as an agent session | Koinon records an agent session's posts as that agent's, and the maintainer's spoken words carry the maintainer's weight |
 
 ### Rationale
 
@@ -172,3 +172,4 @@ are the maintainer's words of 2026-10-23.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |
