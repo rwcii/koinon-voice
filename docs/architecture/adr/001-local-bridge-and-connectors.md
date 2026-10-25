@@ -191,9 +191,15 @@ features can start on the second, reading on a timer until the third ships.
 **Provenance:** The maintainer decided on rwcii/koinon#470 that "the maintainer should be able
 to register a persistenet secret, or generate a password. this should be used to unlock the
 dashboard, and allow a remote system interact with the MCP/API" and "we can hash the
-secret/password, so only the valid secret would vlaidate" (2026-10-23); "yes, record the
-client on #470" and "no on option C, PDR 009 approved" (2026-10-25). Keeping each host's
-secret in the Keychain is this record's proposal.
+secret/password, so only the valid secret would vlaidate" (2026-10-23). On 2026-10-25, asked
+whether each maintainer action should record its client, the maintainer answered "yes, record
+the client on #470". Asked whether to refuse the maintainer mode to processes that descend
+from an agent session (option C), with the recommendation of no because the secret is already
+the gate and ancestry adds no proof against a process that holds it, and then whether to
+approve the draft as a whole, the maintainer answered "no on option C, PDR 009 approved".
+That approves PDR 009 as drafted, with the client recorded and Koinon's three-PR delivery,
+and leaves agent descendants able to start the maintainer mode with the secret. Keeping each
+host's secret in the Keychain is this record's proposal.
 
 Phase 0 found that Koinon v0.4.1 offers the maintainer only the HTML dashboard: no
 machine-readable read, no change notices, no stable action interface, no lasting credential,
