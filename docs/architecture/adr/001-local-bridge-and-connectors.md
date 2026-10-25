@@ -3,7 +3,7 @@ adr: "001"
 title: "Local Bridge and Koinon Connectors"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-24"
+updated: "2026-10-25"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -31,16 +31,17 @@ tags:
 ## Executive Summary
 
 Koinon Voice is one Go process on the maintainer's machine. It serves the unified dashboard on
-loopback and holds one connector per Koinon daemon: the local daemon over its loopback
-address, and each remote daemon through an SSH local forward to that host's loopback address.
-It acts through Koinon's maintainer interface, which does not yet exist in a form a non-browser
-client can use (rwcii/koinon#464).
+loopback and holds one connector per Koinon daemon. Each connector runs Koinon's maintainer
+mode, `koinon mcp --maintainer`, as a stdio MCP server: on this machine as a child process,
+and on a remote host through `ssh HOST`. It presents that daemon's maintainer secret from the
+Keychain, and its actions are recorded as the maintainer's, with the client `mcp:koinon-voice`.
 
-This record is a proposal from the design session of 2026-10-23, revised on 2026-10-24 from
-Phase 0's map of Koinon v0.4.1 (`docs/sprints/2026-10-23-phase0-spike/koinon-map.md`) and its
-audio results (`results.md` beside it). It remains a proposal for the maintainer's decision.
-The map found no maintainer interface a non-browser client can use without scraping the
-dashboard, so the bridge's Koinon features wait for rwcii/koinon#464.
+This record is a proposal from the design session of 2026-10-23. It was revised on 2026-10-24
+from Phase 0's map of Koinon v0.4.1 (`docs/sprints/2026-10-23-phase0-spike/koinon-map.md`) and
+its audio results (`results.md` beside it), and on 2026-10-25 to the maintainer mode of Koinon
+PDR 009, which the maintainer approved on rwcii/koinon#470 that day. It remains a proposal
+for the maintainer's decision. Koinon has not built the maintainer mode yet, so the bridge's
+Koinon features wait for it.
 
 ---
 
@@ -48,8 +49,8 @@ dashboard, so the bridge's Koinon features wait for rwcii/koinon#464.
 
 1. Problem Context
 2. Decision 1: One local Go process serving a loopback dashboard
-3. Decision 2: A connector per daemon; SSH forwards for remote hosts
-4. Decision 3: Act through Koinon's maintainer interface
+3. Decision 2: A connector per daemon; stdio over SSH for remote hosts
+4. Decision 3: Act through Koinon's maintainer mode
 5. Conclusion
 6. Document History
 
@@ -73,8 +74,8 @@ loopback-only boundary.
 ### Scope
 
 Covers the bridge process, the dashboard's address and the connectors. Speech engines are
-ADR 002; inference adapters are ADR 003. The Koinon side of the maintainer interface is
-Koinon's to decide (rwcii/koinon#464).
+ADR 002; inference adapters are ADR 003. The Koinon side of the maintainer mode is Koinon's
+to decide (Koinon PDR 009, rwcii/koinon#470).
 
 ---
 
@@ -110,81 +111,133 @@ the grant.
 
 ---
 
-## 3. Decision 2: A connector per daemon; SSH forwards for remote hosts
+## 3. Decision 2: A connector per daemon; stdio over SSH for remote hosts
 
 ### Decision
 
-Each Koinon daemon is a connector with a host label. The local connector uses the daemon's
-loopback address. A remote connector runs an SSH local forward from a loopback port on the
-maintainer's machine to the remote daemon's loopback address, using the maintainer's SSH
-configuration, and reconnects when the forward drops. Items, peers and alerts carry their
-host label in the unified view.
+Each Koinon daemon is a connector with a host label. A connector runs
+`koinon mcp --maintainer --client koinon-voice --secret-stdin` and speaks MCP over its standard
+input and output. The local connector starts it as a child process. A remote connector starts
+it with `ssh HOST`, using the maintainer's SSH configuration, so the remote daemon stays on its
+loopback address and no port is forwarded. The secret is written as the first line of the
+process's standard input, so it travels inside the SSH channel and not on either host's
+command line (Koinon PDR 009, Decision 3).
 
-Until Koinon has a lasting maintainer credential (rwcii/koinon#464), a remote connector logs
-in by running `koinon dashboard --no-open` on that host over SSH and opening the link through
-its forward, with the link's address rewritten to the forwarded port. A daemon restart ends
-the login, and the connector logs in again the same way.
+When the process exits, the SSH connection drops or Koinon ends the maintainer session (a
+daemon restart ends it), the connector starts the process again. Items, peers and alerts carry
+their host label in the unified view.
 
 **Provenance:** The maintainer asked for local and remote daemons over SSH (PDR 001,
-Decision 1). The forward-per-daemon mechanism and the login over SSH are proposals. Phase 0
-logged in through a plain TCP forward standing in for SSH, with the link rewritten, and the
-login is not bound to a port; an SSH forward to a remote daemon was not tried.
+Decision 1). After reading Phase 0's map, the maintainer said "koinon will need an API
+surfaced for this. maybe this needs to be an MCP" and asked for the spec to be filed with
+Koinon (2026-10-23, rwcii/koinon#470). Koinon PDR 009 makes the maintainer mode a stdio MCP
+server for local clients and clients over SSH; the maintainer approved it on 2026-10-25. One
+connector per daemon and starting the process again are this record's proposals. The SSH
+path has not been tried, because the maintainer mode is not built yet.
 
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
 | Remote daemons listen on the network | Expose each daemon's port | Breaks Koinon's loopback-only boundary |
+| An SSH local forward per daemon | Forward a loopback port to the remote daemon and log in to its dashboard (this record's proposal until 2026-10-25) | The maintainer mode needs no port or login cookie; a forward was needed only for the dashboard |
 | Run `koinon` commands over SSH per action | No persistent connection | No change notices; a process per action |
 
 ### Rationale
 
-1. SSH is already how the maintainer reaches those hosts; no port opens.
+1. SSH is already how the maintainer reaches those hosts; no port opens on either end.
+2. One long-lived SSH session per host carries the reads, the actions and the change notices.
 
 ### Trade-offs Accepted
 
-A dropped forward hides that host's items until it reconnects; the dashboard shows the host
-as disconnected.
+- A dropped connection hides that host's items until it reconnects; the dashboard shows the
+  host as disconnected.
+- Each daemon restart, which every Koinon upgrade causes, ends the maintainer session, and
+  the connector reconnects. What a running maintainer-mode process reports when its session
+  ends is asked on rwcii/koinon#470 for its second PR.
+- SSH must run without prompts: a key in the SSH agent, and a known host key. #15 tries it
+  against a remote host.
 
 ---
 
-## 4. Decision 3: Act through Koinon's maintainer interface
+## 4. Decision 3: Act through Koinon's maintainer mode
 
 ### Decision
 
 Each connector reads what needs the maintainer, receives change notices and records the
-maintainer's posts and verdicts through Koinon's maintainer interface, authenticated as the
-maintainer. Koinon Voice does not register as an agent session to do so. The interface is
-requested in rwcii/koinon#464.
+maintainer's posts and verdicts through the maintainer mode's tools, as the built-in
+`maintainer` session. Koinon Voice does not register as an agent session and is not listed in
+`peers`.
+
+- **Secret.** Each daemon has one maintainer secret, which Koinon stores only as a hash
+  (Koinon PDR 009, Decision 1). Koinon Voice keeps each host's secret in the macOS Keychain,
+  as it keeps API keys (ADR 003, Decision 2), and never writes it to a file, a log or the
+  dashboard.
+- **Reads and actions.** `board_list`, `decision_get` and `decision_history` read the decision
+  board; `decision_verdict` records a verdict at the item's current revision; `inbox`, `ack`,
+  `send` and the room tools carry messages and posts; `peers` and `peer_status` read the peers.
+  A verdict on an item whose revision has changed is refused, and the bridge reads the item
+  again and says so.
+- **Notices.** The bridge subscribes to the maintainer's inbox, decision and room resources;
+  a notice carries only the resource, and the bridge reads it again.
+- **Client.** Koinon records each action's client as `mcp:koinon-voice` and shows it on the
+  dashboard and in `decision_history` (Koinon PDR 009, Decision 4); agents see the same
+  `maintainer` sender as for a dashboard action.
+
+Koinon delivers PDR 009 in three PRs: the secret and the dashboard password login; the
+maintainer mode with its tools and the client; then change notices. The bridge's Koinon
+features can start on the second, reading on a timer until the third ships.
+
+**Provenance:** The maintainer decided on rwcii/koinon#470 that "the maintainer should be able
+to register a persistenet secret, or generate a password. this should be used to unlock the
+dashboard, and allow a remote system interact with the MCP/API" and "we can hash the
+secret/password, so only the valid secret would vlaidate" (2026-10-23). On 2026-10-25, asked
+whether each maintainer action should record its client, the maintainer answered "yes, record
+the client on #470". Asked whether to refuse the maintainer mode to processes that descend
+from an agent session (option C), with the recommendation of no because the secret is already
+the gate and ancestry adds no proof against a process that holds it, and then whether to
+approve the draft as a whole, the maintainer answered "no on option C, PDR 009 approved".
+That approves PDR 009 as drafted, with the client recorded and Koinon's three-PR delivery,
+and leaves agent descendants able to start the maintainer mode with the secret. Keeping each
+host's secret in the Keychain is this record's proposal.
 
 Phase 0 found that Koinon v0.4.1 offers the maintainer only the HTML dashboard: no
 machine-readable read, no change notices, no stable action interface, no lasting credential,
-and no client recorded on a verdict or post. Phase 1's Koinon features need at least the
-first three from #464; the gaps are listed on that issue.
+and no client recorded on a verdict or post (rwcii/koinon#464). The maintainer mode's second
+PR closes all but the notices, and its third PR closes those. Koinon v0.4.3 has none of it.
 
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
-| Scrape the dashboard | Drive the HTML dashboard with its login cookie | Undocumented and fragile; breaks with any dashboard change. Phase 0 showed it works from `curl`, including verdicts, which does not change the reason |
+| Scrape the dashboard | Drive the HTML dashboard with its login cookie, now also with the secret's password login | Undocumented and fragile; breaks with any dashboard change. Phase 0 showed it works from `curl`, including verdicts, which does not change the reason |
 | Register as an agent session | Use the MCP tools as a peer | Peer messages are data and carry no maintainer authority (Koinon WDR 002, Decision 3) |
+| The secret in a file | `--secret-file` with mode 0600 | A plain-text file on disk; the Keychain keeps it in the maintainer's login and off disk in plain text |
 
 ### Rationale
 
 1. Spoken words carry the maintainer's weight only if they arrive as the maintainer's actions.
+2. The recorded client tells a spoken verdict from a click, as #464 asked.
 
 ### Trade-offs Accepted
 
-Phase 1 depends on Koinon delivering #464.
+- Phase 1's Koinon features depend on Koinon delivering PDR 009's second PR, and the notices
+  on its third.
+- The secret separates the maintainer's clients from agents that use Koinon as intended; it
+  does not stop a process running as the maintainer's OS user that sets out to bypass it
+  (Koinon PDR 009, Decision 1).
+- The Keychain is macOS only. Where a connector keeps the secret on another platform is not
+  decided.
 
 ---
 
 ## Conclusion
 
-One local Go process serves a loopback dashboard, leaves the audio to its helper, reaches
-each daemon on loopback directly or through an SSH forward, and acts through Koinon's
-maintainer interface, which Koinon v0.4.1 does not have yet. The record is a proposal, revised
-with Phase 0's evidence, for the maintainer's decision.
+One local Go process serves a loopback dashboard, leaves the audio to its helper, and reaches
+each daemon through Koinon's maintainer mode on stdio, locally or over SSH, with that
+daemon's secret from the Keychain. Its actions are the maintainer's, recorded with the client
+`mcp:koinon-voice`. Koinon PDR 009 defines the maintainer mode and is approved, but it is not
+built. The record is a proposal for the maintainer's decision.
 
 ---
 
@@ -194,3 +247,4 @@ with Phase 0's evidence, for the maintainer's decision.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Revised from Phase 0: the helper captures audio, the login over SSH, and the gaps in Koinon v0.4.1 |
+| 2026-10-25 | Revised to Koinon PDR 009: connectors run `koinon mcp --maintainer` on stdio, locally or over SSH, in place of SSH forwards and dashboard logins; the secret in the Keychain; the client recorded as `mcp:koinon-voice` |
