@@ -3,7 +3,7 @@ adr: "003"
 title: "Inference Adapters"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-24"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -34,7 +34,11 @@ SDK; and an OpenAI-compatible HTTP client that covers OpenAI, OpenRouter and loc
 servers (Ollama, LM Studio, MLX). Engines are configuration rows; API keys live in the macOS
 Keychain; each engine is marked local or external.
 
-This record is a proposal from the design session of 2026-10-23.
+This record is a proposal from the design session of 2026-10-23, revised on 2026-10-24 from
+Phase 0, which ran all three adapters against seven engines
+(`docs/sprints/2026-10-23-phase0-spike/results.md`). It remains a proposal for the
+maintainer's decision. Which engine is the default, and when external inference is allowed,
+is PDR 004, Decision 2.
 
 ---
 
@@ -80,8 +84,15 @@ The summarizer has three adapters: **Apple** (Foundation Models through the Swif
 local servers). An engine is a configuration row: adapter, base URL, model, and local or
 external.
 
+Phase 0 ran the Apple adapter on Foundation Models, the Anthropic adapter on Haiku, Sonnet
+and Opus, and the OpenAI-compatible adapter on OpenAI, on OpenRouter and on a local model
+served by oMLX, each engine a configuration row, with streaming for the spoken timing. A
+local server can refuse a model that does not fit its memory limit, which the bridge reports
+as that engine's failure.
+
 **Provenance:** Maintainer, 2026-10-23: "for engines, we could also look at openrouter or
-openai for models too." The adapter split is a proposal.
+openai for models too." The adapter split is a proposal, and Phase 0 found no engine it could
+not reach.
 
 ### Alternatives Considered
 
@@ -102,8 +113,14 @@ openai for models too." The adapter split is a proposal.
 
 API keys for Anthropic, OpenAI and OpenRouter are read from the macOS Keychain. Every summary
 records its engine, and an external engine's summary is labeled on screen and in speech with
-its provider (PDR 004, Decision 1). OpenRouter is used with its account settings that exclude
-hosts which retain prompts or train on them, recorded with each result.
+its provider (PDR 004, Decision 1). In speech the label follows the summary ("Summary by
+PROVIDER."), so it does not delay the first spoken word. OpenRouter is used with its request
+setting that excludes hosts which retain prompts or train on them
+(`provider.data_collection: "deny"`), recorded with each result.
+
+In Phase 0, keys came from the Keychain for every external engine, a missing key failed only
+that engine, and an error a provider echoed back was redacted of the key before it was
+reported.
 
 ### Alternatives Considered
 
@@ -120,7 +137,8 @@ hosts which retain prompts or train on them, recorded with each result.
 ## Conclusion
 
 Three adapters cover Apple's model, Claude and every OpenAI-compatible server, with engines as
-configuration, keys in the Keychain and external use labeled.
+configuration, keys in the Keychain and external use labeled. Phase 0 used all three without
+a change to the split.
 
 ---
 
@@ -129,3 +147,4 @@ configuration, keys in the Keychain and external use labeled.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-24 | Revised from Phase 0: the adapters as run, the label's place and OpenRouter's setting |

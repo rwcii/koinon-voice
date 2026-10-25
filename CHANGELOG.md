@@ -4,6 +4,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- Phase 0 results: `results.md` summarizes the scorecards and the Koinon map with a proposal
+  for each choice, and ADR 001 to ADR 003 and PDR 004, Decision 2 are revised from them as
+  drafts for the maintainer's decision. Follow-up work is filed as #8 to #15.
 - The wake and interruption bench: `koinon-voice corpus wake --distance near|mid|far` records
   takes of "Koinon" and `corpus background --source music|meeting|podcast|coffee` long
   background recordings; `koinon-voice bench wake` scores openWakeWord with a custom "Koinon"
