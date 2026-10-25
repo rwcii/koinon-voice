@@ -3,8 +3,9 @@
 > Vendored from [rwcii/engineering-standards](https://github.com/rwcii/engineering-standards/tree/425b2efc7d829c1f61c9f44df671c4525d5d9158) at 425b2ef. Koinon Voice changes: the review
 > path is the `peer-review` and `check` skills, each series is numbered from 001 in this
 > repository, commit titles follow Koinon Voice's sentence style, and upstream records are cited
-> by link, not imported; vendored through [rwcii/koinon](https://github.com/rwcii/koinon/tree/7089386ce4d85758f991f5b56c8de0e13fe2e754) at 7089386 (WDR 001). The vendored process guides, PDR template and directory guides carry
-> the upstream MIT notice in [docs/ENGINEERING-STANDARDS-LICENSE](../../ENGINEERING-STANDARDS-LICENSE).
+> by link, not imported; vendored through [rwcii/koinon](https://github.com/rwcii/koinon/tree/e89d37059fb602ce634219ed67ce20294278e35b) at e89d370 (WDR 001). rwcii/koinon#487 removed the limit text: this guide and the directory guide say
+> what a WDR holds and where other decisions go. The vendored process guides, PDR template and
+> directory guides carry the upstream MIT notice in [docs/ENGINEERING-STANDARDS-LICENSE](../../ENGINEERING-STANDARDS-LICENSE).
 
 Rules for creating, updating, and referencing WDRs in `docs/engineering/wdr/`.
 
@@ -45,13 +46,15 @@ enforcement.
 not assertion," and "the `AGENTS.md`/`CLAUDE.md` layout" all survive both a rewrite
 and a pivot — they are WDRs.
 
-### When NOT to write a WDR
+### Where other decisions go
 
 - **Tips and conventions** — "prefer small commits," a naming nit → `AGENTS.md`.
 - **Tool-specific mechanics** — a particular hook command, a lint rule → a
   project's enforcement.
-- **A how-to or runbook** — steps to perform a task, not a decision.
-- **A decision with no real alternative** — then it is just how things are.
+- **A how-to or runbook** — steps to perform a task → the skill or document for
+  that task.
+- **A decision with no real alternative** — it is how things are; describe it where
+  the work happens.
 
 ---
 
@@ -65,10 +68,11 @@ standard ([engineering-standards ADR 001.1](https://github.com/rwcii/engineering
   the field differences noted below.
 - **Same status lifecycle** — `draft → under_review → accepted → modified →
   deprecated/superseded`.
-- **Same cardinal rules** — no AI/bot attribution; no line numbers or volatile
-  details; concrete tooling goes in the Enforcement section.
+- **Same durability conventions** — human authors, with no tool attribution
+  (WDR 004, Decision 5); file paths, symbols and record numbers instead of line
+  numbers or volatile details; concrete tooling in the Enforcement section.
 - **Same review path** — the `peer-review` skill checks changes against accepted
-  WDRs, and the `check` skill runs before every push.
+  WDRs, and the `check` skill runs the project's checks on each change.
 
 ### Frontmatter differences from an ADR
 

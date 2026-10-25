@@ -33,8 +33,8 @@ tags:
 
 Koinon Voice is a peer repository of [rwcii/koinon](https://github.com/rwcii/koinon), built by
 the same agent team under the same development process. This record adopts Koinon's record
-system: Koinon's [WDR 001](https://github.com/rwcii/koinon/blob/7089386ce4d85758f991f5b56c8de0e13fe2e754/docs/engineering/wdr/001-decision-records-govern-constraints.md)
-at 7089386, Decisions 1 to 6, applies here with the same numbering. Decision 7 records the
+system: Koinon's [WDR 001](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/001-decision-records-govern-constraints.md)
+at e89d370, Decisions 1 to 6, applies here with the same numbering. Decision 7 records the
 maintainer's choice to run this repository as Koinon's peer.
 
 A decision is stated once, in its record, as "Koinon Voice currently does X because Y". Other
@@ -81,11 +81,11 @@ WDR 006.
 
 ### Decision
 
-Koinon WDR 001 at 7089386, Decisions 1 to 6, applies to Koinon Voice with these substitutions:
+Koinon WDR 001 at e89d370, Decisions 1 to 6, applies to Koinon Voice with these substitutions:
 
 | Koinon WDR 001 | In Koinon Voice |
 | -------------- | --------------- |
-| Decision 1: vendor the ADR, PDR and WDR processes from rwcii/engineering-standards at 425b2ef | The same vendored guides, copied from Koinon at 7089386 with "Koinon" read as "Koinon Voice" |
+| Decision 1: vendor the ADR, PDR and WDR processes from rwcii/engineering-standards at 425b2ef | The same vendored guides, copied from Koinon at e89d370 with "Koinon" read as "Koinon Voice" |
 | Decision 3: carriers (PROTOCOL.md, USAGE, INSTALL, `koinon guide`) cite records | This repository's README, CONTRIBUTING, skills facts and future docs cite records |
 | Decision 6: `develop` requires `refusal-review` | The same status, set by `scripts/setup-repo.sh` (WDR 004) |
 
@@ -94,8 +94,8 @@ a limit, caveat or control on what an agent does that the maintainer did not ask
 not apply here, and the rules the maintainer gave in words stay (WDR 002 records the
 maintainer's decision of 2026-10-25).
 
-Decisions 2 (significance first, route by subject), 4 (code-enforced blocks follow their PDR)
-and 5 (no extrapolation) apply unchanged. Koinon's constraint inventory (C001 to C086) and its
+Decisions 2 (significance first, route by subject) and 5 (a record covers the case it
+answered) apply unchanged. Decision 4 is deprecated in Koinon's record (rwcii/koinon#487). Koinon's constraint inventory (C001 to C086) and its
 provenance belong to Koinon; this repository cites them through Koinon's records and adds none.
 
 A later change to Koinon's WDR 001 does not change this record. Koinon Voice takes it by a
@@ -125,7 +125,7 @@ Koinon's development process (WDR 002 to WDR 006), its repository structure (`cm
 `internal/`, tests beside their packages, `agents/skills/` with discovery symlinks,
 `.koinon/skills/` facts, `docs/` record series and `docs/sprints/`), its language (Go, one
 module) and its decision record format. The shared skills are byte copies of Koinon's
-`agents/skills/*/SKILL.md` and `agents/skills/AGENTS.md` at 0cf3979, the skills of rwcii/koinon#491
+`agents/skills/*/SKILL.md` and `agents/skills/AGENTS.md` at e89d370, the skills of rwcii/koinon#491 and #492
 that say what to do (rwcii/koinon#487); this repository's facts are in `.koinon/skills/`.
 
 **Provenance:** Maintainer, 2026-10-23, in this repository's first session, raised by the
@@ -158,7 +158,7 @@ rwcii/koinon-voice".
 
 ## Conclusion
 
-Koinon Voice runs Koinon's record system and process, pinned to Koinon at 7089386, with each
+Koinon Voice runs Koinon's record system and process, pinned to Koinon at e89d370, with each
 difference stated in the record that adopts it. The peer-repository choice, the product line
 and public visibility are the maintainer's, from 2026-10-23.
 
@@ -170,3 +170,4 @@ and public visibility are the maintainer's, from 2026-10-23.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-25 | Skills taken from Koinon at 0cf3979 (rwcii/koinon#491); Koinon's records adopted without their limit text (rwcii/koinon#487) |
+| 2026-10-25 | Koinon's records, process guides and skills taken at e89d370, after rwcii/koinon#492 and #494; Decision 4 deprecated there |
