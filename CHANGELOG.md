@@ -4,6 +4,10 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice bench names` resolves Koinon's names in a recognition scorecard's
+  transcripts after recognition, by sound against the keyword list, and reports the error
+  rates before and after, with wrong resolutions in held-out text (#11). Its report on
+  Phase 0's transcripts is `scorecard-names.md`.
 - `summarize`'s check counts a denial after the noun it denies ("Deadline is not specified")
   and no longer reads "due to" as a deadline (#9). Scorecards gain a `Not for speech` column
   for commit hashes, paths, URLs and Markdown in a summary, summary cells keep line breaks

@@ -19,7 +19,7 @@ import (
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-const benchUsage = `Usage: koinon-voice bench (stt | tts | wake | interrupt) [flags]
+const benchUsage = `Usage: koinon-voice bench (stt | tts | wake | interrupt | names) [flags]
 
 stt runs each recognition engine over the recorded corpus and writes word error rate,
 overall and on Koinon terms, latency and real-time factor. tts speaks each synthesis text
@@ -29,6 +29,8 @@ runs each wake detector over the recorded "Koinon" takes and background recordin
 misses per distance and false wakes per hour. interrupt speaks a summary through the
 speakers while listening with echo cancellation, for the maintainer to interrupt; with
 --control nobody speaks, and any transcript is the bridge's own speech leaking through.
+names resolves Koinon's names in a recognition scorecard's transcripts, against the keyword
+list, and writes the error rates before and after, without the recordings.
 
 `
 
@@ -99,7 +101,7 @@ func selected(only, name string) bool {
 }
 
 func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 || (args[0] != "stt" && args[0] != "tts" && args[0] != "wake" && args[0] != "interrupt") {
+	if len(args) == 0 || (args[0] != "stt" && args[0] != "tts" && args[0] != "wake" && args[0] != "interrupt" && args[0] != "names") {
 		fmt.Fprint(stderr, benchUsage)
 		return 2
 	}
@@ -136,6 +138,21 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return benchInterrupt(&b, *texts, *n, *say, *control, *seconds, *dir, bufio.NewScanner(stdin), stdout, stderr)
 	}
+	if args[0] == "names" {
+		phrases := fs.String("phrases", phrasesFile, "phrase list, for the reference text and the names")
+		card := fs.String("scorecard", speechCard, "recognition scorecard whose transcripts are resolved")
+		ordinary := fs.String("ordinary", "", "comma-separated files of text that names nothing, one utterance per line, to count wrong resolutions in")
+		fs.StringVar(&b.out, "out", "scorecard-names.md", "report file")
+		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
+			fs.Usage()
+			return 2
+		}
+		var files []string
+		if *ordinary != "" {
+			files = strings.Split(*ordinary, ",")
+		}
+		return benchNames(&b, *phrases, *card, files, stdout, stderr)
+	}
 	if args[0] == "wake" {
 		phrases := fs.String("phrases", phrasesFile, "phrase list, for the biasing list")
 		dir := fs.String("dir", defaultCorpus(), "corpus directory")
@@ -158,6 +175,41 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 2
 	}
 	return benchTTS(&b, *texts, *dir, *kokoroVoice, *rate, bufio.NewScanner(stdin), stdout, stderr)
+}
+
+const speechCard = "docs/sprints/2026-10-23-phase0-spike/scorecard-speech.md"
+
+func benchNames(b *benchFlags, phrases, card string, ordinary []string, stdout, stderr io.Writer) int {
+	list, err := loadPhrases(phrases)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	raw, _ := os.ReadFile(phrases)
+	names := speech.Keywords(string(raw))
+	f, err := os.Open(card)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice bench:", err)
+		return 1
+	}
+	defer f.Close()
+	ts, err := speech.ParseTranscripts(f, list)
+	if err != nil {
+		fmt.Fprintf(stderr, "koinon-voice bench: %s: %v\n", card, err)
+		return 1
+	}
+	resolver := speech.NewNames(names)
+	rs := speech.ResolveNames(ts, resolver)
+	var held []speech.Ordinary
+	for _, path := range ordinary {
+		text, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintln(stderr, "koinon-voice bench:", err)
+			return 1
+		}
+		held = append(held, speech.ResolveOrdinary(filepath.Base(path), string(text), resolver))
+	}
+	return writeCard(b.out, func(w io.Writer) { speech.WriteNamesReport(w, rs, names, held) }, stdout, stderr)
 }
 
 func benchSTT(b *benchFlags, phrases, dir string, sets []string, stdout, stderr io.Writer) int {
