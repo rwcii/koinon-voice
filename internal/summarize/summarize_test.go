@@ -153,6 +153,8 @@ func TestCheck(t *testing.T) {
 		"Codex gives no deadline but recommends Ava.":                                                Invented,
 		"Codex asks you to pick a voice and does not give a recommendation.":                         Absent,
 		"There's no recommendation and no deadline given.":                                           Absent,
+		"Codex asks you to pick a voice. A recommendation is not given.":                             Absent,
+		"Codex asks you to pick a voice and recommends not waiting.":                                 Invented,
 	} {
 		if got := Check(text, none)[3]; got != want {
 			t.Errorf("%q recommendation %v, want %v", text, got, want)
@@ -169,6 +171,14 @@ func TestCheck(t *testing.T) {
 		"Codex needs a voice that does not cost money, due by Friday.":            Invented,
 		"Codex has no preference and needs a voice by Friday.":                    Invented,
 		"Neither a recommendation nor a deadline is given.":                       Absent,
+		"Codex asks you to pick a voice. Deadline is not specified.":              Absent,
+		"The deadline is unknown, and Codex recommends Ava.":                      Absent,
+		"The deadline has not been set.":                                          Absent,
+		"The deadline is Friday, not Monday.":                                     Invented,
+		"The deadline is not until Friday.":                                       Invented,
+		"Codex asks you to upgrade due to a security advisory.":                   Absent,
+		"The review is due Friday.":                                               Invented,
+		"Codex needs it due tomorrow; it gives no recommendation.":                Invented,
 	} {
 		if got := Check(text, none)[4]; got != want {
 			t.Errorf("%q deadline %v, want %v", text, got, want)
@@ -320,7 +330,7 @@ func TestRunAndScorecard(t *testing.T) {
 	out := b.String()
 	for _, want := range []string{
 		"| good | openai | m | local |", "| down | openai | m | external: OpenRouter |",
-		"| good | 2 | 0 | 1/2 |  | 1 ms | 2 ms |  | 3 ms | $0.000000 | 4.0 (1) |",
+		"| good | 2 | 0 | 1/2 | 0 |  | 1 ms | 2 ms |  | 3 ms | $0.000000 | 4.0 (1) |",
 		"| down | 2 | 2 | 0/0 |", "failed: HTTP 503: down for [key redacted]", "failed: no key for anthropic",
 		`merge twelve \| now.`,
 	} {
@@ -330,9 +340,74 @@ func TestRunAndScorecard(t *testing.T) {
 	}
 	rowsTable := out[strings.Index(out, "| Item "):]
 	for _, line := range strings.Split(strings.TrimSpace(rowsTable), "\n") {
-		// 16 columns: item, engine, five verdicts, nine measures.
-		if n := strings.Count(strings.ReplaceAll(line, `\|`, ""), "|"); n != 17 {
+		// 17 columns: item, engine, five verdicts, nine measures, not for speech.
+		if n := strings.Count(strings.ReplaceAll(line, `\|`, ""), "|"); n != 18 {
 			t.Errorf("%d separators in %q", n, line)
 		}
+	}
+}
+
+func TestNotForSpeech(t *testing.T) {
+	for text, want := range map[string]string{
+		"Codex asks you to merge pull request twelve.":                      "",
+		"Revert commit 9f3c2ab on develop.":                                 "hash",
+		"Revert commit nine f three c two a b. The deadline is 2026.":       "",
+		"Install it in ~/.local/share/koinon-voice/bin.":                    "path",
+		"Upgrade golang.org/x/net, which affects its HTTP/2 server.":        "path",
+		"Cite it in AGENTS.md, and/or the README.":                          "path",
+		"See https://github.com/rwcii/koinon/issues/464.":                   "url",
+		"The options are: * Fail without a retry. * Retry.":                 "markdown",
+		"Run `go test` first.":                                              "markdown",
+		"# Decision\nMerge 4f2e9a1c at /tmp/x, per http://example.com/a/b.": "hash, path, url, markdown",
+	} {
+		if got := strings.Join(NotForSpeech(text), ", "); got != want {
+			t.Errorf("%q: %q, want %q", text, got, want)
+		}
+	}
+}
+
+func TestRescore(t *testing.T) {
+	fixtures := []Fixture{{Name: "SYN-01", Key: &Key{Asker: Field{{"codex"}}, Ask: Field{{"merge"}}}}}
+	// A scorecard written before "Not for speech" existed, with a verdict the current check
+	// changes, a failed row and a summary holding an escaped pipe.
+	old := "# Scorecard\n\nProse stays.\n\n## Totals\n\n" +
+		"| Engine | Rows | Failed | Correct | Median first spoken word | Median first token | Median first sentence | Median synthesis first audio | Median total | Cost | Mean rating |\n" +
+		"|" + strings.Repeat(" --- |", 11) + "\n" +
+		"| a | 2 | 0 | 0/2 | 1 ms | 1 ms | 1 ms | 1 ms | 1 ms | $0.000000 |  |\n" +
+		"| b | 1 | 1 | 0/0 |  |  |  |  |  | unknown |  |\n" +
+		"\n## Rows\n\n" +
+		"| Item | Engine | asker | ask | options | recommendation | deadline | First spoken word | First token | First sentence | Synthesis first audio | Total | Tokens in/out | Cost | Rating | Summary |\n" +
+		"|" + strings.Repeat(" --- |", 16) + "\n" +
+		"| SYN-01 | a | ok | ok | none | none | invented | 1 ms | 1 ms | 1 ms | 1 ms | 1 ms | 1/1 | $0.000000 | 4 | Codex asks you to merge \\| now. Deadline is not specified. |\n" +
+		"| SYN-01 | a | ok | ok | none | none | none | 1 ms | 1 ms | 1 ms | 1 ms | 1 ms | 1/1 | $0.000000 |  | Codex asks you to merge 9f3c2ab. |\n" +
+		"| SYN-01 | b |  |  |  |  |  |  |  |  |  |  |  |  |  | failed: HTTP 503 |\n"
+	got, changes, err := Rescore(old, fixtures)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(changes, ";") != "SYN-01 a deadline: invented to none" {
+		t.Errorf("changes %q", changes)
+	}
+	for _, want := range []string{
+		"# Scorecard\n\nProse stays.\n",
+		"| Engine | Rows | Failed | Correct | Not for speech | Median first spoken word |",
+		"| a | 2 | 0 | 2/2 | 1 | 1 ms |",
+		"| b | 1 | 1 | 0/0 | 0 |  |",
+		"| Rating | Not for speech | Summary |",
+		"| 4 |  | Codex asks you to merge \\| now. Deadline is not specified. |",
+		"| SYN-01 | a | ok | ok | none | none | none | 1 ms | 1 ms | 1 ms | 1 ms | 1 ms | 1/1 | $0.000000 |  | hash | Codex asks you to merge 9f3c2ab. |",
+		"| SYN-01 | b |  |  |  |  |  |  |  |  |  |  |  |  |  |  | failed: HTTP 503 |",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rescored lacks %q:\n%s", want, got)
+		}
+	}
+	// Rescoring again changes nothing.
+	again, changes, err := Rescore(got, fixtures)
+	if err != nil || again != got || len(changes) != 0 {
+		t.Errorf("second rescore: %v %q\n%s", err, changes, again)
+	}
+	if _, _, err := Rescore(old, nil); err == nil {
+		t.Error("rescore without the fixture")
 	}
 }

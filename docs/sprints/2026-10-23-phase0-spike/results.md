@@ -28,7 +28,7 @@ items (three ratings per engine). No real item was sent.
 | Claude Sonnet | external | 20/20 | 1.72 s | $0.038 | 3.3 |
 | Claude Opus | external | 19/20 | 2.40 s | $0.093 | 4.3 |
 | OpenAI `gpt-6-luna` | external | 18/20 | 2.92 s | $0.0020 | 4.7 |
-| Gemini 3.8 Flash (OpenRouter) | external | 19/20 | 5.95 s | $0.050 | 4.7 |
+| Gemini 3.8 Flash (OpenRouter) | external | 20/20 | 5.95 s | $0.050 | 4.7 |
 | Qwen3-4B on oMLX | local | 14/20 | 1.09 s | none | 4.3 |
 | Apple Foundation Models | local | 12/20 | 1.86 s | none | 3.7 |
 
@@ -39,7 +39,7 @@ external summary keeps its spoken and on-screen provider label.
 **Reason.** A spoken summary that drops an option or invents a recommendation misleads the
 maintainer about a decision (PDR 004's first requirement). The local models missed a fact in
 6 and 8 of 20 items, mostly options dropped and recommendations invented; the external ones
-in at most 2, which look like paraphrase or a check error. Haiku was correct on all 20, is
+in at most 2, which look like paraphrase. Haiku was correct on all 20, is
 the second quickest to speak and costs about a hundredth of a cent per item. Its rating was
 the lowest; its summaries spell agent names out ("Codex koinon voice thirty-eight"), which the
 prompt can change (#13). The local fallback is Qwen3-4B, the quickest, and more correct than
@@ -48,8 +48,10 @@ host, with a provider chosen; its spoken request to summarize one item externall
 open.
 
 **Not shown.** Three ratings per engine separate engines only coarsely. One local open-weight
-model was tried; a 12B model did not fit oMLX's memory guard. The check marks a denial after
-its claim as a claim (one Apple row), and does not count hashes or paths read aloud.
+model was tried; a 12B model did not fit oMLX's memory guard. After Phase 0, #9 fixed two
+check errors (a denial after its claim, and "due to"), which made Gemini's SYN-12 correct, and
+added a count of hashes, paths and Markdown read aloud; the recorded summaries were rescored
+without a new run.
 
 ## Recognition
 
