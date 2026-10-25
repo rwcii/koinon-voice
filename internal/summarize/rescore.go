@@ -11,7 +11,9 @@ const notForSpeechHeader = "Not for speech"
 // keys, check and NotForSpeech, without running an engine. It rewrites the verdicts, each
 // engine's correct count and the "Not for speech" columns, adding them to a scorecard
 // written before they existed, and leaves every other cell and line as it was. It returns
-// the scorecard and one line per changed verdict.
+// the scorecard and one line per changed verdict. A scorecard written before cells kept line
+// breaks has its summaries' lines joined, so a list or heading marker at a line start is
+// lost; an asterisk is not.
 func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 	keys := make(map[string]*Key, len(fixtures))
 	for _, f := range fixtures {
@@ -51,7 +53,7 @@ func Rescore(scorecard string, fixtures []Fixture) (string, []string, error) {
 			tallies[engine] = t
 		}
 		t.rows++
-		text := strings.ReplaceAll(cells[summaryCol], `\|`, "|")
+		text := uncell(cells[summaryCol])
 		if strings.HasPrefix(text, "failed: ") && cells[2] == "" {
 			t.failed++
 			cells[unspokenCol] = ""

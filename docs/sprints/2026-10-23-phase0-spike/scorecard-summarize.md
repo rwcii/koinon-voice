@@ -64,8 +64,10 @@ check and keys, without a new provider run; only Haiku's SYN-05 row changed, to 
 After Phase 0 (#9), the check counts a denial after the noun it denies ("Deadline is not
 specified"), and "due" claims a deadline only with a time after it, so "due to a security
 advisory" does not. `Not for speech` lists what a summary should not have read aloud:
-a commit hash, a path, a URL or Markdown; it does not change correctness. The recorded
-summaries were rescored with
+a commit hash, a path, a URL or Markdown; it does not change correctness. This file's
+summaries were written with their lines joined, so a list or heading marker at a line start
+cannot be seen in them; an asterisk can, and newer scorecards keep line breaks as `<br>`.
+The recorded summaries were rescored with
 `koinon-voice summarize --fixtures internal/summarize/testdata/items --rescore` on this file,
 without a provider run: Apple's SYN-08 and Gemini's SYN-12 deadlines changed from `invented`
 to `none`, so Gemini is 20/20 and Apple stays 12/20 (SYN-08 also dropped an option).

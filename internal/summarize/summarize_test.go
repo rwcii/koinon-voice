@@ -424,6 +424,7 @@ func TestRescoreRoundTrip(t *testing.T) {
 	var results []Result
 	for i, text := range []string{
 		"Codex asks you to merge.\n- Merge now.\n- Wait until tomorrow.",
+		"Codex asks you to decide\n- Merge now\n- Wait",
 		"# Merge\nCodex asks you to merge.",
 		"Codex asks you to merge 4f2e9a1c.",
 	} {
@@ -434,10 +435,10 @@ func TestRescoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	card := b.String()
-	if !strings.Contains(card, "| test | 3 | 0 | 3/3 | 3 |") {
+	if !strings.Contains(card, "| test | 4 | 0 | 4/4 | 4 |") || !strings.Contains(card, "| markdown | Codex asks you to decide<br>- Merge now<br>- Wait |") {
 		t.Fatalf("scorecard:\n%s", card)
 	}
-	fixtures := []Fixture{{Name: "SYN-01", Key: key}, {Name: "SYN-02", Key: key}, {Name: "SYN-03", Key: key}}
+	fixtures := []Fixture{{Name: "SYN-01", Key: key}, {Name: "SYN-02", Key: key}, {Name: "SYN-03", Key: key}, {Name: "SYN-04", Key: key}}
 	got, changes, err := Rescore(card, fixtures)
 	if err != nil || got != card || len(changes) != 0 {
 		t.Errorf("rescore %v %q:\n%s", err, changes, got)
@@ -453,7 +454,7 @@ func TestRescoreRoundTrip(t *testing.T) {
 		t.Fatalf("no line %q", prefix)
 		return 0
 	}
-	totalsHeader, totalsRow, rowsHeader := find("| Engine | Rows |"), find("| test | 3 |"), find("| Item |")
+	totalsHeader, totalsRow, rowsHeader := find("| Engine | Rows |"), find("| test | 4 |"), find("| Item |")
 	for name, edit := range map[string]func([]string){
 		"short totals row":   func(l []string) { l[totalsRow] = "| test |" },
 		"short totals head":  func(l []string) { l[totalsHeader] = "| Engine |" },

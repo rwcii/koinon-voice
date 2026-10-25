@@ -143,8 +143,19 @@ func rating(r int) string {
 	return fmt.Sprint(r)
 }
 
-// cell keeps a value inside one Markdown table cell.
+// cell keeps a value inside one Markdown table cell. Line breaks become <br>, so a summary's
+// lines, and the list or heading markers that start them, survive for Rescore (uncell).
 func cell(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	return strings.ReplaceAll(s, "|", `\|`)
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.Join(strings.Fields(line), " "); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.ReplaceAll(strings.Join(lines, "<br>"), "|", `\|`)
+}
+
+// uncell is the text a summary cell holds.
+func uncell(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\|`, "|"), "<br>", "\n")
 }
