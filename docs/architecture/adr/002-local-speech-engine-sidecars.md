@@ -143,7 +143,8 @@ wired in" (scorecard-speech.md).
 | ----------- | ----------- | ---------------- |
 | Pick from published benchmarks | Choose without measuring | Published figures are vendor runs on read English, not Koinon's vocabulary |
 | Parakeet for recognition | The most accurate overall, especially in noise | Within 1.6 points of Apple, and needs a Python runtime; the alternative if noise matters more |
-| Whistle with keyword biasing | The only engine that hears Koinon's names | Heard the decision verbs worst, and a misheard "confirm" defeats the read-back (PDR 002, Decision 2) |
+| Whistle with keyword biasing | The lowest error rate on Koinon's names | Heard the decision verbs worst, and a misheard "confirm" defeats the read-back (PDR 002, Decision 2) |
+| Apple `DictationTranscriber` with the keyword list | Heard "Koinon" in most places, and some full peer names | Heard fewer decision verbs than `SpeechTranscriber`, with a higher overall error rate, about the same rate on Koinon's terms, and more than twice the latency |
 | Apple speech synthesis | Quicker to first audio | The maintainer rated it lower on every text and asked to stop using it |
 | Phrase matching for the wake word | Recognition plus the word "Koinon" | Missed most takes beyond half a metre, and keeps a recognizer running on every sound |
 
@@ -152,8 +153,9 @@ wired in" (scorecard-speech.md).
 1. A misheard verb is the costly recognition error; Apple and Parakeet heard the verbs best.
 2. No engine heard "Koinon" without a list, so names need their own step with any engine.
 3. The maintainer's rating decides the voice.
-4. Neither wake detector is good enough yet; openWakeWord's failures come from its model,
-   which can be trained again, and push-to-talk does not depend on it (PDR 003, Decision 1).
+4. Neither wake detector is good enough yet. openWakeWord's results point to its model, which
+   can be trained again, though Phase 0 did not isolate the cause; push-to-talk does not
+   depend on it (PDR 003, Decision 1).
 
 ### Trade-offs Accepted
 

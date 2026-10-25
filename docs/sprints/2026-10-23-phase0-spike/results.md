@@ -73,8 +73,13 @@ word "Koinon", peers, repositories) are matched against the names the connected 
 report, after recognition, and Phase 1 measures that matching on the recorded transcripts.
 
 **Reason.** A misheard verb is the costly error: the read-back of PDR 002, Decision 2 catches
-it only if "confirm" is heard. Whistle, the only engine that hears Koinon names, heard the
-verbs in 8 and 5 of 13. Apple and Parakeet heard them best and are within 0.3 and 1.6 points
+it only if "confirm" is heard. The two engines given the keyword list heard Koinon's names
+best: Whistle has the lowest Koinon-term rate, and `DictationTranscriber` heard "Koinon" in 9
+and 12 of 17 and some full peer names ("claude koinon voice b 9"). But Whistle heard the
+verbs in 8 and 5 of 13, and `DictationTranscriber` in 10 and 11, with a higher overall rate,
+about the same Koinon-term rate as `SpeechTranscriber` (32.2% and 28.7% against 28.7% and
+29.9%), and more than twice its latency. Apple's
+`SpeechTranscriber` and Parakeet heard the verbs best and are within 0.3 and 1.6 points
 of each other overall. Apple runs in the helper that already captures the microphone with
 echo cancellation, without a Python runtime; Parakeet is the alternative if its 1.6 points in
 noise matter more. No engine heard "Koinon" without a list, so the names need a step of their

@@ -195,3 +195,22 @@ With F1 to F4, R1 and the nonblocking correction made, both reviews approved 049
 merged as b9951d2:
 [peer review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6390629696) and
 [refusal review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6390629838).
+
+## Chunk 06, results (dff886a)
+
+[Peer review](https://github.com/rwcii/koinon-voice/pull/16#issuecomment-6391466778), changes
+requested:
+
+1. **F1 (P2). Whistle was called the only engine that hears Koinon's names.** Apple's
+   `DictationTranscriber` with the keyword list heard "Koinon" in 9 and 12 of 17 and full peer
+   names such as "claude koinon voice b 9". Disposition: fixed. `results.md` and ADR 002 now
+   compare both engines that took the list: Whistle has the lowest Koinon-term rate and heard
+   the verbs in 8 and 5 of 13; `DictationTranscriber` heard them in 10 and 11, with a higher
+   overall rate, about the same Koinon-term rate as `SpeechTranscriber` and more than twice
+   its latency. ADR 002 lists `DictationTranscriber` as an alternative.
+2. **Nonblocking. ADR 002 said openWakeWord's failures come from its model.** Disposition:
+   fixed. ADR 002 and #10 now say the results point to the model and that Phase 0 did not
+   isolate the cause.
+
+[Refusal review](https://github.com/rwcii/koinon-voice/pull/16#issuecomment-6391466931):
+approved.
