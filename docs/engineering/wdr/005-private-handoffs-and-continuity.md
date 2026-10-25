@@ -3,7 +3,7 @@ wdr: "005"
 title: "Private Handoffs and Continuity"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-25"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -27,9 +27,9 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 005](https://github.com/rwcii/koinon/blob/7089386ce4d85758f991f5b56c8de0e13fe2e754/docs/engineering/wdr/005-private-handoffs-and-continuity.md) at 7089386 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 005](https://github.com/rwcii/koinon/blob/0cf39799503d2de01c0be371195c729e65a3cece/docs/engineering/wdr/005-private-handoffs-and-continuity.md) at 0cf3979 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 005, Decision 1" means the same
-in both repositories. It covers where session handoffs live and whose handoff a pickup reads.
+in both repositories. It covers where session handoffs live, whose handoff a pickup reads, and the progress note beside them.
 
 The record is a draft because its source is: Koinon's record states which of its decisions the
 maintainer made and which shipped without a recorded maintainer decision, and that status
@@ -70,7 +70,7 @@ Koinon's record and is not repeated here.
 
 ### Decision
 
-Koinon WDR 005, Decisions 1 and 2, applies to Koinon Voice unchanged: each agent writes its handoffs to the Git-ignored `_handoff/<agent>/` of this repository's main checkout and never commits them, and `pickup` reads the caller's own handoff unless the maintainer names another.
+Koinon WDR 005, Decisions 1 to 3, applies to Koinon Voice unchanged: each agent writes its handoffs to the Git-ignored `_handoff/<agent>/` of this repository's main checkout, `pickup` reads the caller's own handoff, or another agent's when the maintainer names it, and each agent keeps one short `progress.md` note there that `handoff` starts from and `pickup` reads first.
 
 | Koinon WDR 005 | In Koinon Voice |
 | ------------- | --------------- |
@@ -100,3 +100,4 @@ Handoffs stay private, per agent and per repository, as in Koinon.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-25 | Koinon WDR 005 at 0cf3979, with Decision 3 (the progress note), which the shared skills now use |

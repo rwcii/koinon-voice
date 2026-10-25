@@ -19,8 +19,8 @@ gofmt -l .
 go test -race -timeout 30m ./...
 git diff --check origin/develop...HEAD
 git diff --check
-`gofmt -l .` must print nothing. Scan added lines and read the final diff for private content; inspect every matching path or
-address individually. Confirm visible changes have an Unreleased CHANGELOG.md entry.
+`gofmt -l .` prints nothing for a formatted tree. Scan added lines and read the final diff for private content, and inspect
+each matching path or address. Confirm visible changes have an Unreleased CHANGELOG.md entry.
 ## Conditional checks
 For shell edits: bash -n scripts/setup-repo.sh, sh -n .githooks/pre-commit,
 sh -n .githooks/commit-msg, sh -n scripts/check-attribution.sh and sh -n helpers/apple/test.sh.
