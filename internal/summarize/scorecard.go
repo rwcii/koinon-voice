@@ -10,7 +10,8 @@ import (
 
 // WriteScorecard writes the results as Markdown: one table of engine totals, then one row per
 // engine and item. The first spoken word is criterion 1's latency; first token, first
-// sentence and synthesis first audio are diagnostic.
+// sentence and synthesis first audio are diagnostic. "Not for speech" is what NotForSpeech
+// found in a summary; it does not change the correctness verdicts.
 func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 	var b strings.Builder
 	b.WriteString("## Engines\n\n| Engine | Adapter | Model | Where | Note |\n| --- | --- | --- | --- | --- |\n")
@@ -18,7 +19,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", r.Name, r.Adapter, r.Model, where(r), cell(r.Note))
 	}
 
-	b.WriteString("\n## Totals\n\n| Engine | Rows | Failed | Correct | Median first spoken word | Median first token | Median first sentence | Median synthesis first audio | Median total | Cost | Mean rating |\n|" + strings.Repeat(" --- |", 11) + "\n")
+	b.WriteString("\n## Totals\n\n| Engine | Rows | Failed | Correct | Not for speech | Median first spoken word | Median first token | Median first sentence | Median synthesis first audio | Median total | Cost | Mean rating |\n|" + strings.Repeat(" --- |", 12) + "\n")
 	for _, r := range rows {
 		var mine []Result
 		for _, res := range results {
@@ -29,8 +30,8 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		fmt.Fprintf(&b, "| %s | %s |\n", r.Name, strings.Join(totals(mine), " | "))
 	}
 
-	b.WriteString("\n## Rows\n\n| Item | Engine | " + strings.Join(Fields, " | ") + " | First spoken word | First token | First sentence | Synthesis first audio | Total | Tokens in/out | Cost | Rating | Summary |\n")
-	b.WriteString("|" + strings.Repeat(" --- |", 11+len(Fields)) + "\n")
+	b.WriteString("\n## Rows\n\n| Item | Engine | " + strings.Join(Fields, " | ") + " | First spoken word | First token | First sentence | Synthesis first audio | Total | Tokens in/out | Cost | Rating | Not for speech | Summary |\n")
+	b.WriteString("|" + strings.Repeat(" --- |", 12+len(Fields)) + "\n")
 	for _, res := range results {
 		verdicts := res.Verdicts
 		if verdicts == nil {
@@ -42,7 +43,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 		}
 		s := res.Summary
 		if res.Err != nil {
-			cols = append(cols, "", "", "", "", "", "", "", "", "failed: "+cell(res.Err.Error()))
+			cols = append(cols, "", "", "", "", "", "", "", "", "", "failed: "+cell(res.Err.Error()))
 		} else {
 			spoken, synthesis := "", ""
 			switch {
@@ -51,7 +52,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 			case res.SpeechErr != nil:
 				spoken = "speech failed: " + cell(res.SpeechErr.Error())
 			}
-			cols = append(cols, spoken, ms(s.FirstToken), ms(s.FirstSentence), synthesis, ms(s.Total), tokens(s), cost(s.Cost, s.CostKnown), rating(res.Rating), cell(s.Text))
+			cols = append(cols, spoken, ms(s.FirstToken), ms(s.FirstSentence), synthesis, ms(s.Total), tokens(s), cost(s.Cost, s.CostKnown), rating(res.Rating), strings.Join(NotForSpeech(s.Text), ", "), cell(s.Text))
 		}
 		b.WriteString("| " + strings.Join(cols, " | ") + " |\n")
 	}
@@ -60,7 +61,7 @@ func WriteScorecard(w io.Writer, results []Result, rows []Row) error {
 }
 
 func totals(results []Result) []string {
-	var failed, correct, rated, ratingSum int
+	var failed, correct, unspoken, rated, ratingSum int
 	var spoken, first, sentence, synthesis, total []time.Duration
 	var spend float64
 	spendKnown := len(results) > 0
@@ -71,6 +72,9 @@ func totals(results []Result) []string {
 		}
 		if Correct(r.Verdicts) {
 			correct++
+		}
+		if len(NotForSpeech(r.Summary.Text)) > 0 {
+			unspoken++
 		}
 		if r.Spoken != nil {
 			spoken = append(spoken, r.Spoken.FirstWord)
@@ -91,7 +95,7 @@ func totals(results []Result) []string {
 		mean = fmt.Sprintf("%.1f (%d)", float64(ratingSum)/float64(rated), rated)
 	}
 	return []string{
-		fmt.Sprint(len(results)), fmt.Sprint(failed), fmt.Sprintf("%d/%d", correct, len(results)-failed),
+		fmt.Sprint(len(results)), fmt.Sprint(failed), fmt.Sprintf("%d/%d", correct, len(results)-failed), fmt.Sprint(unspoken),
 		median(spoken), median(first), median(sentence), median(synthesis), median(total), cost(spend, spendKnown), mean,
 	}
 }
@@ -139,8 +143,19 @@ func rating(r int) string {
 	return fmt.Sprint(r)
 }
 
-// cell keeps a value inside one Markdown table cell.
+// cell keeps a value inside one Markdown table cell. Line breaks become <br>, so a summary's
+// lines, and the list or heading markers that start them, survive for Rescore (uncell).
 func cell(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	return strings.ReplaceAll(s, "|", `\|`)
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.Join(strings.Fields(line), " "); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.ReplaceAll(strings.Join(lines, "<br>"), "|", `\|`)
+}
+
+// uncell is the text a summary cell holds.
+func uncell(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\|`, "|"), "<br>", "\n")
 }

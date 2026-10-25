@@ -326,3 +326,34 @@ local = true
 		}
 	}
 }
+
+// A scorecard rescored with the check that wrote it is unchanged, and no engine runs.
+func TestSummarizeRescore(t *testing.T) {
+	dir, engines := setup(t)
+	card := filepath.Join(dir, "scorecard.md")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--out", card}, nil, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	want, err := os.ReadFile(card)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "rescored.md")
+	stdout.Reset()
+	stderr.Reset()
+	missing := filepath.Join(dir, "missing.toml")
+	if code := run([]string{"summarize", "--engines", missing, "--fixtures", dir, "--rescore", card, "--out", out}, nil, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	got, err := os.ReadFile(out)
+	if err != nil || string(got) != string(want) || stderr.String() != "0 verdicts changed\n" {
+		t.Errorf("rescored %v %q:\n%s", err, stderr.String(), got)
+	}
+	if code := run([]string{"summarize", "--item", card, "--rescore", card}, nil, &stdout, &stderr); code != 2 {
+		t.Errorf("--rescore with --item: exit %d", code)
+	}
+	if code := run([]string{"summarize", "--fixtures", dir, "--rescore", missing}, nil, &stdout, &stderr); code != 1 {
+		t.Errorf("--rescore of a missing file: exit %d", code)
+	}
+}

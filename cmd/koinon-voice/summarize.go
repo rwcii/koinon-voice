@@ -53,10 +53,11 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	voice := fs.String("voice", "", "an AVSpeechSynthesisVoice identifier (default: voice in the engines file, else the system's en-US voice)")
 	blind := fs.Bool("blind", false, "hide engine names and ask for a 1 to 5 listenability rating per summary; q stops rating")
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
+	rescore := fs.String("rescore", "", "with --fixtures, check this scorecard's recorded summaries again without running an engine, and write it to --out or stdout")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() != 0 || (*fixtures == "") == (*itemFile == "") {
+	if fs.NArg() != 0 || (*fixtures == "") == (*itemFile == "") || (*rescore != "" && *fixtures == "") {
 		fs.Usage()
 		return 2
 	}
@@ -73,6 +74,9 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	if err != nil {
 		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
 		return 1
+	}
+	if *rescore != "" {
+		return runRescore(*rescore, items, *out, stdout, stderr)
 	}
 	config, err := summarize.LoadConfig(*engines)
 	var rows []summarize.Row
@@ -279,4 +283,33 @@ func ask(in *bufio.Scanner, stdout io.Writer, label string) (int, error) {
 			return n, nil
 		}
 	}
+}
+
+// runRescore checks a scorecard's recorded summaries again and lists each changed verdict on
+// stderr.
+func runRescore(path string, items []summarize.Fixture, out string, stdout, stderr io.Writer) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
+		return 1
+	}
+	text, changes, err := summarize.Rescore(string(data), items)
+	if err != nil {
+		fmt.Fprintf(stderr, "koinon-voice summarize: %s: %v\n", path, err)
+		return 1
+	}
+	if out == "" {
+		_, err = io.WriteString(stdout, text)
+	} else {
+		err = os.WriteFile(out, []byte(text), 0o644)
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "koinon-voice summarize:", err)
+		return 1
+	}
+	for _, c := range changes {
+		fmt.Fprintln(stderr, c)
+	}
+	fmt.Fprintf(stderr, "%d verdicts changed\n", len(changes))
+	return 0
 }

@@ -4,6 +4,11 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `summarize`'s check counts a denial after the noun it denies ("Deadline is not specified")
+  and no longer reads "due to" as a deadline (#9). Scorecards gain a `Not for speech` column
+  for commit hashes, paths, URLs and Markdown in a summary, summary cells keep line breaks
+  as `<br>`, and `summarize --rescore FILE` checks a scorecard's recorded summaries again
+  without running an engine; Phase 0's scorecard is rescored with it.
 - Phase 0 results: `results.md` summarizes the scorecards and the Koinon map with a proposal
   for each choice, and ADR 001 to ADR 003 and PDR 004, Decision 2 are revised from them as
   drafts for the maintainer's decision. Follow-up work is filed as #8 to #15.
