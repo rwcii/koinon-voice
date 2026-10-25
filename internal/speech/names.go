@@ -1,6 +1,7 @@
 package speech
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -34,19 +35,24 @@ func NewNames(names []string) *Names {
 // Match is one run of transcript words resolved to a name.
 type Match struct {
 	Start, End int // the run is words[Start:End] of the normalized transcript
+	At         int // where the name starts in the resolved words
 	Heard      string
 	Name       string
 }
 
 // Resolve returns the transcript's normalized words with each run that sounds like a name
-// replaced by the name, and the runs it replaced. A run of up to two words more than the name
-// sounds like it when their sound keys differ by at most one edit in six, so "Koinon" needs
-// the same key and a peer name allows two or three edits; the closest runs win, then the
-// longer names.
+// replaced by the name, and the runs it replaced. A run that already is a name stays that
+// name. Otherwise a run of up to two words more than the name sounds like it when their sound
+// keys differ by at most one edit in six, so "Koinon" needs the same key and a peer name
+// allows two or three edits; the closest runs win, then the longer names. When two names
+// sound equally close to overlapping runs, the closer spelling wins, and when that ties too,
+// as "codex koinon voice af" and "... ef" do for "... if", neither is chosen and the words
+// stay as heard.
 func (n *Names) Resolve(transcript string) ([]string, []Match) {
 	words := Normalize(transcript)
 	type candidate struct {
-		start, end, dist int
+		start, end, dist int // dist -1: the run is the name
+		spelling         int // edit distance of the letters, for ties of sound
 		name             *name
 	}
 	var cands []candidate
@@ -56,47 +62,120 @@ func (n *Names) Resolve(transcript string) ([]string, []Match) {
 		for start := range words {
 			for end := start + 1; end <= len(words) && end-start <= len(nm.words)+2; end++ {
 				heard := strings.Join(words[start:end], "")
-				if d := distance(sound(heard), nm.sound); d <= limit {
-					cands = append(cands, candidate{start, end, d, nm})
+				if slices.Equal(words[start:end], nm.words) {
+					cands = append(cands, candidate{start, end, -1, 0, nm})
+				} else if d := distance(sound(heard), nm.sound); d <= limit {
+					cands = append(cands, candidate{start, end, d, distance(heard, strings.Join(nm.words, "")), nm})
 				}
 			}
 		}
 	}
+	tier := func(c candidate) [2]int { return [2]int{c.dist, -len(c.name.words)} }
 	sort.SliceStable(cands, func(a, b int) bool {
-		if cands[a].dist != cands[b].dist {
-			return cands[a].dist < cands[b].dist
-		}
-		if len(cands[a].name.words) != len(cands[b].name.words) {
-			return len(cands[a].name.words) > len(cands[b].name.words)
+		if ta, tb := tier(cands[a]), tier(cands[b]); ta != tb {
+			return ta[0] < tb[0] || ta[0] == tb[0] && ta[1] < tb[1]
 		}
 		return cands[a].end-cands[a].start < cands[b].end-cands[b].start
 	})
-	taken := make([]bool, len(words))
-	var matches []Match
-next:
+	// A run that is a name is kept as it is, longer names first. Another name may replace a
+	// kept run only by covering it and holding it whole, as "deepseek koinon 7 c" holds
+	// "koinon"; so "codex koinon voice ef", heard right, never becomes "... af".
+	type span struct {
+		start, end int
+		name       *name
+	}
+	kept := make([]*span, len(words))
+	var rest []candidate
 	for _, c := range cands {
-		for i := c.start; i < c.end; i++ {
-			if taken[i] {
-				continue next
+		if c.dist >= 0 {
+			rest = append(rest, c)
+			continue
+		}
+		if !slices.ContainsFunc(kept[c.start:c.end], func(k *span) bool { return k != nil }) {
+			k := &span{c.start, c.end, c.name}
+			for i := c.start; i < c.end; i++ {
+				kept[i] = k
 			}
 		}
+	}
+	cands = rest
+	taken := make([]bool, len(words))
+	free := func(c candidate) bool {
 		for i := c.start; i < c.end; i++ {
-			taken[i] = true
+			if taken[i] {
+				return false
+			}
+			if k := kept[i]; k != nil && (k.start < c.start || k.end > c.end || len(c.name.words) <= len(k.name.words) || !holds(c.name.words, k.name.words)) {
+				return false
+			}
 		}
-		heard := strings.Join(words[c.start:c.end], " ")
-		if resolved := strings.Join(c.name.words, " "); heard != resolved {
-			matches = append(matches, Match{Start: c.start, End: c.end, Heard: heard, Name: resolved})
+		return true
+	}
+	var matches []Match
+	for lo := 0; lo < len(cands); {
+		hi := lo
+		for hi < len(cands) && tier(cands[hi]) == tier(cands[lo]) {
+			hi++
 		}
+		// Within one tier, a run that another name overlaps with a closer spelling loses to it,
+		// and one that another name fits as well is ambiguous.
+		group := cands[lo:hi]
+		ambiguous := make([]bool, len(group))
+		beaten := make([]bool, len(group))
+		for i, a := range group {
+			for _, b := range group {
+				if a.name == b.name || a.start >= b.end || b.start >= a.end || !free(a) || !free(b) {
+					continue
+				}
+				switch {
+				case b.spelling < a.spelling:
+					beaten[i] = true
+				case b.spelling == a.spelling:
+					ambiguous[i] = true
+				}
+			}
+		}
+		for i, c := range group {
+			if ambiguous[i] || beaten[i] || !free(c) {
+				continue
+			}
+			for j := c.start; j < c.end; j++ {
+				taken[j] = true
+			}
+			heard := strings.Join(words[c.start:c.end], " ")
+			if resolved := strings.Join(c.name.words, " "); heard != resolved {
+				matches = append(matches, Match{Start: c.start, End: c.end, Heard: heard, Name: resolved})
+			}
+		}
+		for i, c := range group {
+			if ambiguous[i] {
+				for j := c.start; j < c.end; j++ {
+					taken[j] = true
+				}
+			}
+		}
+		lo = hi
 	}
 	sort.Slice(matches, func(a, b int) bool { return matches[a].Start < matches[b].Start })
 	out := make([]string, 0, len(words))
 	at := 0
-	for _, m := range matches {
+	for i, m := range matches {
 		out = append(out, words[at:m.Start]...)
+		matches[i].At = len(out)
 		out = append(out, strings.Fields(m.Name)...)
 		at = m.End
 	}
 	return append(out, words[at:]...), matches
+}
+
+// holds reports whether part is a run of whole's words.
+func holds(whole, part []string) bool {
+	for i := 0; i+len(part) <= len(whole); i++ {
+		if slices.Equal(whole[i:i+len(part)], part) {
+			return true
+		}
+	}
+	return false
 }
 
 // sound is a rough key for how a word is said in English: c, k and q sound alike, a run of

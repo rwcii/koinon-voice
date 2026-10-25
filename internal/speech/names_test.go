@@ -29,6 +29,9 @@ func TestResolve(t *testing.T) {
 		{"Merge pull request 5 on coin invoice.", "merge pull request 5 on koinon voice", "coin invoice → koinon voice"},
 		{"Tell deep sea coinin 7c to wait.", "tell deepseek koinon 7 c to wait", "deep sea coinin 7 c → deepseek koinon 7 c"},
 		{"What did Codex Quinn invoice AF ask?", "what did codex koinon voice af ask", "codex quinn invoice af → codex koinon voice af"},
+		// A name heard right inside a longer misheard one, and a right name before a word.
+		{"Tell deep sea koinon 7c to wait.", "tell deepseek koinon 7 c to wait", "deep sea koinon 7 c → deepseek koinon 7 c"},
+		{"Tell deepseek koinon 7c to wait.", "tell deepseek koinon 7 c to wait", ""},
 		// A name already right is not a match, and ordinary words stay.
 		{"Koinon, approve it.", "koinon approve it", ""},
 		{"Approve pull request twelve.", "approve pull request 12", ""},
@@ -36,12 +39,38 @@ func TestResolve(t *testing.T) {
 		{"Fire the cannon.", "fire the koinon", "cannon → koinon"},
 	} {
 		words, ms := n.Resolve(c.heard)
+		for _, m := range ms {
+			if got := strings.Join(words[m.At:m.At+len(strings.Fields(m.Name))], " "); got != m.Name {
+				t.Errorf("%q: match %+v at %q", c.heard, m, got)
+			}
+		}
 		var got []string
 		for _, m := range ms {
 			got = append(got, m.Heard+" → "+m.Name)
 		}
 		if strings.Join(words, " ") != c.want || strings.Join(got, "; ") != c.matches {
 			t.Errorf("%q: %q %q, want %q %q", c.heard, strings.Join(words, " "), got, c.want, c.matches)
+		}
+	}
+}
+
+// A name heard right stays itself when another name sounds the same, and a run two names fit
+// equally well is left as heard, whatever the names' order (peer review F1).
+func TestResolveAmbiguous(t *testing.T) {
+	for _, names := range [][]string{
+		{"codex-koinon-voice-af", "codex-koinon-voice-ef"},
+		{"codex-koinon-voice-ef", "codex-koinon-voice-af"},
+	} {
+		n := NewNames(names)
+		for heard, want := range map[string]string{
+			"Tell codex-koinon-voice-ef to wait.":  "tell codex koinon voice ef to wait",
+			"Tell codex koinon voice AF to wait.":  "tell codex koinon voice af to wait",
+			"Tell codex coin invoice if to wait.":  "tell codex coin invoice if to wait",
+			"Tell codex coin invoice e f to wait.": "tell codex koinon voice ef to wait",
+		} {
+			if words, _ := n.Resolve(heard); strings.Join(words, " ") != want {
+				t.Errorf("%v: %q resolved to %q, want %q", names, heard, strings.Join(words, " "), want)
+			}
 		}
 	}
 }
@@ -87,5 +116,30 @@ func TestResolveNamesAndReport(t *testing.T) {
 	}
 	if _, err := ParseTranscripts(strings.NewReader("nothing\n"), phrases); err == nil {
 		t.Error("no transcripts")
+	}
+}
+
+// A wrong match is judged where it lies in the phrase, not by whether the name is elsewhere
+// in it (peer review F2).
+func TestWrongMatchAligned(t *testing.T) {
+	phrases, err := ParsePhrases(strings.NewReader("01. [Koinon], fire the cannon.\n02. Ask [codex-koinon-voice-af] about [Koinon].\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := NewNames(testNames)
+	for _, c := range []struct {
+		phrase       int
+		heard        string
+		wrong, right int
+	}{
+		{0, "Koinon, fire the cannon.", 1, 0},
+		{0, "Quinan, fire the cannon.", 1, 1},
+		{1, "Ask codex coin invoice AF about Quinan.", 0, 2},
+	} {
+		p := phrases[c.phrase]
+		r := ResolveNames([]Transcript{{Phrase: p, Text: c.heard, Score: Compare(p, c.heard)}}, n)[0]
+		if len(r.Wrong) != c.wrong || len(r.Matches)-len(r.Wrong) != c.right {
+			t.Errorf("%q: matches %+v wrong %+v", c.heard, r.Matches, r.Wrong)
+		}
 	}
 }

@@ -45,14 +45,65 @@ func ParseTranscripts(r io.Reader, phrases []Phrase) ([]Transcript, error) {
 	return out, nil
 }
 
+// rightName reports whether a match's name lies on the same words of the phrase, and those
+// are Koinon terms: "cannon" resolved to "koinon" in "Koinon, fire the cannon" is wrong,
+// though the phrase has the name elsewhere.
+func rightName(p Phrase, resolved []string, at []int, m Match) bool {
+	n := len(strings.Fields(m.Name))
+	for k := 0; k < n; k++ {
+		j := m.At + k
+		r := at[j]
+		if r < 0 || p.Words[r] != resolved[j] || !p.Terms[r] || (k > 0 && r != at[j-1]+1) {
+			return false
+		}
+	}
+	return true
+}
+
+// align maps each hyp word to the ref word an optimal edit-distance alignment pairs it with,
+// or -1 for an inserted word. Matches are preferred to substitutions on ties.
+func align(ref, hyp []string) []int {
+	d := make([][]int, len(ref)+1)
+	for i := range d {
+		d[i] = make([]int, len(hyp)+1)
+		d[i][0] = i
+	}
+	for j := range d[0] {
+		d[0][j] = j
+	}
+	for i := 1; i <= len(ref); i++ {
+		for j := 1; j <= len(hyp); j++ {
+			sub := d[i-1][j-1]
+			if ref[i-1] != hyp[j-1] {
+				sub++
+			}
+			d[i][j] = min(sub, d[i-1][j]+1, d[i][j-1]+1)
+		}
+	}
+	at := make([]int, len(hyp))
+	for i, j := len(ref), len(hyp); j > 0; {
+		switch {
+		case i > 0 && d[i][j] == d[i-1][j-1] && ref[i-1] == hyp[j-1], i > 0 && d[i][j] == d[i-1][j-1]+1:
+			at[j-1] = i - 1
+			i, j = i-1, j-1
+		case i > 0 && d[i][j] == d[i-1][j]+1:
+			i--
+		default:
+			at[j-1] = -1
+			j--
+		}
+	}
+	return at
+}
+
 // NameResult is one transcript before and after name resolution.
 type NameResult struct {
 	Transcript
 	Resolved []string
 	After    Score
 	Matches  []Match
-	// Wrong are the matches whose name is not in the phrase: an ordinary word, or another
-	// name, turned into a name.
+	// Wrong are the matches whose name does not lie on the same Koinon-term words of the
+	// phrase: an ordinary word, or another name, turned into a name.
 	Wrong []Match
 }
 
@@ -62,9 +113,9 @@ func ResolveNames(ts []Transcript, names *Names) []NameResult {
 	for i, t := range ts {
 		words, matches := names.Resolve(t.Text)
 		r := NameResult{Transcript: t, Resolved: words, After: Compare(t.Phrase, strings.Join(words, " ")), Matches: matches}
-		ref := " " + strings.Join(t.Phrase.Words, " ") + " "
+		at := align(t.Phrase.Words, words)
 		for _, m := range matches {
-			if !strings.Contains(ref, " "+m.Name+" ") {
+			if !rightName(t.Phrase, words, at, m) {
 				r.Wrong = append(r.Wrong, m)
 			}
 		}

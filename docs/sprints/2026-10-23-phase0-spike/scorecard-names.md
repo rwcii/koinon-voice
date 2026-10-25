@@ -14,7 +14,10 @@ recording was made and no audio was read.
   than a name, gets a rough English sound key (c, k and q alike, a run of vowels as one, a
   doubled letter as one), and becomes the name when the keys differ by at most one edit in
   six. "Koinon" must match exactly ("Quinan", "Coynan" and "coin in" all give `kanan`); a
-  peer name allows two or three edits. The closest run wins, then the longer name.
+  peer name allows two or three edits. A run that already is a name is kept, unless a longer
+  name holds it ("koinon" in "deepseek koinon 7 c"). The closest run wins, then the longer
+  name; two names that sound equally close are told apart by spelling, and when that ties
+  too the words stay as heard.
 - Held-out text: macOS's `/usr/share/dict/words` (235,976 words, SHA-256 prefix
   `be41ad97963bf8da`), each word as an utterance, and `near-names.txt`, 35 ordinary phrases
   written to sound near "Koinon" ("I can in a minute", "Fire the cannon").
@@ -23,7 +26,8 @@ recording was made and no audio was read.
 
 `WER` and `Koinon-term WER` are the speech scorecard's rates, recomputed from each transcript
 before and after resolution. `Resolved` counts the runs replaced by a name; `Wrong` the
-replacements whose name is not in the phrase; `Worse` the transcripts with more errors after
+replacements whose name does not lie on the same Koinon-term words of the phrase, in an
+edit-distance alignment of the words; `Worse` the transcripts with more errors after
 resolution than before. In the held-out text every change is wrong.
 
 ## Observations
@@ -59,7 +63,7 @@ Koinon, claude koinon voice b 9, codex koinon voice 38, codex koinon voice af, d
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | apple | clean | 60 | 11.4% (35/307) | 3.9% (12/307) | 28.7% (25/87) | 5.7% (5/87) | 14 | 0 | 0 |
 | apple-keywords | clean | 60 | 11.4% (35/307) | 3.9% (12/307) | 28.7% (25/87) | 5.7% (5/87) | 14 | 0 | 0 |
-| apple-dictation-keywords | clean | 60 | 13.0% (40/307) | 10.4% (32/307) | 32.2% (28/87) | 23.0% (20/87) | 5 | 0 | 0 |
+| apple-dictation-keywords | clean | 60 | 13.0% (40/307) | 10.1% (31/307) | 32.2% (28/87) | 20.7% (18/87) | 6 | 0 | 0 |
 | parakeet | clean | 60 | 11.1% (34/307) | 2.0% (6/307) | 29.9% (26/87) | 1.1% (1/87) | 17 | 0 | 0 |
 | whistle | clean | 60 | 25.4% (78/307) | 18.6% (57/307) | 37.9% (33/87) | 18.4% (16/87) | 13 | 0 | 0 |
 | whistle-keywords | clean | 60 | 16.3% (50/307) | 15.6% (48/307) | 12.6% (11/87) | 11.5% (10/87) | 1 | 0 | 0 |
@@ -156,6 +160,7 @@ Errors before and after, over reference words; a wrong match is marked.
 | 19 | noisy | parakeet | 2 to 0 | 2 to 0 | codex coin invoice af → codex koinon voice af | is codex koinon voice af still running |
 | 20 | clean | apple | 1 to 0 | 1 to 0 | claude coinan voice b 9 → claude koinon voice b 9 | what is claude koinon voice b 9 working on |
 | 20 | clean | apple-keywords | 1 to 0 | 1 to 0 | claude coinan voice b 9 → claude koinon voice b 9 | what is claude koinon voice b 9 working on |
+| 20 | clean | apple-dictation-keywords | 2 to 1 | 2 to 0 | claude koinon voice → claude koinon voice b 9 | what is claude koinon voice b 9 benign working on |
 | 20 | clean | parakeet | 1 to 0 | 1 to 0 | claude coynan voice b 9 → claude koinon voice b 9 | what is claude koinon voice b 9 working on |
 | 20 | clean | whistle | 1 to 0 | 1 to 0 | claude coinden voice b 9 → claude koinon voice b 9 | what is claude koinon voice b 9 working on |
 | 20 | noisy | apple | 1 to 0 | 1 to 0 | claude quinan voice b 9 → claude koinon voice b 9 | what is claude koinon voice b 9 working on |
