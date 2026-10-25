@@ -3,7 +3,7 @@ adr: "001"
 title: "Local Bridge and Koinon Connectors"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-24"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -36,8 +36,11 @@ address, and each remote daemon through an SSH local forward to that host's loop
 It acts through Koinon's maintainer interface, which does not yet exist in a form a non-browser
 client can use (rwcii/koinon#464).
 
-This record is a proposal from the design session of 2026-10-23. Phase 0 maps what Koinon
-offers today, and the record is revised with that evidence before it is accepted.
+This record is a proposal from the design session of 2026-10-23, revised on 2026-10-24 from
+Phase 0's map of Koinon v0.4.1 (`docs/sprints/2026-10-23-phase0-spike/koinon-map.md`) and its
+audio results (`results.md` beside it). It remains a proposal for the maintainer's decision.
+The map found no maintainer interface a non-browser client can use without scraping the
+dashboard, so the bridge's Koinon features wait for rwcii/koinon#464.
 
 ---
 
@@ -80,8 +83,10 @@ Koinon's to decide (rwcii/koinon#464).
 ### Decision
 
 `koinon-voice` is one Go process on the maintainer's machine. It serves the dashboard on a
-loopback address, where the browser grants microphone access to a page on `localhost`, and
-runs speech engines as sidecar processes (ADR 002).
+loopback address and runs speech engines as sidecar processes (ADR 002). On macOS the Swift
+helper captures the microphone and plays speech, with Apple's voice processing (ADR 002,
+Decision 3); the dashboard shows the listening state and the item, and does not capture
+audio.
 
 ### Alternatives Considered
 
@@ -94,6 +99,14 @@ runs speech engines as sidecar processes (ADR 002).
 
 1. Same language and build as Koinon (WDR 001, Decision 7).
 2. A loopback page keeps the dashboard on the maintainer's machine.
+3. Echo cancellation was shown in Phase 0 with the helper's voice processing, not with a
+   browser's; the design session's proposal had the browser capture the microphone.
+
+### Trade-offs Accepted
+
+macOS grants microphone access to the application that starts the helper; in Phase 0 a
+terminal without that grant recorded nothing. Starting the bridge needs a context that holds
+the grant.
 
 ---
 
@@ -107,8 +120,15 @@ maintainer's machine to the remote daemon's loopback address, using the maintain
 configuration, and reconnects when the forward drops. Items, peers and alerts carry their
 host label in the unified view.
 
+Until Koinon has a lasting maintainer credential (rwcii/koinon#464), a remote connector logs
+in by running `koinon dashboard --no-open` on that host over SSH and opening the link through
+its forward, with the link's address rewritten to the forwarded port. A daemon restart ends
+the login, and the connector logs in again the same way.
+
 **Provenance:** The maintainer asked for local and remote daemons over SSH (PDR 001,
-Decision 1). The forward-per-daemon mechanism is a proposal.
+Decision 1). The forward-per-daemon mechanism and the login over SSH are proposals. Phase 0
+logged in through a plain TCP forward standing in for SSH, with the link rewritten, and the
+login is not bound to a port; an SSH forward to a remote daemon was not tried.
 
 ### Alternatives Considered
 
@@ -137,11 +157,16 @@ maintainer's posts and verdicts through Koinon's maintainer interface, authentic
 maintainer. Koinon Voice does not register as an agent session to do so. The interface is
 requested in rwcii/koinon#464.
 
+Phase 0 found that Koinon v0.4.1 offers the maintainer only the HTML dashboard: no
+machine-readable read, no change notices, no stable action interface, no lasting credential,
+and no client recorded on a verdict or post. Phase 1's Koinon features need at least the
+first three from #464; the gaps are listed on that issue.
+
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
-| Scrape the dashboard | Drive the HTML dashboard with its login cookie | Undocumented and fragile; breaks with any dashboard change |
+| Scrape the dashboard | Drive the HTML dashboard with its login cookie | Undocumented and fragile; breaks with any dashboard change. Phase 0 showed it works from `curl`, including verdicts, which does not change the reason |
 | Register as an agent session | Use the MCP tools as a peer | Peer messages are data and carry no maintainer authority (Koinon WDR 002, Decision 3) |
 
 ### Rationale
@@ -156,9 +181,10 @@ Phase 1 depends on Koinon delivering #464.
 
 ## Conclusion
 
-One local Go process serves a loopback dashboard, reaches each daemon on loopback directly or
-through an SSH forward, and acts through Koinon's maintainer interface. The record is a
-proposal, to be revised with Phase 0's map of the Koinon interface.
+One local Go process serves a loopback dashboard, leaves the audio to its helper, reaches
+each daemon on loopback directly or through an SSH forward, and acts through Koinon's
+maintainer interface, which Koinon v0.4.1 does not have yet. The record is a proposal, revised
+with Phase 0's evidence, for the maintainer's decision.
 
 ---
 
@@ -167,3 +193,4 @@ proposal, to be revised with Phase 0's map of the Koinon interface.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-24 | Revised from Phase 0: the helper captures audio, the login over SSH, and the gaps in Koinon v0.4.1 |

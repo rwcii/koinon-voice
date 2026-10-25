@@ -190,3 +190,8 @@ changes requested:
 On dc65532 the new `internal/speech` tests do not build (no `FailedHours`, `Said` or
 `Verdict`, and `PerHour` has one result), and in `cmd/koinon-voice` the wake table lacks the
 failed-hours column and the run with no barge-in prints "Result: passed".
+
+With F1 to F4, R1 and the nonblocking correction made, both reviews approved 049a070, which
+merged as b9951d2:
+[peer review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6390629696) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/7#issuecomment-6390629838).

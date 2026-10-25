@@ -32,8 +32,9 @@ tags:
 
 Koinon items are written to be read, not heard. Koinon Voice speaks a short summary of each
 item, which needs summarization. The maintainer accepts external inference for it if local
-models are not enough. This record states that and leaves open the scope of external use until
-the Phase 0 proof of concept measures local and external engines.
+models are not enough. This record states that. The scope of external use stays open for the
+maintainer's decision, with a proposal from the Phase 0 proof of concept, which measured local
+and external engines on synthetic items.
 
 ---
 
@@ -114,6 +115,16 @@ model, local open-weight models, Claude, OpenAI and OpenRouter. The proposal fro
 session, for that decision: local by default, external enabled per host, and a spoken request
 to summarize one item externally.
 
+**Proposal from Phase 0**, for the maintainer's decision
+(`docs/sprints/2026-10-23-phase0-spike/results.md`): external inference is enabled per host by
+the maintainer and is off until then. Where it is on, Claude Haiku summarizes; where it is
+off, the local Qwen3-4B does. The spoken request to summarize one item externally stays open.
+On 20 synthetic items, Haiku was correct on all 20, and among the quickest to speak at
+about a hundredth of a cent per item; the local models missed a fact in 6 and 8 of 20, most
+often a dropped option or an invented recommendation, which misleads the maintainer about a
+decision. Haiku's listenability rating was the lowest, from spelling agent names out, which
+the prompt can change; the ratings, three per engine, separate engines only coarsely.
+
 **Provenance:** Maintainer, 2026-10-23, asked about scope and provider: "let's discuss what a
 POC would look like here." and "for engines, we could also look at openrouter or openai for
 models too."
@@ -130,15 +141,16 @@ models too."
 
 ### User Impact
 
-None until decided.
+None until decided. Under the proposal, a host the maintainer has not enabled sends nothing
+out, and its summaries are less often correct.
 
 ---
 
 ## Conclusion
 
 Items are summarized for speech, with local models preferred and external inference
-acceptable when needed and labeled. The scope and provider of external inference wait for
-Phase 0's measurements.
+acceptable when needed and labeled. The scope and provider of external inference are the
+maintainer's to decide, with Phase 0's proposal of a per-host switch and Claude Haiku.
 
 ---
 
@@ -147,3 +159,4 @@ Phase 0's measurements.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-24 | Decision 2: Phase 0's proposal for the maintainer's decision |
