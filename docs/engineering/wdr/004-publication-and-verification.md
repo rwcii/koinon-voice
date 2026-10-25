@@ -3,7 +3,7 @@ wdr: "004"
 title: "Publication and Verification"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-25"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -28,9 +28,9 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 004](https://github.com/rwcii/koinon/blob/7089386ce4d85758f991f5b56c8de0e13fe2e754/docs/engineering/wdr/004-publication-and-verification.md) at 7089386 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 004](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/004-publication-and-verification.md) at e89d370 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 004, Decision 1" means the same
-in both repositories. It covers the branch model, one open pull request per target branch on a head current with develop, required checks on Linux and macOS, auto-merge and signed, human-authored commits.
+in both repositories. It covers the branch model, one open pull request per target branch on a head current with develop, required checks on Linux and macOS, auto-merge, signed, human-authored commits and the account of failed CI runs before a release.
 
 The record is a draft because its source is: Koinon's record states which of its decisions the
 maintainer made and which shipped without a recorded maintainer decision, and that status
@@ -71,7 +71,7 @@ Koinon's record and is not repeated here.
 
 ### Decision
 
-Koinon WDR 004, Decisions 1 to 5, applies to Koinon Voice. Branches are `feature/*`, `fix/*` or `chore/*` from `develop`, squashed into `develop` and promoted to `main` by a merge pull request. One pull request is open per target branch. Pull requests into `develop` set squash auto-merge. Commits are signed (`git commit -S -s`) under the maintainer's GitHub identity and no-reply address, with no co-author trailer, tool signature or model name, and Git prose calls Robert "the maintainer". The checks differ from Koinon's as below.
+Koinon WDR 004, Decisions 1 to 6, applies to Koinon Voice. Branches are `feature/*`, `fix/*` or `chore/*` from `develop`, squashed into `develop` and promoted to `main` by a merge pull request. One pull request is open per target branch. Pull requests into `develop` set squash auto-merge. Commits are signed (`git commit -S -s`) under the maintainer's GitHub identity and no-reply address, with no co-author trailer, tool signature or model name, and Git prose calls Robert "the maintainer". The checks differ from Koinon's as below.
 
 | Koinon WDR 004 | In Koinon Voice |
 | ------------- | --------------- |
@@ -79,6 +79,7 @@ Koinon WDR 004, Decisions 1 to 5, applies to Koinon Voice. Branches are `feature
 | Decision 3: the `go` job runs vet, gofmt, the race suite and four `CGO_ENABLED=0` builds of `./cmd/koinon` | The same steps for `./cmd/koinon-voice` |
 | Decision 3: operating-system differences in `internal/platform` | The same, once the first one exists |
 | Enforcement: `scripts/setup-repo.sh` and `.githooks/pre-commit` | The same files, with this repository's required checks |
+| Decision 6: the failed-run account since the previous release tag | The same, with the scope in `.koinon/skills/release.md`; before the first release the baseline is the repository's first commit |
 | Decision 5, Enforcement: practice only | Also enforced. `scripts/check-attribution.sh` refuses a co-author trailer, a tool signature, a Claude session link or an Anthropic no-reply address in a message, and a commit identity naming Claude or Anthropic. The `.githooks/commit-msg` hook runs it on each local commit; the required `attribution` job runs it on each pull request's title, body and commits, since the squash commit takes the title and body. The project `.claude/settings.json` turns off Claude Code's own commit and pull request attribution and session link. Signing stays practice: `commit.gpgsign` in each clone |
 
 **Provenance for the attribution enforcement:** Maintainer, 2026-10-23, raised by the
@@ -114,3 +115,4 @@ Koinon Voice publishes like Koinon: one squash pull request at a time into `deve
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-23 | Attribution enforcement: hook, required check and project settings |
+| 2026-10-25 | Koinon WDR 004 at e89d370 (rwcii/koinon#487); Decision 6, the failed-run account before a release (rwcii/koinon#477), adopted |

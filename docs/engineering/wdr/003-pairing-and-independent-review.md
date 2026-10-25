@@ -3,7 +3,7 @@ wdr: "003"
 title: "Pairing and Independent Review"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-25"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -26,9 +26,9 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 003](https://github.com/rwcii/koinon/blob/7089386ce4d85758f991f5b56c8de0e13fe2e754/docs/engineering/wdr/003-pairing-and-independent-review.md) at 7089386 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 003](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/003-pairing-and-independent-review.md) at e89d370 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 003, Decision 1" means the same
-in both repositories. It covers the driver and observer pair, trading roles at a committed increment, review by the other agent family of a frozen commit, the evidence bar for blockers and one worktree per change.
+in both repositories. It covers the driver and observer pair, trading roles at a committed increment, review by the other agent family of a frozen commit, findings that carry evidence and a triage and one worktree per change.
 
 The record is a draft because its source is: Koinon's record states which of its decisions the
 maintainer made and which shipped without a recorded maintainer decision, and that status
@@ -99,3 +99,4 @@ Koinon Voice pairs, reviews and isolates work exactly as Koinon does.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-10-25 | Koinon WDR 003 at e89d370 (rwcii/koinon#487): Decisions 3 to 5 say what to do; Decision 4 is now findings with evidence and a triage |

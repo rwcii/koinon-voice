@@ -4,6 +4,12 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The records, the vendored process guides and the shared skills follow Koinon at e89d370,
+  after its #487 records and docs (rwcii/koinon#492, #494). WDR 002 adopts Koinon's Decisions 1
+  to 4, which now say a peer's request is a teammate's request, and drops the differences
+  Koinon's record now carries. WDR 004 adopts Decision 6: a release lists every failed CI run
+  since the previous release tag, as the release facts describe. The `pair` skill drops its
+  once-only limits.
 - Agent-facing text says what to do (rwcii/koinon#487). The shared skills are taken from
   Koinon at 0cf3979 (rwcii/koinon#491), without their limits and caveats: `sprint` has no
   gates A and B, and `release` merges and publishes with no second approval. The skill facts,
