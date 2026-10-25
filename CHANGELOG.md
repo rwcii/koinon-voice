@@ -4,6 +4,10 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- ADR 001 is revised to Koinon PDR 009, approved on rwcii/koinon#470: each connector runs
+  `koinon mcp --maintainer` on stdio, locally or over SSH, with the daemon's maintainer secret
+  from the Keychain, in place of SSH forwards and dashboard logins. It remains a draft for the
+  maintainer's decision.
 - `koinon-voice bench wake` records how many speech segments phrase matching's voice
   activity step found per file, and its Misses table counts the takes missed with no speech
   found (#10).
