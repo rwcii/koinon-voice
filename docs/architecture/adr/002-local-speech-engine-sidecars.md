@@ -1,7 +1,7 @@
 ---
 adr: "002"
 title: "Local Speech Engine Sidecars"
-status: draft
+status: accepted
 created: "2026-10-23"
 updated: "2026-10-26"
 parent_adr: ""
@@ -22,7 +22,7 @@ tags:
 # ADR 002: Local Speech Engine Sidecars
 
 **Date:** 2026-10-23
-**Status:** Draft
+**Status:** Accepted
 **Authors:** Robert Capps
 
 ---
@@ -36,9 +36,9 @@ devices, with Apple's voice processing for echo cancellation; other engines run 
 behind the same interface.
 
 The record was proposed in the design session of 2026-10-23 and revised on 2026-10-24 from
-Phase 0's measurements (`docs/sprints/2026-10-23-phase0-spike/results.md`). The default
-engines are a proposal for the maintainer's decision. The maintainer decided the audio path
-and native runtimes for the engines on 2026-10-26.
+Phase 0's measurements (`docs/sprints/2026-10-23-phase0-spike/results.md`). The maintainer
+decided the default engines, the audio path and native runtimes for the engines on
+2026-10-26, and the record is accepted.
 
 ---
 
@@ -46,7 +46,7 @@ and native runtimes for the engines on 2026-10-26.
 
 1. Problem Context
 2. Decision 1: Engines are sidecar processes behind one interface
-3. Decision 2: Default engines, proposed from Phase 0
+3. Decision 2: Default engines, from Phase 0
 4. Decision 3: The Swift helper owns the audio, with voice processing
 5. Decision 4: Native runtimes, no Python
 6. Conclusion
@@ -110,11 +110,11 @@ bounds it.
 
 ---
 
-## 3. Decision 2: Default engines, proposed from Phase 0
+## 3. Decision 2: Default engines, from Phase 0
 
 ### Decision
 
-Proposed for the maintainer's decision, from the measurements in Phase 0's results:
+From the measurements in Phase 0's results:
 
 - **Recognition:** Apple `SpeechTranscriber`, in the Swift helper. Koinon's names (the word
   "Koinon", peers and repositories) are resolved after recognition by matching against the
@@ -132,14 +132,17 @@ models such as https://huggingface.co/Cactus-Compute/whistle or similar
 https://github.com/cactus-compute/cactus." Later, raised by the maintainer, not in answer to a
 question, after the agent had proposed engine sidecars and a Phase 0 bake-off: "we can also
 look at local mac models and modes." Reason: the maintainer asked to consider these engines.
-Scope: which engines Phase 0 measures. The defaults are proposals from those measurements.
+Scope: which engines Phase 0 measures. The defaults were proposed from those measurements;
+maintainer, 2026-10-26, approved board item kv-adr002-d2, "Koinon Voice: accept the default
+speech engines from Phase 0 (ADR 002, Decision 2)?", which recommended accepting the three
+defaults as proposed, with no note.
 On the voice, maintainer, 2026-10-23, after the blind synthesis rating, asked which voice to
 use until a Kokoro engine exists: "try kokoro at 1.1 and 1.2, stay with zoe until kokaro is
 wired in" (scorecard-speech.md).
 
 ### Alternatives Considered
 
-| Alternative | Description | Why Not Proposed |
+| Alternative | Description | Why Rejected |
 | ----------- | ----------- | ---------------- |
 | Pick from published benchmarks | Choose without measuring | Published figures are vendor runs on read English, not Koinon's vocabulary |
 | Parakeet for recognition | The most accurate overall, especially in noise | Within 1.6 points of Apple, and needs a Python runtime; the alternative if noise matters more |
@@ -234,7 +237,7 @@ measurements of them do not carry over until they are repeated.
 ## Conclusion
 
 Speech engines are local sidecar processes behind one stdio interface, which keeps the Go
-module CGO-free and let Phase 0 compare them. From its measurements, this record proposes
+module CGO-free and let Phase 0 compare them. From its measurements, the maintainer chose
 Apple recognition with Koinon names resolved after it, Kokoro's voice and openWakeWord
 retrained for the wake word. The Swift helper owns the audio with voice processing, and the
 engines run in native runtimes without Python.
@@ -249,3 +252,4 @@ engines run in native runtimes without Python.
 | 2026-10-24 | Revised from Phase 0: proposed default engines, the audio path with voice processing, and the open runtime question |
 | 2026-10-24 | Decision 2's trade-off: name matching measured on Phase 0's transcripts (#11) |
 | 2026-10-26 | Decisions 3 and 4 decided by the maintainer: the audio path with voice processing, and native runtimes without Python |
+| 2026-10-26 | Decision 2 decided by the maintainer (board item kv-adr002-d2); the record is accepted |

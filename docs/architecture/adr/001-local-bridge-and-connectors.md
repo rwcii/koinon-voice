@@ -1,9 +1,9 @@
 ---
 adr: "001"
 title: "Local Bridge and Koinon Connectors"
-status: draft
+status: accepted
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-10-26"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -23,7 +23,7 @@ tags:
 # ADR 001: Local Bridge and Koinon Connectors
 
 **Date:** 2026-10-23
-**Status:** Draft
+**Status:** Accepted
 **Authors:** Robert Capps
 
 ---
@@ -39,9 +39,12 @@ Keychain, and its actions are recorded as the maintainer's, with the client `mcp
 This record is a proposal from the design session of 2026-10-23. It was revised on 2026-10-24
 from Phase 0's map of Koinon v0.4.1 (`docs/sprints/2026-10-23-phase0-spike/koinon-map.md`) and
 its audio results (`results.md` beside it), and on 2026-10-25 to the maintainer mode of Koinon
-PDR 009, which the maintainer approved on rwcii/koinon#470 that day. It remains a proposal
-for the maintainer's decision. Koinon has not built the maintainer mode yet, so the bridge's
-Koinon features wait for it.
+PDR 009, which the maintainer approved on rwcii/koinon#470 that day. Koinon v0.5.0 has the
+maintainer mode, its change notices and its token rules.
+
+**Provenance:** Maintainer, 2026-10-26, approved board item kv-adr001, "Koinon Voice: accept
+ADR 001 (connectors use koinon mcp --maintainer)?", which recommended accepting the record as
+written, with no note.
 
 ---
 
@@ -132,8 +135,8 @@ Decision 1). After reading Phase 0's map, the maintainer said "koinon will need 
 surfaced for this. maybe this needs to be an MCP" and asked for the spec to be filed with
 Koinon (2026-10-23, rwcii/koinon#470). Koinon PDR 009 makes the maintainer mode a stdio MCP
 server for local clients and clients over SSH; the maintainer approved it on 2026-10-25. One
-connector per daemon and starting the process again are this record's proposals. The SSH
-path has not been tried, because the maintainer mode is not built yet.
+connector per daemon and starting the process again were this record's proposals, which the
+maintainer accepted with it on 2026-10-26. The SSH path has not been tried yet (#15).
 
 ### Alternatives Considered
 
@@ -199,12 +202,13 @@ the gate and ancestry adds no proof against a process that holds it, and then wh
 approve the draft as a whole, the maintainer answered "no on option C, PDR 009 approved".
 That approves PDR 009 as drafted, with the client recorded and Koinon's three-PR delivery,
 and leaves agent descendants able to start the maintainer mode with the secret. Keeping each
-host's secret in the Keychain is this record's proposal.
+host's secret in the Keychain was this record's proposal, which the maintainer accepted with
+it on 2026-10-26.
 
 Phase 0 found that Koinon v0.4.1 offers the maintainer only the HTML dashboard: no
 machine-readable read, no change notices, no stable action interface, no lasting credential,
 and no client recorded on a verdict or post (rwcii/koinon#464). The maintainer mode's second
-PR closes all but the notices, and its third PR closes those. Koinon v0.4.3 has none of it.
+PR closes all but the notices, and its third PR closes those. Koinon v0.5.0 has all of it.
 
 ### Alternatives Considered
 
@@ -221,8 +225,8 @@ PR closes all but the notices, and its third PR closes those. Koinon v0.4.3 has 
 
 ### Trade-offs Accepted
 
-- Phase 1's Koinon features depend on Koinon delivering PDR 009's second PR, and the notices
-  on its third.
+- Phase 1's Koinon features need Koinon v0.5.0 or later, which has PDR 009's maintainer mode
+  and its notices.
 - The secret separates the maintainer's clients from agents that use Koinon as intended; it
   does not stop a process running as the maintainer's OS user that sets out to bypass it
   (Koinon PDR 009, Decision 1).
@@ -236,8 +240,8 @@ PR closes all but the notices, and its third PR closes those. Koinon v0.4.3 has 
 One local Go process serves a loopback dashboard, leaves the audio to its helper, and reaches
 each daemon through Koinon's maintainer mode on stdio, locally or over SSH, with that
 daemon's secret from the Keychain. Its actions are the maintainer's, recorded with the client
-`mcp:koinon-voice`. Koinon PDR 009 defines the maintainer mode and is approved, but it is not
-built. The record is a proposal for the maintainer's decision.
+`mcp:koinon-voice`. Koinon PDR 009 defines the maintainer mode, and Koinon v0.5.0 has it. The
+maintainer accepted this record on 2026-10-26.
 
 ---
 
@@ -249,3 +253,4 @@ built. The record is a proposal for the maintainer's decision.
 | 2026-10-24 | Revised from Phase 0: the helper captures audio, the login over SSH, and the gaps in Koinon v0.4.1 |
 | 2026-10-25 | Revised to Koinon PDR 009: connectors run `koinon mcp --maintainer` on stdio, locally or over SSH, in place of SSH forwards and dashboard logins; the secret in the Keychain; the client recorded as `mcp:koinon-voice` |
 | 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |
+| 2026-10-26 | Accepted by the maintainer (board item kv-adr001); Koinon v0.5.0 has the maintainer mode |
