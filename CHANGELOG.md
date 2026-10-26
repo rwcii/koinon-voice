@@ -4,6 +4,13 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The Apple helper's `speak` plays through an engine with voice processing on, as ADR 002,
+  Decision 3 now decides, in place of ordinary playback, which was silent through a
+  multichannel USB mixer (#8). Playing to the output device now needs microphone access.
+- The maintainer decided ADR 002, Decisions 3 and 4, and PDR 004, Decision 2: all speech plays
+  through the Swift helper with voice processing; Kokoro and openWakeWord run in native
+  runtimes, without Python; and external inference is enabled per host, with Claude Haiku
+  where it is on and the local Qwen3-4B where it is off.
 - The records, the vendored process guides and the shared skills follow Koinon v0.5.0
   (8abe1b9). `handoff` and `pickup` name the handoff directory of a session that runs outside a
   Git checkout (rwcii/koinon#485), and WDR 001 and WDR 004 cite the maintainer's verdicts that

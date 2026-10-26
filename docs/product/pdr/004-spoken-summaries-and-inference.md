@@ -3,7 +3,7 @@ pdr: "004"
 title: "Spoken Summaries and Inference"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-10-26"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -32,9 +32,9 @@ tags:
 
 Koinon items are written to be read, not heard. Koinon Voice speaks a short summary of each
 item, which needs summarization. The maintainer accepts external inference for it if local
-models are not enough. This record states that. The scope of external use stays open for the
-maintainer's decision, with a proposal from the Phase 0 proof of concept, which measured local
-and external engines on synthetic items.
+models are not enough. This record states that, and the scope of external use that the
+maintainer decided after the Phase 0 proof of concept, which measured local and external
+engines on synthetic items.
 
 ---
 
@@ -42,7 +42,7 @@ and external engines on synthetic items.
 
 1. Problem Context
 2. Decision 1: Items are summarized for speech, locally first
-3. Decision 2: Open until Phase 0: external inference scope
+3. Decision 2: External inference per host
 4. Conclusion
 5. Document History
 
@@ -104,22 +104,16 @@ The maintainer hears a few sentences per item, and hears when a provider produce
 
 ---
 
-## 3. Decision 2: Open until Phase 0: external inference scope
+## 3. Decision 2: External inference per host
 
 ### Decision
 
-Not decided. When external inference is allowed (per host, per item, or one switch) and
-which provider is the default are decided after the Phase 0 proof of concept reports accuracy,
-listenability, latency and cost for local and external engines, including Apple's on-device
-model, local open-weight models, Claude, OpenAI and OpenRouter. The proposal from the design
-session, for that decision: local by default, external enabled per host, and a spoken request
-to summarize one item externally.
+The maintainer enables external inference per host, and it is off until then. Where it is on,
+Claude Haiku summarizes; where it is off, the local Qwen3-4B does. A spoken request to
+summarize one item externally stays open.
 
-**Proposal from Phase 0**, for the maintainer's decision
-(`docs/sprints/2026-10-23-phase0-spike/results.md`): external inference is enabled per host by
-the maintainer and is off until then. Where it is on, Claude Haiku summarizes; where it is
-off, the local Qwen3-4B does. The spoken request to summarize one item externally stays open.
-On 20 synthetic items, Haiku was correct on all 20, and among the quickest to speak at
+The measurements behind it (`docs/sprints/2026-10-23-phase0-spike/results.md`): on 20
+synthetic items, Haiku was correct on all 20, and among the quickest to speak at
 about a hundredth of a cent per item; the local models missed a fact in 6 and 8 of 20, most
 often a dropped option or an invented recommendation, which misleads the maintainer about a
 decision. Haiku's listenability rating was the lowest, from spelling agent names out, which
@@ -127,30 +121,38 @@ the prompt can change; the ratings, three per engine, separate engines only coar
 
 **Provenance:** Maintainer, 2026-10-23, asked about scope and provider: "let's discuss what a
 POC would look like here." and "for engines, we could also look at openrouter or openai for
-models too."
+models too." Phase 0 measured accuracy, listenability, latency and cost for local and external
+engines, including Apple's on-device model, local open-weight models, Claude, OpenAI and
+OpenRouter, and proposed this decision. Maintainer, 2026-10-26, approved board item
+kv-pdr004-d2, "Koinon Voice: external summarization scope: per host, Claude Haiku where on,
+local Qwen3-4B where off (PDR 004, Decision 2)?", with the note: "You can use external
+inference for this".
 
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
 | Decide now | Pick a scope and provider before measuring | The maintainer asked for a proof of concept first |
+| Local only, everywhere | Never send an item out | The local models missed a fact in 6 and 8 of 20 items |
+| External on for all hosts | One switch | The maintainer approved the per-host proposal |
 
 ### Rationale
 
-1. The measurements decide whether external inference is needed at all, and for which items.
+1. The measurements showed that the local models miss facts that Claude Haiku keeps, and the
+   maintainer chose where external inference is used.
 
 ### User Impact
 
-None until decided. Under the proposal, a host the maintainer has not enabled sends nothing
-out, and its summaries are less often correct.
+A host the maintainer has not enabled sends nothing out, and its summaries are less often
+correct. Where it is enabled, Claude Haiku summarizes, labeled as Decision 1 says.
 
 ---
 
 ## Conclusion
 
 Items are summarized for speech, with local models preferred and external inference
-acceptable when needed and labeled. The scope and provider of external inference are the
-maintainer's to decide, with Phase 0's proposal of a per-host switch and Claude Haiku.
+acceptable when needed and labeled. The maintainer enables external inference per host, with
+Claude Haiku where it is on and the local Qwen3-4B where it is off.
 
 ---
 
@@ -160,3 +162,4 @@ maintainer's to decide, with Phase 0's proposal of a per-host switch and Claude 
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Decision 2: Phase 0's proposal for the maintainer's decision |
+| 2026-10-26 | Decision 2 decided by the maintainer: external inference per host |

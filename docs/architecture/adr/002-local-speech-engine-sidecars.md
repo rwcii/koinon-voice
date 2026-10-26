@@ -3,7 +3,7 @@ adr: "002"
 title: "Local Speech Engine Sidecars"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-24"
+updated: "2026-10-26"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -37,8 +37,8 @@ behind the same interface.
 
 The record was proposed in the design session of 2026-10-23 and revised on 2026-10-24 from
 Phase 0's measurements (`docs/sprints/2026-10-23-phase0-spike/results.md`). The default
-engines, the audio path and the runtime question below are proposals for the maintainer's
-decision.
+engines are a proposal for the maintainer's decision. The maintainer decided the audio path
+and native runtimes for the engines on 2026-10-26.
 
 ---
 
@@ -48,7 +48,7 @@ decision.
 2. Decision 1: Engines are sidecar processes behind one interface
 3. Decision 2: Default engines, proposed from Phase 0
 4. Decision 3: The Swift helper owns the audio, with voice processing
-5. Decision 4: Open: the runtime for the Python engines
+5. Decision 4: Native runtimes, no Python
 6. Conclusion
 7. Document History
 
@@ -170,14 +170,18 @@ starts about 0.3 s later than Apple's voice.
 
 ### Decision
 
-Proposed for the maintainer's decision: on macOS the Swift helper captures the microphone and
-plays all of the bridge's speech through one `AVAudioEngine` with Apple's voice processing on,
-whichever engine synthesized the speech. An interruption is any speech heard during playback:
-the bridge stops speaking and acts on what follows, not on a cue word.
+On macOS the Swift helper captures the microphone and plays all of the bridge's speech
+through one `AVAudioEngine` with Apple's voice processing on, whichever engine synthesized the
+speech. An interruption is any speech heard during playback: the bridge stops speaking and
+acts on what follows, not on a cue word.
+
+**Provenance:** Maintainer, 2026-10-26, approved board item kv-adr002-d3, "Koinon Voice: play
+all speech through the Swift helper with voice processing (ADR 002, Decision 3)?", which
+proposed this decision from Phase 0's evidence and named its cost, with no note.
 
 ### Alternatives Considered
 
-| Alternative | Description | Why Not Proposed |
+| Alternative | Description | Why Rejected |
 | ----------- | ----------- | ---------------- |
 | Each engine plays its own audio | Kokoro's helper plays what it renders | Echo cancellation needs the played audio as its reference |
 | A cue word such as "stop" | Interrupt only on the word | Phase 0's "Stop", said over the bridge, was suppressed as echo |
@@ -195,20 +199,35 @@ processes before it plays.
 
 ---
 
-## 5. Decision 4: Open: the runtime for the Python engines
+## 5. Decision 4: Native runtimes, no Python
 
 ### Decision
 
-Not decided. Kokoro and openWakeWord, which Decision 2 proposes, ran in Phase 0 in a Python
-helper. Decision 1 keeps engines as helpers, but Python helpers still need a
-Python environment, which the rejected Python services would also have added. The maintainer
-decides between a Python environment that Koinon Voice manages for those helpers and native
-runtimes for them, which Koinon Voice does not have yet.
+Koinon Voice's engines run natively, without Python. Kokoro and openWakeWord, which ran in a
+Python helper in Phase 0, run in native runtimes, for example ONNX Runtime or Core ML, in a
+helper process (Decision 1). Their results are measured again against Phase 0's.
+
+**Provenance:** Maintainer, 2026-10-26, on board item kv-adr002-d4, "Koinon Voice: how do
+Kokoro and openWakeWord ship: managed Python or native runtimes (ADR 002, Decision 4)?". The
+item offered A, a managed Python environment, and B, native runtimes, and recommended A for
+Phase 1. The maintainer chose B in the verdict note: "B - NO Python.  This needs to run
+natively on a mac, and eventually on a iphone/ipad, etc.  let's not start with tech debt that
+will need to be ripped out."
+
+### Alternatives Considered
+
+| Alternative | Description | Why Rejected |
+| ----------- | ----------- | ------------ |
+| Managed Python environment | Koinon Voice keeps a private Python environment for the two helpers, from pinned packages | The maintainer: Koinon Voice runs natively on a Mac and later on iPhone and iPad, and a Python environment is debt to remove later |
 
 ### Rationale
 
-1. The proposed engines are chosen by measurement; how they ship is a separate choice with a
-   cost in installation and upkeep either way.
+1. The maintainer decided it, for the platforms named above.
+
+### Trade-offs Accepted
+
+Kokoro and openWakeWord need native code that Koinon Voice does not have yet, and Phase 0's
+measurements of them do not carry over until they are repeated.
 
 ---
 
@@ -216,9 +235,9 @@ runtimes for them, which Koinon Voice does not have yet.
 
 Speech engines are local sidecar processes behind one stdio interface, which keeps the Go
 module CGO-free and let Phase 0 compare them. From its measurements, this record proposes
-Apple recognition with Koinon names resolved after it, Kokoro's voice, openWakeWord retrained
-for the wake word, and the Swift helper owning the audio with voice processing; how the Python
-engines ship is open.
+Apple recognition with Koinon names resolved after it, Kokoro's voice and openWakeWord
+retrained for the wake word. The Swift helper owns the audio with voice processing, and the
+engines run in native runtimes without Python.
 
 ---
 
@@ -229,3 +248,4 @@ engines ship is open.
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Revised from Phase 0: proposed default engines, the audio path with voice processing, and the open runtime question |
 | 2026-10-24 | Decision 2's trade-off: name matching measured on Phase 0's transcripts (#11) |
+| 2026-10-26 | Decisions 3 and 4 decided by the maintainer: the audio path with voice processing, and native runtimes without Python |
