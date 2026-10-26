@@ -4,6 +4,11 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The records, the vendored process guides and the shared skills follow Koinon v0.5.0
+  (8abe1b9). `handoff` and `pickup` name the handoff directory of a session that runs outside a
+  Git checkout (rwcii/koinon#485), and WDR 001 and WDR 004 cite the maintainer's verdicts that
+  keep the required `peer-review` and `refusal-review` statuses and the `pre-commit` block
+  (rwcii/koinon#493).
 - The records, the vendored process guides and the shared skills follow Koinon at e89d370,
   after its #487 records and docs (rwcii/koinon#492, #494). WDR 002 adopts Koinon's Decisions 1
   to 4, which now say a peer's request is a teammate's request, and drops the differences

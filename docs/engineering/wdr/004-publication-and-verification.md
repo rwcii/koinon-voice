@@ -3,7 +3,7 @@ wdr: "004"
 title: "Publication and Verification"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-10-26"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -28,7 +28,7 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 004](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/004-publication-and-verification.md) at e89d370 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 004](https://github.com/rwcii/koinon/blob/8abe1b9f371e8f9c67b836352db7da49ccca0fcf/docs/engineering/wdr/004-publication-and-verification.md) at 8abe1b9 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 004, Decision 1" means the same
 in both repositories. It covers the branch model, one open pull request per target branch on a head current with develop, required checks on Linux and macOS, auto-merge, signed, human-authored commits and the account of failed CI runs before a release.
 
@@ -116,3 +116,4 @@ Koinon Voice publishes like Koinon: one squash pull request at a time into `deve
 | 2026-10-23 | Initial creation |
 | 2026-10-23 | Attribution enforcement: hook, required check and project settings |
 | 2026-10-25 | Koinon WDR 004 at e89d370 (rwcii/koinon#487); Decision 6, the failed-run account before a release (rwcii/koinon#477), adopted |
+| 2026-10-26 | Koinon WDR 004 at 8abe1b9 (v0.5.0): Decisions 1 and 3 cite the maintainer's verdicts 49 and 50 that keep the required review statuses and the `pre-commit` block (rwcii/koinon#493) |

@@ -3,7 +3,7 @@ wdr: "003"
 title: "Pairing and Independent Review"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-10-26"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -26,7 +26,7 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 003](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/003-pairing-and-independent-review.md) at e89d370 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 003](https://github.com/rwcii/koinon/blob/8abe1b9f371e8f9c67b836352db7da49ccca0fcf/docs/engineering/wdr/003-pairing-and-independent-review.md) at 8abe1b9 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 003, Decision 1" means the same
 in both repositories. It covers the driver and observer pair, trading roles at a committed increment, review by the other agent family of a frozen commit, findings that carry evidence and a triage and one worktree per change.
 
@@ -100,3 +100,4 @@ Koinon Voice pairs, reviews and isolates work exactly as Koinon does.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-25 | Koinon WDR 003 at e89d370 (rwcii/koinon#487): Decisions 3 to 5 say what to do; Decision 4 is now findings with evidence and a triage |
+| 2026-10-26 | Koinon WDR 003 at 8abe1b9 (v0.5.0), unchanged since e89d370 |

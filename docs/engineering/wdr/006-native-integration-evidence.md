@@ -3,7 +3,7 @@ wdr: "006"
 title: "Native Integration Evidence"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-10-26"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -27,7 +27,7 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 006](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/006-native-integration-evidence.md) at e89d370 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 006](https://github.com/rwcii/koinon/blob/8abe1b9f371e8f9c67b836352db7da49ccca0fcf/docs/engineering/wdr/006-native-integration-evidence.md) at 8abe1b9 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 006, Decision 1" means the same
 in both repositories. It covers the isolated ordinary test suite, guarded native tests on disposable CI runners, and named live checks of an installed build.
 
@@ -102,3 +102,4 @@ Koinon Voice keeps its ordinary tests away from the person's environment and gat
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-25 | Koinon WDR 006 at e89d370 (rwcii/koinon#487): Decision 1 says where the native tests run |
+| 2026-10-26 | Koinon WDR 006 at 8abe1b9 (v0.5.0), unchanged since e89d370 |

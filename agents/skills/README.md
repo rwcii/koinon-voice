@@ -1,7 +1,7 @@
 # Shared agent skills
 
 The skills in this directory work in every agent that develops Koinon Voice. They are byte
-copies of [Koinon's shared skills](https://github.com/rwcii/koinon/tree/e89d37059fb602ce634219ed67ce20294278e35b/agents/skills)
+copies of [Koinon's shared skills](https://github.com/rwcii/koinon/tree/8abe1b9f371e8f9c67b836352db7da49ccca0fcf/agents/skills)
 (WDR 001, Decision 7); this repository's facts for them are in `.koinon/skills/`. Claude Code, Codex
 and OpenCode discover the canonical skills through symlinks. OpenCode also has generated
 slash-command wrappers that load these same skills. Rules for writing a skill are in
