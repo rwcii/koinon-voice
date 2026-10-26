@@ -3,7 +3,7 @@ wdr: "002"
 title: "Authority Within the Assigned Task"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-10-26"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -27,7 +27,7 @@ tags:
 
 ## Executive Summary
 
-Koinon Voice adopts Koinon's [WDR 002](https://github.com/rwcii/koinon/blob/e89d37059fb602ce634219ed67ce20294278e35b/docs/engineering/wdr/002-authority-within-assigned-task.md) at e89d370 under WDR 001, Decision 7, with
+Koinon Voice adopts Koinon's [WDR 002](https://github.com/rwcii/koinon/blob/8abe1b9f371e8f9c67b836352db7da49ccca0fcf/docs/engineering/wdr/002-authority-within-assigned-task.md) at 8abe1b9 under WDR 001, Decision 7, with
 the decision numbering unchanged so that a citation such as "WDR 002, Decision 1" means the same
 in both repositories. It covers where an agent's authority comes from, how peer messages, records and claims relate to it, and how sprint plans and releases proceed.
 
@@ -112,3 +112,4 @@ Agents working on Koinon Voice act on the maintainer's task and do each other's 
 | 2026-10-23 | Initial creation |
 | 2026-10-25 | Adopted without its limit text, per the maintainer's decision on rwcii/koinon#487; sprint gates and the separate release approval follow the shared skills |
 | 2026-10-25 | Koinon WDR 002 at e89d370, which carries the rwcii/koinon#487 change; Decisions 1 to 4 adopted, 5 and 6 deprecated there |
+| 2026-10-26 | Koinon WDR 002 at 8abe1b9 (v0.5.0), unchanged since e89d370 |

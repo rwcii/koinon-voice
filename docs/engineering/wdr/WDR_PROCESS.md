@@ -3,7 +3,7 @@
 > Vendored from [rwcii/engineering-standards](https://github.com/rwcii/engineering-standards/tree/425b2efc7d829c1f61c9f44df671c4525d5d9158) at 425b2ef. Koinon Voice changes: the review
 > path is the `peer-review` and `check` skills, each series is numbered from 001 in this
 > repository, commit titles follow Koinon Voice's sentence style, and upstream records are cited
-> by link, not imported; vendored through [rwcii/koinon](https://github.com/rwcii/koinon/tree/e89d37059fb602ce634219ed67ce20294278e35b) at e89d370 (WDR 001). rwcii/koinon#487 removed the limit text: this guide and the directory guide say
+> by link, not imported; vendored through [rwcii/koinon](https://github.com/rwcii/koinon/tree/8abe1b9f371e8f9c67b836352db7da49ccca0fcf) at 8abe1b9 (WDR 001). rwcii/koinon#487 removed the limit text: this guide and the directory guide say
 > what a WDR holds and where other decisions go. The vendored process guides, PDR template and
 > directory guides carry the upstream MIT notice in [docs/ENGINEERING-STANDARDS-LICENSE](../../ENGINEERING-STANDARDS-LICENSE).
 
