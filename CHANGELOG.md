@@ -4,6 +4,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The summary prompt gives the asker as a person says it, the agent family and then the
+  project ("Codex, working in Koinon Voice"), and asks the engine to say other session names
+  the same way and to keep only the figures that the decision needs (#13).
 - The records, the vendored process guides and the shared skills follow Koinon v0.5.0
   (8abe1b9). `handoff` and `pickup` name the handoff directory of a session that runs outside a
   Git checkout (rwcii/koinon#485), and WDR 001 and WDR 004 cite the maintainer's verdicts that
