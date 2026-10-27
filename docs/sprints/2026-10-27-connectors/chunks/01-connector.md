@@ -13,8 +13,9 @@ Read `../decision.md` and `../definition-of-done.md` first.
      `details`) as a typed error;
    - a connector for one host: it builds the local or `ssh` command, writes the secret as the
      first line, initializes, subscribes to inbox and decisions, lists the rooms and subscribes
-     to each, reads the waiting items, the inbox and the rooms, and reads a resource again
-     after its notice. It makes the liveness read after an idle interval. It publishes each
+     to each, reads every page of the waiting items, the inbox and the rooms, calls
+     `decision_get` for each item whose revision it does not have, and reads a resource
+     again after its notice. It makes the liveness read after an idle interval. It publishes each
      state change (connected with its data, or disconnected with a reason and code). It starts
      the process again after an exit, a refusal of the token, a -32603 `daemon_unavailable`,
      junk or a failed liveness read, with a delay that grows to a limit;
@@ -45,7 +46,8 @@ hosts with the same reference, and a child that does not exit.
 ## Live check
 
 Live check 1, recorded in `../live-checks.md` with the Koinon version and commands, and with
-the scratch daemon's secret not recorded.
+the scratch daemon's secret not recorded. It includes a restart while subscribed, and more
+waiting items than one `board_list` page holds.
 
 ## Done
 

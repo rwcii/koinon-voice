@@ -31,13 +31,24 @@ The connector is built and tested against these results:
   standard error is one JSON line with `code: "maintainer_secret_invalid"`.
 - **Daemon down at start.** Exit status 1, standard error `code: "daemon_error"`, detail
   "daemon unavailable".
-- **Daemon restart.** The process does not exit by itself. An open `resources/subscribe`
-  answers JSON-RPC error -32603 with `data.code: "daemon_unavailable"`. The next tool call
+- **Daemon restart, subscribed.** With a subscription in place, the process exits with
+  status 1 a few seconds after the restart (3 seconds in the driver's run, under 5 in
+  Codex's), with no request from the client. Koinon's `ServeMaintainer` ends the token when
+  its long poll for changes sees it end.
+- **Daemon restart, not subscribed.** The process does not exit by itself. The next tool call
   answers `maintainer_token_expired` (`isError: true`), and then the process exits with
-  status 1 and the same code on standard error.
+  status 1 and the same code on standard error. In one run the restart came while
+  `resources/subscribe` was in flight: it answered JSON-RPC error -32603 with
+  `data.code: "daemon_unavailable"`, no subscription was in place, and the process stayed
+  until the next tool call.
 
-Because a restart is seen only on a request, the connector makes one read at a fixed interval
-when no other request has run (the liveness read).
+The connector is always subscribed, so it sees most restarts as an exit. It treats a failed
+subscribe as a disconnection, and it makes one read at a fixed interval when no other request
+has run (the liveness read), for the case where no exit comes.
+- **Pages.** `board_list` and the `decisions` resource give one page of item summaries, with
+  `more` and `next_after`; `inbox` and `room_read` page the same way. A summary has the
+  reference, title, kind, state, revision and order, not the context or recommendation;
+  `decision_get` gives the full item.
 
 ## Design that the chunks build
 
@@ -59,15 +70,22 @@ when no other request has run (the liveness read).
 
 - **Fake Koinon.** A Go program, built by the test, acts as `koinon mcp --maintainer` from a
   script of the behavior above: it checks the first line against a test secret, answers
-  `initialize`, tools and subscriptions, sends notices on a signal, and can refuse the secret,
-  report the daemon down, end the token and exit, or write junk.
+  `initialize`, tools and subscriptions, serves lists in pages of a set size, sends notices
+  on a signal, and can refuse the secret, report the daemon down, act out a restart (exit
+  while subscribed; `maintainer_token_expired` on the next call while not subscribed; -32603
+  on a subscribe in flight), or write junk.
 - **Client (1, 3).** Requests and answers match by ID with notices between them; a refusal
   becomes an error with Koinon's code; an answer after the deadline, a closed stream, junk
   and a line over the size limit each fail the request and leave no goroutine behind.
 - **Connector (1, 3, 4).** The connector writes the secret as the first line and on no command
   line; it subscribes to inbox, decisions and each room, reads again after a notice, and
-  shows the new state. Exit, `maintainer_token_expired`, -32603 `daemon_unavailable`, junk
-  and a failed liveness read each make it disconnected, then start the process again with
+  shows the new state. It reads every page of the board, the inbox and each room (the fake
+  serves more than one page), and calls `decision_get` for each listed item whose revision
+  it does not have, so an edit that changes only the context or the recommendation shows
+  after its notice. An exit while subscribed with no request in flight (the fake's restart
+  case), an exit after `maintainer_token_expired` when not subscribed, a -32603
+  `daemon_unavailable` on subscribe, junk and a failed liveness read each make it
+  disconnected, then start the process again with
   a delay that grows to a limit. A refused secret shows the code
   `maintainer_secret_invalid` and waits for the longest delay.
 - **SSH (1).** A fake `ssh` on `PATH` records its arguments and runs the fake Koinon. The
@@ -85,7 +103,8 @@ when no other request has run (the liveness read).
   cookie gets the login page; a request with a Host that is not the loopback address and
   port gets 403; a POST without `Origin` equal to `http://HOST`, or without the CSRF token,
   gets 403 and gives no verdict. The page shows each host's state and items, labeled by
-  host. Item text from agents is escaped (a `<script>` in a title, context or note shows as
+  host, with each item's context and recommendation from `decision_get`, and an item whose
+  context changed shows the new text after the update. Item text from agents is escaped (a `<script>` in a title, context or note shows as
   text). A verdict goes to that host's connector with the shown revision and note;
   `stale_revision` shows the item again with a message. An event stream tells the page to
   reload its data when a connector's state changes.
@@ -96,8 +115,9 @@ when no other request has run (the liveness read).
 ## Live checks (recorded in `live-checks.md`)
 
 1. **Scratch daemon (1, 3, 4).** The driver runs `koinon-voice board` against a scratch
-   daemon with a generated secret, then restarts the daemon, and records the reconnection and
-   the `via` of a verdict.
+   daemon with a generated secret and more waiting items than one `board_list` page holds,
+   edits one item's context, restarts the daemon while subscribed, and records that every
+   item and the edit show, the reconnection, and the `via` of a verdict.
 2. **The maintainer's daemon (5, 6, 8).** The maintainer runs `koinon-voice serve` against the
    local daemon, opens the page, and records a verdict on a synthetic fyi item by click.
    `decision_history` shows `mcp:koinon-voice`. This is an ACTION FOR YOU item on the board.
