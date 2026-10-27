@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -26,31 +25,20 @@ var openLink = func(link string) error {
 	return exec.Command(name, link).Start()
 }
 
-const dashboardUsage = `Usage: koinon-voice dashboard [flags]
-
-Connect to each Koinon daemon in the hosts file and serve the dashboard on a loopback
-address: each host's state, the items that wait for the maintainer, the maintainer's inbox,
-and a verdict by click. It prints a login link, which works once within 60 seconds, and
-opens it unless --no-open.
-
-`
-
+// runDashboard is koinon-voice dashboard. Connect to each Koinon daemon in the hosts file and
+// serve the dashboard on a loopback address: each host's state, the items that wait for the
+// maintainer, the maintainer's inbox, and a verdict by click. It prints a login link, which
+// works once within 60 seconds, and opens it unless --no-open.
 func runDashboard(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("dashboard", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, dashboardUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("dashboard")
 	hostsFile := fs.String("hosts", defaultHosts(), "hosts file")
 	listen := fs.String("listen", "127.0.0.1:17680", "loopback address to listen on")
 	noOpen := fs.Bool("no-open", false, "print the login link without opening it")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return badOptions(stderr)
 	}
 	if fs.NArg() != 0 {
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 	if err := dashboard.CheckListen(*listen); err != nil {
 		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)

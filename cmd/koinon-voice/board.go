@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
-	"text/tabwriter"
 	"time"
 
 	"github.com/rwcii/koinon-voice/internal/keychain"
@@ -31,30 +28,19 @@ var watchContext = func() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
 
-const boardUsage = `Usage: koinon-voice board [flags]
-
-Connect to each Koinon daemon in the hosts file through its maintainer mode and print each
-host's state and the items that wait for the maintainer. The exit status is 1 when a host
-is not connected.
-
-`
-
+// runBoard is koinon-voice board. Connect to each Koinon daemon in the hosts file through its
+// maintainer mode and print each host's state and the items that wait for the maintainer. The
+// exit status is 1 when a host is not connected.
 func runBoard(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("board", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, boardUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("board")
 	hostsFile := fs.String("hosts", defaultHosts(), "hosts file")
 	watch := fs.Bool("watch", false, "print again on each change until interrupted")
 	timeout := fs.Duration("timeout", 30*time.Second, "without --watch, how long to wait for every host")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return badOptions(stderr)
 	}
 	if fs.NArg() != 0 {
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 	hosts, err := koinon.LoadHosts(*hostsFile)
 	if err != nil {
@@ -100,7 +86,6 @@ func runBoard(args []string, stdout, stderr io.Writer) int {
 				// Let a burst of changes settle into one print.
 				time.Sleep(100 * time.Millisecond)
 				printBoard(stdout, conns)
-				fmt.Fprintln(stdout)
 			}
 		}
 	}
@@ -114,11 +99,8 @@ func runBoard(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	printBoard(stdout, conns)
-	for _, c := range conns {
-		if c.State().Status != koinon.Connected {
-			return 1
-		}
+	if !printBoard(stdout, conns) {
+		return 1
 	}
 	return 0
 }
@@ -133,37 +115,56 @@ func settled(conns []*koinon.Connector) bool {
 	return true
 }
 
-func printBoard(w io.Writer, conns []*koinon.Connector) {
-	for _, c := range conns {
-		s := c.State()
-		label := printable(s.Host)
-		if s.Status != koinon.Connected {
-			if s.Code != "" && !strings.HasPrefix(s.Reason, s.Code) {
-				fmt.Fprintf(w, "%s: %s: %s: %s\n", label, s.Status, printable(s.Code), printable(s.Reason))
-			} else {
-				fmt.Fprintf(w, "%s: %s: %s\n", label, s.Status, printable(s.Reason))
-			}
-			continue
-		}
-		fmt.Fprintf(w, "%s: connected, %d waiting, %d open fyi, %d in progress, %d inbox messages, %d rooms\n",
-			label, s.Counts.Waiting, s.Counts.OpenFYI, s.Counts.InProgress, len(s.Inbox), len(s.Rooms))
-		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		for _, it := range s.Items {
-			fmt.Fprintf(tw, "  %s\t%s\tr%d\t%s\t(%s)\n", printable(it.Reference), printable(it.Kind), it.Revision, printable(it.Title), printable(it.AuthorName))
-		}
-		tw.Flush()
-	}
+// boardHost is one host as board prints it.
+type boardHost struct {
+	Host     string           `json:"host"`
+	Status   koinon.Status    `json:"status"`
+	Code     string           `json:"code,omitempty"`
+	Reason   string           `json:"reason,omitempty"`
+	Since    int64            `json:"since"`
+	Attempts int              `json:"attempts"`
+	Counts   koinon.Counts    `json:"counts"`
+	Items    []koinon.Item    `json:"items"`
+	Inbox    []koinon.Message `json:"inbox"`
+	Rooms    []boardRoom      `json:"rooms"`
 }
 
-// printable replaces control characters, so text from agents cannot move the cursor or
-// change the terminal.
-func printable(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || (r >= 0x7f && r < 0xa0) {
-			return '?'
+type boardRoom struct {
+	koinon.Room
+	Posts []koinon.Post `json:"posts"`
+}
+
+// printBoard prints every host's state as one line of JSON, as koinon prints a result; ok
+// is false when a host is not connected. JSON escapes control characters, so text from
+// agents cannot move the cursor or change the terminal.
+func printBoard(w io.Writer, conns []*koinon.Connector) bool {
+	out := struct {
+		Hosts []boardHost `json:"hosts"`
+		OK    bool        `json:"ok"`
+	}{Hosts: []boardHost{}, OK: true}
+	for _, c := range conns {
+		s := c.State()
+		h := boardHost{Host: s.Host, Status: s.Status, Code: s.Code, Reason: s.Reason,
+			Since: s.Since.UnixMilli(), Attempts: s.Attempts, Counts: s.Counts,
+			Items: nonNil(s.Items), Inbox: nonNil(s.Inbox), Rooms: []boardRoom{}}
+		for _, r := range s.Rooms {
+			h.Rooms = append(h.Rooms, boardRoom{r.Room, nonNil(r.Posts)})
 		}
-		return r
-	}, s)
+		if s.Status != koinon.Connected {
+			out.OK = false
+		}
+		out.Hosts = append(out.Hosts, h)
+	}
+	printJSON(w, out, "")
+	return out.OK
+}
+
+// nonNil makes an empty list print as [] rather than null.
+func nonNil[T any](v []T) []T {
+	if v == nil {
+		return []T{}
+	}
+	return v
 }
 
 func defaultHosts() string {

@@ -138,7 +138,7 @@ func TestHelperCommandFailures(t *testing.T) {
 		}
 	}
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"helper", "extra"}, nil, &stdout, &stderr); code != 2 {
+	if code := run([]string{"helper", "extra"}, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 		t.Errorf("extra argument: exit %d", code)
 	}
 }

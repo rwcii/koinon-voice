@@ -249,7 +249,7 @@ func TestSummarizeUsage(t *testing.T) {
 		{"summarize", "--fixtures", dir, "extra"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if code := run(args, nil, &stdout, &stderr); code != 2 {
+		if code := run(args, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 			t.Errorf("%q: exit %d", args, code)
 		}
 	}
@@ -354,7 +354,7 @@ func TestSummarizeRescore(t *testing.T) {
 	if err != nil || string(got) != string(want) || stderr.String() != "0 verdicts changed\n" {
 		t.Errorf("rescored %v %q:\n%s", err, stderr.String(), got)
 	}
-	if code := run([]string{"summarize", "--item", card, "--rescore", card}, nil, &stdout, &stderr); code != 2 {
+	if code := run([]string{"summarize", "--item", card, "--rescore", card}, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 		t.Errorf("--rescore with --item: exit %d", code)
 	}
 	if code := run([]string{"summarize", "--fixtures", dir, "--rescore", missing}, nil, &stdout, &stderr); code != 1 {

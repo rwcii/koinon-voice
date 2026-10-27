@@ -159,7 +159,7 @@ func TestCorpusUsage(t *testing.T) {
 		{"corpus", "record", "--set", "clean", "--channel", "0", "--phrases", phrases, "--dir", dir, "--helper", "/h"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if code := run(args, nil, &stdout, &stderr); code != 2 {
+		if code := run(args, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 			t.Errorf("%q: exit %d", args, code)
 		}
 	}
@@ -206,7 +206,7 @@ func TestCorpusWakeAndBackground(t *testing.T) {
 		{"corpus", "wake", "--distance", "near", "--set", "clean", "--phrases", phrases},
 		{"corpus", "background", "--source", "music", "--minutes", "0", "--phrases", phrases},
 	} {
-		if code := run(args, nil, &stdout, &stderr); code != 2 {
+		if code := run(args, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 			t.Errorf("%q: exit %d", args, code)
 		}
 	}

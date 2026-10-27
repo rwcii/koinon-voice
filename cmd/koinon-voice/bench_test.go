@@ -134,7 +134,7 @@ func TestBenchTTS(t *testing.T) {
 func TestBenchUsage(t *testing.T) {
 	for _, args := range [][]string{{"bench"}, {"bench", "listen"}, {"bench", "stt", "extra"}, {"bench", "wake", "extra"}, {"bench", "tts", "--nope"}} {
 		var stdout, stderr bytes.Buffer
-		if code := run(args, nil, &stdout, &stderr); code != 2 {
+		if code := run(args, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 			t.Errorf("%q: exit %d", args, code)
 		}
 	}
