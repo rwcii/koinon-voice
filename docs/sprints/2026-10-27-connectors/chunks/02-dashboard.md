@@ -6,7 +6,7 @@ Read `../decision.md` and `../definition-of-done.md` first. Chunk 01 must be mer
 
 1. `koinon-voice serve [--hosts FILE] [--listen 127.0.0.1:PORT] [--no-open]` starts a
    connector for each host and serves the dashboard on a loopback address (default
-   `127.0.0.1:47680`). It refuses an address that is not loopback.
+   `127.0.0.1:17680`). It refuses an address that is not loopback.
 2. **Login.** As Koinon's dashboard does (Phase 0 `koinon-map.md`): `serve` prints a one-time
    login link and opens it unless `--no-open`. The token works once, within 60 seconds, and
    sets an HttpOnly, SameSite=Strict cookie that lasts while `serve` runs. Every request

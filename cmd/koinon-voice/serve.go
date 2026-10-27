@@ -43,7 +43,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		fs.PrintDefaults()
 	}
 	hostsFile := fs.String("hosts", defaultHosts(), "hosts file")
-	listen := fs.String("listen", "127.0.0.1:47680", "loopback address to serve on")
+	listen := fs.String("listen", "127.0.0.1:17680", "loopback address to serve on")
 	noOpen := fs.Bool("no-open", false, "print the login link without opening it")
 	if err := fs.Parse(args); err != nil {
 		return 2

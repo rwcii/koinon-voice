@@ -61,7 +61,7 @@ line of the process's standard input and appears in no argument, log or output.
 ## Dashboard
 
 `koinon-voice serve` connects to every host and serves the dashboard on
-`http://127.0.0.1:47680/` (`--listen` takes another loopback address). It prints a login link
+`http://127.0.0.1:17680/` (`--listen` takes another loopback address). It prints a login link
 and opens it unless `--no-open`; the link works once, within 60 seconds, and the session lasts
 while `serve` runs. Start `serve` again for a new link.
 
