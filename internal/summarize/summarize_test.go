@@ -18,7 +18,7 @@ func TestPrompt(t *testing.T) {
 		AuthorFamily: "codex", AuthorName: "codex-koinon-voice-38",
 	})
 	for _, want := range []string{
-		"Asker: codex-koinon-voice-38 (codex)", "Title: Revert a commit", "Where: issue 4",
+		"Asker: Codex, working in Koinon Voice", "Title: Revert a commit", "Where: issue 4",
 		"Asker's text: It broke CI.", "Context: A forward fix", "Recommendation: Revert.", "Command: git revert abc",
 	} {
 		if !strings.Contains(p, want) {
@@ -27,6 +27,26 @@ func TestPrompt(t *testing.T) {
 	}
 	if strings.Contains(Prompt(Item{Title: "t"}), "Recommendation") {
 		t.Error("empty recommendation rendered")
+	}
+}
+
+func TestSpokenAsker(t *testing.T) {
+	for _, c := range []struct{ family, name, want string }{
+		{"codex", "codex-koinon-voice-38", "Codex, working in Koinon Voice"},
+		{"claude", "claude-koinon-voice-b9", "Claude, working in Koinon Voice"},
+		{"deepseek", "deepseek-koinon-7c", "DeepSeek, working in Koinon"},
+		{"claude", "claude-koinon-voice", "Claude, working in Koinon Voice"},
+		{"agy", "agy-web_app-0f", "Antigravity, working in Web App"},
+		{"claude", "claude", "Claude"},
+		{"claude", "", "Claude"},
+		{"maintainer", "maintainer", "the maintainer"},
+		{"codex", "reviewer", "Codex, reviewer"},
+		{"", "someone", "someone"},
+		{"newfamily", "newfamily-repo-1a", "newfamily, working in Repo"},
+	} {
+		if got := SpokenAsker(c.family, c.name); got != c.want {
+			t.Errorf("SpokenAsker(%q, %q) = %q, want %q", c.family, c.name, got, c.want)
+		}
 	}
 }
 

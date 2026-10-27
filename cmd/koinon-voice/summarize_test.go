@@ -197,6 +197,10 @@ func TestSummarizeBlind(t *testing.T) {
 	if strings.Contains(blindPart, "local-a") || strings.Contains(blindPart, "local-b") {
 		t.Errorf("engine names shown before rating:\n%s", blindPart)
 	}
+	// The item is shown before its first summary, so the summaries can be judged against it.
+	if i, j := strings.Index(got, "Title: Merge pull request 12"), strings.Index(got, "A: "); i < 0 || i > j {
+		t.Errorf("item not shown before its summaries:\n%s", got)
+	}
 	for _, want := range []string{"A: Codex wants a merge.", "B: Codex asks you to merge.", "F-1 A = local-b", "F-1 B = local-a",
 		"| local-a | 1 | 0 | 1/1 |", "| 5.0 (1) |", "| 2.0 (1) |"} {
 		if !strings.Contains(got, want) {

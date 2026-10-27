@@ -51,7 +51,7 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	doSpeak := fs.Bool("speak", false, "speak each summary through the Apple helper as it streams, and time the first spoken word")
 	helper := fs.String("helper", "", "the Apple helper's path (default: helper in the engines file)")
 	voice := fs.String("voice", "", "an AVSpeechSynthesisVoice identifier (default: voice in the engines file, else the system's en-US voice)")
-	blind := fs.Bool("blind", false, "hide engine names and ask for a 1 to 5 listenability rating per summary; q stops rating")
+	blind := fs.Bool("blind", false, "hide engine names, show each rated item first, and ask for a rating per summary, 1 worst to 5 best; q stops rating")
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
 	rescore := fs.String("rescore", "", "with --fixtures, check this scorecard's recorded summaries again without running an engine, and write it to --out or stdout")
 	if err := fs.Parse(args); err != nil {
@@ -115,10 +115,11 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	var r *rater
 	if *blind {
 		// Engines take turns in a new order for each item, so a listener cannot tell them
-		// apart by their place, and no line names them until the ratings are in. Each
-		// summary is rated right after it is heard.
+		// apart by their place, and no line names them until the ratings are in. The item
+		// is shown before its summaries, and each summary is rated right after it is heard.
 		opts.Order = shuffle
 		r = &rater{in: bufio.NewScanner(stdin), out: stdout, items: *rateItems}
+		opts.Before = r.before
 		opts.After = r.after
 	}
 	results, err := summarize.Run(ctx, configured, items, opts)
@@ -204,33 +205,39 @@ func line(r summarize.Result) string {
 // errStop is a q at a rating prompt: rating ends and the ratings so far are kept.
 var errStop = errors.New("stop")
 
-// rater runs the blind listenability rating during the run: for the first items items (all
-// when 0), each summary is shown under a letter in the run's shuffled order and rated 1 to
-// 5 after it has been heard. A q stops rating; the run goes on and keeps the ratings so far.
+// rater runs the blind rating during the run: for the first items items (all when 0), the
+// item is shown as the engines receive it, so the summaries can be judged against it for
+// accuracy as well as listening, and then each summary is shown under a letter in the run's
+// shuffled order and rated 1 to 5 after it has been heard. A q stops rating; the run goes on
+// and keeps the ratings so far.
 type rater struct {
 	in      *bufio.Scanner
 	out     io.Writer
 	items   int
-	item    string
 	started int
 	letter  int
 	stopped bool
 	key     []string
 }
 
-func (r *rater) after(res *summarize.Result) error {
+func (r *rater) before(item summarize.Fixture) error {
 	if r.stopped {
 		return nil
 	}
-	if res.Item != r.item {
-		if r.items > 0 && r.started == r.items {
-			r.stopped = true
-			fmt.Fprintln(r.out, "Rating done; the run goes on.")
-			return nil
-		}
-		r.item, r.letter = res.Item, 0
-		r.started++
-		fmt.Fprintf(r.out, "Item %s\n", res.Item)
+	if r.items > 0 && r.started == r.items {
+		r.stopped = true
+		fmt.Fprintln(r.out, "Rating done; the run goes on.")
+		return nil
+	}
+	r.letter = 0
+	r.started++
+	fmt.Fprintf(r.out, "Item %s\n%s\n", item.Name, summarize.Prompt(item.Item))
+	return nil
+}
+
+func (r *rater) after(res *summarize.Result) error {
+	if r.stopped {
+		return nil
 	}
 	if res.Err != nil {
 		return nil
@@ -267,7 +274,7 @@ func (r *rater) printKey() {
 
 func ask(in *bufio.Scanner, stdout io.Writer, label string) (int, error) {
 	for {
-		fmt.Fprintf(stdout, "Rating for %s (1 to 5, q to stop): ", label)
+		fmt.Fprintf(stdout, "Rating for %s (1 worst to 5 best, q to stop): ", label)
 		if !in.Scan() {
 			if err := in.Err(); err != nil {
 				return 0, err

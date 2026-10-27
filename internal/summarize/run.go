@@ -20,7 +20,7 @@ type Result struct {
 	Summary  Summary
 	Err      error
 	Verdicts []Verdict
-	// Rating is the maintainer's blind listenability rating, 1 to 5; 0 is not rated.
+	// Rating is the maintainer's blind rating, 1 to 5; 0 is not rated.
 	Rating int
 	// Spoken holds the speech timings when the run speaks; SpeechErr is why speech failed.
 	Spoken    *SpokenTiming
@@ -48,6 +48,9 @@ type Options struct {
 	// Order, when set, reorders the engines for each item, so a blind listener cannot tell
 	// engines apart by their place.
 	Order func(n int, swap func(i, j int))
+	// Before, when set, runs before each item's first request; an error stops the run. The
+	// blind rating uses it to show the item that the summaries are judged against.
+	Before func(item Fixture) error
 	// After, when set, runs after each result, once its speech has played; an error stops
 	// the run. The blind rating uses it, so each summary is rated as it is heard.
 	After func(r *Result) error
@@ -63,6 +66,11 @@ const speechTimeout = 3 * time.Minute
 func Run(ctx context.Context, engines []Configured, items []Fixture, opts Options) ([]Result, error) {
 	results := make([]Result, 0, len(engines)*len(items))
 	for _, item := range items {
+		if opts.Before != nil {
+			if err := opts.Before(item); err != nil {
+				return results, err
+			}
+		}
 		order := append([]Configured(nil), engines...)
 		if opts.Order != nil {
 			opts.Order(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
