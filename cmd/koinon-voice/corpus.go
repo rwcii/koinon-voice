@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -16,17 +15,6 @@ import (
 	"github.com/rwcii/koinon-voice/internal/speech"
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
-
-const corpusUsage = `Usage: koinon-voice corpus (record --set clean|noisy | wake --distance near|mid|far |
-       background --source music|meeting|podcast|coffee | status) [flags]
-
-record prompts each phrase of the phrase list and records it through the Apple helper as
-SET/NN.wav (16 kHz mono) under the corpus directory, with its SHA-256 in SET/manifest.tsv.
-wake records short takes of "Koinon", said once each, at one distance; background records
-long stretches of a background source with no "Koinon" in it. Takes already in a manifest
-are skipped, so a stopped session resumes. status lists what each set has.
-
-`
 
 // wakeSeconds is one wake take: room to say "Koinon" once after pressing Enter.
 const wakeSeconds = 3
@@ -58,17 +46,17 @@ func loadPhrases(path string) ([]speech.Phrase, error) {
 	return speech.ParsePhrases(f)
 }
 
+// runCorpus is koinon-voice corpus. record prompts each phrase of the phrase list and records
+// it through the Apple helper as SET/NN.wav (16 kHz mono) under the corpus directory, with its
+// SHA-256 in SET/manifest.tsv. wake records short takes of "Koinon", said once each, at one
+// distance; background records long stretches of a background source with no "Koinon" in it.
+// Takes already in a manifest are skipped, so a stopped session resumes. status lists what
+// each set has.
 func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 || (args[0] != "record" && args[0] != "status" && args[0] != "wake" && args[0] != "background") {
-		fmt.Fprint(stderr, corpusUsage)
-		return 2
+		return badOptions(stderr)
 	}
-	fs := flag.NewFlagSet("corpus "+args[0], flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, corpusUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("corpus " + args[0])
 	set := fs.String("set", "", "with record, the set to record: clean or noisy")
 	phrases := fs.String("phrases", phrasesFile, "phrase list")
 	dir := fs.String("dir", defaultCorpus(), "corpus directory")
@@ -81,7 +69,7 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	count := fs.Int("count", 0, "with wake, the takes per distance (default 20); with background, the recordings per source (default 3)")
 	minutes := fs.Float64("minutes", 20, "with background, the length of each recording")
 	if err := fs.Parse(args[1:]); err != nil {
-		return 2
+		return badOptions(stderr)
 	}
 	switch {
 	case fs.NArg() != 0,
@@ -89,8 +77,7 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		(args[0] == "wake") != (*distance != ""),
 		(args[0] == "background") != (*source != ""),
 		*minutes <= 0:
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 	how := phraseTakes
 	switch args[0] {
@@ -162,14 +149,12 @@ func corpusTakes(c speech.Corpus, set string, list []speech.Phrase, how takes, e
 		}
 		n, err := strconv.Atoi(f)
 		if err != nil {
-			fmt.Fprintf(stderr, "koinon-voice corpus: --only: %q is not a take number\n", f)
-			return 2
+			return commandError(stderr, fmt.Sprintf("--only: %q is not a take number; use koinon-voice --help", f))
 		}
 		again[n] = true
 	}
 	if channel < 1 {
-		fmt.Fprintln(stderr, "koinon-voice corpus: --channel counts from 1")
-		return 2
+		return commandError(stderr, "--channel counts from 1; use koinon-voice --help")
 	}
 	if err := recordTakes(c, set, list, again, helper, channel, how, bufio.NewScanner(stdin), stdout, stderr); err != nil {
 		fmt.Fprintln(stderr, "koinon-voice corpus:", err)

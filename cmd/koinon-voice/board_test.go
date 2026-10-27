@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,6 +58,18 @@ func boardHosts(t *testing.T) string {
 	return p
 }
 
+// boardOutput is board's JSON, as a test reads it.
+type boardOutput struct {
+	Hosts []struct {
+		Host, Status, Code, Reason string
+		Counts                     koinon.Counts
+		Items                      []koinon.Item
+		Inbox                      []koinon.Message
+		Rooms                      []json.RawMessage
+	}
+	OK bool
+}
+
 func TestBoard(t *testing.T) {
 	hosts := boardHosts(t)
 	var stdout, stderr bytes.Buffer
@@ -65,15 +78,24 @@ func TestBoard(t *testing.T) {
 	if code != 1 {
 		t.Errorf("exit %d with a host disconnected", code)
 	}
-	for _, want := range []string{
-		"local: connected, 1 waiting, 1 open fyi, 0 in progress, 0 inbox messages, 0 rooms",
-		"p-1  decision  r2  Approve the plan",
-		"Clear?[2J the screen",
-		"other: disconnected: maintainer_secret_invalid",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output lacks %q:\n%s", want, out)
-		}
+	if strings.Count(out, "\n") != 1 {
+		t.Errorf("not one line of JSON:\n%s", out)
+	}
+	var got boardOutput
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("%v:\n%s", err, out)
+	}
+	if got.OK || len(got.Hosts) != 2 {
+		t.Fatalf("output:\n%s", out)
+	}
+	local, other := got.Hosts[0], got.Hosts[1]
+	if local.Host != "local" || local.Status != "connected" || local.Counts.Waiting != 1 || local.Counts.OpenFYI != 1 ||
+		len(local.Items) != 2 || local.Items[0].Reference != "p-1" || local.Items[0].Revision != 2 ||
+		local.Items[1].Title != "Clear\x1b[2J the screen" || local.Inbox == nil || local.Rooms == nil {
+		t.Errorf("local: %+v", local)
+	}
+	if other.Host != "other" || other.Status != "disconnected" || other.Code != "maintainer_secret_invalid" {
+		t.Errorf("other: %+v", other)
 	}
 	if strings.Contains(out, "\x1b") || strings.Contains(out+stderr.String(), boardSecret) || strings.Contains(out, "wrong-secret-6d") {
 		t.Errorf("output holds an escape or a secret:\n%q", out)
@@ -92,7 +114,15 @@ func TestBoardWatch(t *testing.T) {
 	if code := run([]string{"board", "--hosts", hosts, "--watch"}, nil, &stdout, &stderr); code != 0 {
 		t.Errorf("exit %d: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "local: connected") {
+	// One JSON object per line, the last with local connected.
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	var last boardOutput
+	for _, l := range lines {
+		if err := json.Unmarshal([]byte(l), &last); err != nil {
+			t.Fatalf("%v: %q", err, l)
+		}
+	}
+	if last.Hosts[0].Status != "connected" {
 		t.Errorf("watch output:\n%s", stdout.String())
 	}
 }
@@ -103,7 +133,7 @@ func TestBoardHostsFile(t *testing.T) {
 	if code := run([]string{"board", "--hosts", missing}, nil, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), missing) {
 		t.Errorf("exit %d stderr %q", code, stderr.String())
 	}
-	if code := run([]string{"board", "extra"}, nil, &stdout, &stderr); code != 2 {
+	if code := run([]string{"board", "extra"}, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 		t.Errorf("extra argument: exit %d", code)
 	}
 }

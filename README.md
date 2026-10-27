@@ -21,7 +21,10 @@ go build ./cmd/koinon-voice
 go test -race -timeout 30m ./...
 ```
 
-`koinon-voice version` prints the build version.
+`koinon-voice --help` lists every command with its options, as `koinon --help` does. A
+command line koinon-voice cannot use prints one JSON error object on standard error, as
+Koinon's do, and exits 1. `koinon-voice version` prints the build as JSON, with the field
+names of `koinon version`.
 
 ## Connect to Koinon
 
@@ -54,8 +57,10 @@ secret = "maintainer-devbox"
 `state_dir` and `address` select a daemon other than the default one. A remote host needs a
 key in the SSH agent and a known host key, because ssh asks nothing.
 
-`koinon-voice board` connects to every host and prints its state and the items that wait for
-the maintainer; `--watch` prints again on each change. The secret is written as the first
+`koinon-voice board` connects to every host and prints one line of JSON: each host's state,
+the items that wait for the maintainer in full, the maintainer's inbox and the rooms, and
+`ok`, which is false, with exit status 1, when a host is not connected. `--watch` prints a
+new line on each change. The secret is written as the first
 line of the process's standard input and appears in no argument, log or output.
 
 ## Dashboard

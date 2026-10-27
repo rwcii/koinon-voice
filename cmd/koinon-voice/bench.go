@@ -19,21 +19,6 @@ import (
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-const benchUsage = `Usage: koinon-voice bench (stt | tts | wake | interrupt | names) [flags]
-
-stt runs each recognition engine over the recorded corpus and writes word error rate,
-overall and on Koinon terms, latency and real-time factor. tts speaks each synthesis text
-with each synthesis engine, in a shuffled order with the engines' names hidden, plays it and
-asks for a 1 to 5 listenability rating; it writes time to first audio and the ratings. wake
-runs each wake detector over the recorded "Koinon" takes and background recordings and writes
-misses per distance and false wakes per hour. interrupt speaks a summary through the
-speakers while listening with echo cancellation, for the maintainer to interrupt; with
---control nobody speaks, and any transcript is the bridge's own speech leaking through.
-names resolves Koinon's names in a recognition scorecard's transcripts, against the keyword
-list, and writes the error rates before and after, without the recordings.
-
-`
-
 const ttsFile = "docs/sprints/2026-10-23-phase0-spike/tts-summaries.md"
 
 // playAudio plays a file to the output device; tests replace it so no test plays audio.
@@ -100,17 +85,22 @@ func selected(only, name string) bool {
 	return false
 }
 
+// runBench is koinon-voice bench. stt runs each recognition engine over the recorded corpus
+// and writes word error rate, overall and on Koinon terms, latency and real-time factor. tts
+// speaks each synthesis text with each synthesis engine, in a shuffled order with the engines'
+// names hidden, plays it and asks for a 1 to 5 listenability rating; it writes time to first
+// audio and the ratings. wake runs each wake detector over the recorded "Koinon" takes and
+// background recordings and writes misses per distance and false wakes per hour. interrupt
+// speaks a summary through the speakers while listening with echo cancellation, for the
+// maintainer to interrupt; with --control nobody speaks, and any transcript is the bridge's
+// own speech leaking through. names resolves Koinon's names in a recognition scorecard's
+// transcripts, against the keyword list, and writes the error rates before and after, without
+// the recordings.
 func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 || (args[0] != "stt" && args[0] != "tts" && args[0] != "wake" && args[0] != "interrupt" && args[0] != "names") {
-		fmt.Fprint(stderr, benchUsage)
-		return 2
+		return badOptions(stderr)
 	}
-	fs := flag.NewFlagSet("bench "+args[0], flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, benchUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("bench " + args[0])
 	var b benchFlags
 	b.register(fs)
 	if args[0] == "stt" {
@@ -119,8 +109,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		sets := fs.String("sets", strings.Join(speech.Sets, ","), "comma-separated corpus sets to score")
 		fs.StringVar(&b.out, "out", "scorecard-speech-stt.md", "scorecard file")
 		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
-			fs.Usage()
-			return 2
+			return badOptions(stderr)
 		}
 		return benchSTT(&b, *phrases, *dir, strings.Split(*sets, ","), stdout, stderr)
 	}
@@ -133,8 +122,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		dir := fs.String("dir", defaultShare("interruption"), "directory for the captured audio")
 		fs.StringVar(&b.out, "out", "interruption-run.md", "report file")
 		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 || *seconds <= 0 {
-			fs.Usage()
-			return 2
+			return badOptions(stderr)
 		}
 		return benchInterrupt(&b, *texts, *n, *say, *control, *seconds, *dir, bufio.NewScanner(stdin), stdout, stderr)
 	}
@@ -144,8 +132,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		ordinary := fs.String("ordinary", "", "comma-separated files of text that names nothing, one utterance per line, to count wrong resolutions in")
 		fs.StringVar(&b.out, "out", "scorecard-names.md", "report file")
 		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
-			fs.Usage()
-			return 2
+			return badOptions(stderr)
 		}
 		var files []string
 		if *ordinary != "" {
@@ -160,8 +147,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		threshold := fs.Float64("threshold", 0.5, "openWakeWord score that counts as a wake")
 		fs.StringVar(&b.out, "out", "scorecard-wake.md", "scorecard file")
 		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
-			fs.Usage()
-			return 2
+			return badOptions(stderr)
 		}
 		return benchWake(&b, *phrases, *dir, *model, *threshold, stdout, stderr)
 	}
@@ -171,8 +157,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	rate := fs.Bool("rate", true, "play each rendition and ask for a blind rating")
 	fs.StringVar(&b.out, "out", "scorecard-speech-tts.md", "scorecard file")
 	if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 	return benchTTS(&b, *texts, *dir, *kokoroVoice, *rate, bufio.NewScanner(stdin), stdout, stderr)
 }

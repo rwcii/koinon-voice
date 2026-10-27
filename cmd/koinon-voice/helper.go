@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"time"
@@ -12,20 +11,10 @@ import (
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-const helperUsage = `Usage: koinon-voice helper [flags]
-
-Start the Apple helper, print its hello, and optionally transcribe a 16 kHz mono file or
-speak a text through it.
-
-`
-
+// runHelper is koinon-voice helper. Start the Apple helper, print its hello, and optionally
+// transcribe a 16 kHz mono file or speak a text through it.
 func runHelper(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("helper", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, helperUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("helper")
 	engines := fs.String("engines", defaultEngines(), "engines file, for its helper path")
 	path := fs.String("helper", "", "the Apple helper's path (default: helper in the engines file)")
 	transcribe := fs.String("transcribe", "", "transcribe this 16 kHz mono audio file")
@@ -34,11 +23,10 @@ func runHelper(args []string, stdout, stderr io.Writer) int {
 	voice := fs.String("voice", "", "with --say, an AVSpeechSynthesisVoice identifier (default: voice in the engines file)")
 	timeout := fs.Duration("timeout", 2*time.Minute, "timeout for each request")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return badOptions(stderr)
 	}
 	if fs.NArg() != 0 {
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 	if *path == "" || *voice == "" {
 		config, err := summarize.LoadConfig(*engines)

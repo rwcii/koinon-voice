@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -29,19 +28,10 @@ var keys summarize.Keys = summarize.Keychain{}
 // shuffle orders a blind round; tests replace it.
 var shuffle = func(n int, swap func(i, j int)) { rand.Shuffle(n, swap) }
 
-const summarizeUsage = `Usage: koinon-voice summarize (--fixtures DIR | --item FILE) [flags]
-
-Summarize decision items with each configured engine and write a scorecard.
-
-`
-
+// runSummarize is koinon-voice summarize. Summarize decision items with each configured engine
+// and write a scorecard.
 func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("summarize", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprint(stderr, summarizeUsage)
-		fs.PrintDefaults()
-	}
+	fs := flags("summarize")
 	engines := fs.String("engines", defaultEngines(), "engines file")
 	fixtures := fs.String("fixtures", "", "directory of fixture items with answer keys")
 	itemFile := fs.String("item", "", "one decision item exported as JSON")
@@ -55,11 +45,10 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
 	rescore := fs.String("rescore", "", "with --fixtures, check this scorecard's recorded summaries again without running an engine, and write it to --out or stdout")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return badOptions(stderr)
 	}
 	if fs.NArg() != 0 || (*fixtures == "") == (*itemFile == "") || (*rescore != "" && *fixtures == "") {
-		fs.Usage()
-		return 2
+		return badOptions(stderr)
 	}
 
 	var items []summarize.Fixture

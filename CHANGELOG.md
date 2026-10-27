@@ -4,6 +4,11 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The command line follows Koinon's: `koinon-voice --help` (or no arguments) lists every
+  command with its options; a command line that cannot be used prints Koinon's JSON error
+  object on standard error and exits 1, and commands no longer print their own help.
+  `koinon-voice version` prints JSON with the field names of `koinon version`, and
+  `koinon-voice board` prints one line of JSON for each print.
 - `koinon-voice dashboard` serves the dashboard on a loopback address: each host's state, the
   waiting decision and fyi items with their full text, the maintainer's inbox, and a verdict
   by click, recorded with the client `mcp:koinon-voice`. It updates on Koinon's change
