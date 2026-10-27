@@ -21,3 +21,7 @@ approved board item kv-sprint1-gate-b, "Koinon Voice: Gate B. Approve the review
 sprint plan?", which recapped the chunks, the maintainer's part (live check 2), the evidence,
 both review findings and their fixes, and what the gate does not approve (the voice loop, the
 order of later phases and the SSH test, #15), with no note.
+
+Both chunks merged: chunk 01 as 21afebb (PR #27) and chunk 02 as 2e7d026 (PR #28). Live
+checks 1 and 2 are in `live-checks.md`; the reviews are in `review.md`. Criterion 8's SSH path
+stays on #15 until the maintainer names a host, as `decision.md` sets out.
