@@ -4,6 +4,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The connectors sprint is planned and approved (Gates A and B): connectors to each Koinon
+  daemon through its maintainer mode, and a loopback dashboard with verdicts by click
+  (`docs/sprints/2026-10-27-connectors/`).
 - The Apple helper's `speak` plays through an engine with voice processing on, as ADR 002,
   Decision 3 now decides, in place of ordinary playback, which was silent through a
   multichannel USB mixer (#8). Playing to the output device now needs microphone access.
