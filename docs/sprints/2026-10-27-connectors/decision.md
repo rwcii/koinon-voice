@@ -2,8 +2,16 @@
 
 This sprint builds the base of Phase 1 (PDR 001, Decision 3): the connectors of ADR 001 and a
 loopback dashboard that shows what needs the maintainer and records the maintainer's verdicts
-by click. Speech is the next sprint. The maintainer set this boundary on board item
-kv-sprint1-scope. Claude drives the plan; Codex reviews.
+by click. Speech is the next sprint. Claude drives the plan; Codex reviews.
+
+**Provenance:** Maintainer, 2026-10-27, approved board item kv-sprint1-scope, "Koinon Voice:
+what does the next sprint deliver?", with the note "a". Option A was "Connector and dashboard
+first, without voice": the connector (local child process and `ssh HOST`, the same code), the
+Keychain secret, restart after a daemon restart, change notices, and `koinon-voice serve` with
+a loopback dashboard that shows the waiting items by host and records a verdict by click as
+`mcp:koinon-voice`; the SSH test stays on #15, and the voice loop is the next sprint. The other
+options were all of Phase 1 in one sprint, and a terminal command without a dashboard. The
+recommendation was A.
 
 ## Problem
 
