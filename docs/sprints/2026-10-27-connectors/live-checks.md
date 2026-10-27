@@ -52,6 +52,6 @@ the Koinon Voice dashboard. The maintainer ran `koinon-voice serve` from the chu
 | `decision_history` through `koinon mcp --maintainer` | `via: mcp:koinon-voice` |
 | Item state after the verdict | `archived` |
 
-The first run of `serve` failed with `bind: address already in use`: a tunnel to Koinon's
-dashboard listened on the earlier default, `127.0.0.1:47680`. The default moved to
-`127.0.0.1:17680` before this check.
+The first run of `serve` failed with `bind: address already in use` on the earlier default,
+`127.0.0.1:47680`. `lsof` showed the listener as Termius; the maintainer reported that the
+Koinon dashboard holds that port. The default moved to `127.0.0.1:17680` before this check.
