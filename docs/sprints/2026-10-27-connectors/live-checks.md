@@ -38,4 +38,20 @@ with status 0. It only read; it gave no verdict.
 
 ## 2. The maintainer's daemon (chunk 02)
 
-Not yet run.
+2026-10-27, on the maintainer's Mac. Koinon v0.5.0 (8abe1b9), the maintainer's own daemon,
+host `local` with the Keychain item `koinon-voice-maintainer-local`.
+
+The decision item `kv-live2` (kind `fyi`, revision 1) asked the maintainer to dismiss it from
+the Koinon Voice dashboard. The maintainer ran `koinon-voice serve` from the chunk 02 build
+(default listen address `127.0.0.1:17680`), logged in by the printed link and clicked
+**Dismiss** on the item under `local`.
+
+| Check | Result |
+| --- | --- |
+| Verdict | `dismissed` at revision 1, verdict 16, 2026-10-27 21:59:51 UTC |
+| `decision_history` through `koinon mcp --maintainer` | `via: mcp:koinon-voice` |
+| Item state after the verdict | `archived` |
+
+The first run of `serve` failed with `bind: address already in use`: a tunnel to Koinon's
+dashboard listened on the earlier default, `127.0.0.1:47680`. The default moved to
+`127.0.0.1:17680` before this check.
