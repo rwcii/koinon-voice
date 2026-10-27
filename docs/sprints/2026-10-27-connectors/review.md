@@ -88,3 +88,30 @@ Also: one run of the full race suite on this branch failed `TestConnectorReadsEv
 confirmed, is the test's 2-second request timeout on a machine loaded by the whole suite.
 The tests now use 10 seconds unless they time a request out on purpose, and the test logs
 each disconnection's code and reason, so a repeat shows its cause.
+
+## Chunk 02 (04b63b6, PR #28)
+
+Peer review, code findings resolved, native evidence pending
+([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6450799623)); refusal
+review, pass ([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6450800071)).
+Criterion 8 needed live check 2 on the reviewed head.
+
+## Chunk 02 (81303bd, PR #28)
+
+Since 04b63b6: the default listen address moved to `127.0.0.1:17680`, live check 2 was
+recorded, and `koinon-voice serve` was renamed `koinon-voice dashboard`. Peer review, pass
+([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6454799186)); refusal
+review, changes requested
+([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6454799556)).
+
+1. **The rename had no recorded source.** `live-checks.md` said only "at the maintainer's
+   direction", and `decision.md` changed the approved Gate A text from `serve` to
+   `dashboard`. Disposition: fixed in e1a3e07. The Gate A text says `serve` again, and a
+   "Later correction" paragraph records the maintainer's words, date and scope.
+
+## Chunk 02 (e1a3e07, PR #28)
+
+Peer review, pass
+([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6454806416)); refusal
+review, pass ([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6454806736)).
+PR #28 merged as 2e7d026.
