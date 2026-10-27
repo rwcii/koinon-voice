@@ -12,11 +12,19 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
   Keychain.
 - ADR 002 is accepted: the maintainer decided its default engines (Apple `SpeechTranscriber`
   with Koinon names resolved after recognition, Kokoro at speed 1.1, and openWakeWord with a
-  retrained "Koinon" model) and its Decisions 3 and 4.
-- The maintainer decided ADR 002, Decisions 3 and 4, and PDR 004, Decision 2: all speech plays
-  through the Swift helper with voice processing; Kokoro and openWakeWord run in native
-  runtimes, without Python; and external inference is enabled per host, with Claude Haiku
-  where it is on and the local Qwen3-4B where it is off.
+  retrained "Koinon" model), that all speech plays through the Swift helper with voice
+  processing, and that Kokoro and openWakeWord run in native runtimes, without Python.
+- PDR 004, Decision 2 is decided by the maintainer: external inference is enabled per host,
+  with Claude Haiku where it is on and the local Qwen3-4B where it is off.
+- The summary prompt gives the asker as a person says it, the agent family and then the
+  project ("Codex, working in Koinon Voice"), and asks the engine to say other session names
+  the same way and to keep only the figures that the decision needs (#13).
+- `koinon-voice summarize --blind` shows each rated item, as the engines receive it, before
+  its summaries play, so a summary's rating can judge its accuracy against the item as well
+  as how it sounds (#13).
+- `scorecard-summarize-names.md` reports the rerun of the paid engines with the new prompt and
+  the maintainer's blind ratings: Claude Haiku stays correct on 20 of 20 and its mean rating
+  goes from 3.0 to 4.6 (#13).
 - The records, the vendored process guides and the shared skills follow Koinon v0.5.0
   (8abe1b9). `handoff` and `pickup` name the handoff directory of a session that runs outside a
   Git checkout (rwcii/koinon#485), and WDR 001 and WDR 004 cite the maintainer's verdicts that
