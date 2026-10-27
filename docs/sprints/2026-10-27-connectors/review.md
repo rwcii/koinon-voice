@@ -82,3 +82,9 @@ Codex reproduced the three findings in the page's script with Node.
 
 `TestScript` runs the script under Node with a stand-in DOM (skipped where Node is not
 installed) and checks each case; the script before the fix fails it.
+
+Also: one run of the full race suite on this branch failed `TestConnectorReadsEverything`
+(chunk 01) with two starts where it expects one; 24 later runs passed. The likely cause, not
+confirmed, is the test's 2-second request timeout on a machine loaded by the whole suite.
+The tests now use 10 seconds unless they time a request out on purpose, and the test logs
+each disconnection's code and reason, so a repeat shows its cause.
