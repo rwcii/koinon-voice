@@ -61,8 +61,9 @@ has run (the liveness read), for the case where no exit comes.
   `engines.toml`). Each `[[host]]` has `label`, `ssh` (empty for this machine), `koinon` (the
   binary; a full path for a remote host), optional `state_dir` and `address`, and `secret`,
   the Keychain name (`maintainer-local` is the service `koinon-voice-maintainer-local`).
-- A remote host runs `ssh -o BatchMode=yes -T DEST -- 'KOINON' mcp --maintainer --client
-  koinon-voice --secret-stdin [...]`, with each remote word quoted for the remote shell.
+- A remote host runs `ssh -o BatchMode=yes -T -- DEST 'KOINON' 'mcp' '--maintainer' ...`,
+  with each remote word quoted for the remote shell. The `--` ends ssh's options before the
+  destination; after the destination it would be a word of the remote command.
 - `koinon-voice board` prints each host's state and waiting items, for the chunk 01 checks.
 - `koinon-voice serve` serves the dashboard (chunk 02).
 
@@ -89,8 +90,8 @@ has run (the liveness read), for the case where no exit comes.
   a delay that grows to a limit. A refused secret shows the code
   `maintainer_secret_invalid` and waits for the longest delay.
 - **SSH (1).** A fake `ssh` on `PATH` records its arguments and runs the fake Koinon. The
-  test checks `BatchMode=yes`, `-T`, the destination, the quoted remote words (a path with a
-  space and a quote), and that the secret is not in the arguments.
+  test checks `BatchMode=yes`, `-T`, `--` before the destination, the quoted remote words (a
+  path with a space and a quote), and that the secret is not in the arguments.
 - **Secret (2).** A sentinel secret appears in no argument, error, log line, `board` output,
   page or event stream in any test, including the refused-secret and junk cases.
 - **Configuration (7).** A valid file, an unknown field, a duplicate label, no hosts, a remote

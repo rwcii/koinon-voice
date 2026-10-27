@@ -156,8 +156,10 @@ maintainer accepted with it on 2026-10-26. The SSH path has not been tried yet (
 - A dropped connection hides that host's items until it reconnects; the dashboard shows the
   host as disconnected.
 - Each daemon restart, which every Koinon upgrade causes, ends the maintainer session, and
-  the connector reconnects. What a running maintainer-mode process reports when its session
-  ends is asked on rwcii/koinon#470 for its second PR.
+  the connector reconnects. Koinon v0.5.0 ends a subscribed maintainer-mode process with
+  `maintainer_token_expired` a few seconds after the restart, and answers a process with no
+  subscription so on its next request; the connector stays subscribed and also makes a read
+  when it has been idle (the connectors sprint's definition of done).
 - SSH must run without prompts: a key in the SSH agent, and a known host key. #15 tries it
   against a remote host.
 
@@ -254,3 +256,4 @@ maintainer accepted this record on 2026-10-26.
 | 2026-10-25 | Revised to Koinon PDR 009: connectors run `koinon mcp --maintainer` on stdio, locally or over SSH, in place of SSH forwards and dashboard logins; the secret in the Keychain; the client recorded as `mcp:koinon-voice` |
 | 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |
 | 2026-10-26 | Accepted by the maintainer (board item kv-adr001); Koinon v0.5.0 has the maintainer mode |
+| 2026-10-27 | Decision 2's trade-off states what Koinon v0.5.0 does when the maintainer session ends, which the record had left open |
