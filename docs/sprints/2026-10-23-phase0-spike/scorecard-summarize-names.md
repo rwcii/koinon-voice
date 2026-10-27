@@ -14,8 +14,14 @@ needs. The maintainer approved the change and the rerun on board item kv-13 (202
   so a rating judges accuracy against the item as well as how the summary sounds. The
   maintainer asked for this in the kv-13 note: "My vote was based on the listenability.  I
   had no idea what the models were supposed to say, because I was given nothing to judge
-  against as far as accuracy was concerned." Phase 0's ratings (three for each engine) and
-  these do not measure the same thing.
+  against as far as accuracy was concerned." On 2026-10-26 the agent then asked the
+  maintainer: "Your kv-13 note says you had nothing to judge accuracy against in the blind
+  rating. For the rerun, what should the blind rating show you?", with three options: show
+  the item first (the title, options, recommendation and deadline on screen before its
+  summaries, one 1 to 5 rating with accuracy included; recommended), two ratings
+  (listenability and accuracy, each 1 to 5), or listenability only as before. The maintainer
+  chose "Show the item first". Phase 0's ratings (three for each engine) and these do not
+  measure the same thing.
 
 ## Observations
 
@@ -24,7 +30,9 @@ needs. The maintainer approved the change and the rerun on board item kv-13 (202
   OpenRouter 20 of 20, OpenAI 19 of 20 (Phase 0: Opus 19, OpenAI 18).
 - Claude Haiku's mean rating is 4.6, with OpenAI's the highest, from 3.0 in Phase 0. It
   stays the quickest to its first spoken word (1357 ms) and the cheapest (about $0.002 for
-  the 20 items). PDR 004, Decision 2 makes it the external summarizer.
+  the 20 items). The maintainer approved it as the external summarizer where external
+  inference is on, on board item kv-pdr004-d2 (2026-10-26); PDR 004 records that decision in
+  a separate change.
 
 ## Engines
 
