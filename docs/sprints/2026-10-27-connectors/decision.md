@@ -7,11 +7,22 @@ by click. Speech is the next sprint. Claude drives the plan; Codex reviews.
 **Provenance:** Maintainer, 2026-10-27, approved board item kv-sprint1-scope, "Koinon Voice:
 what does the next sprint deliver?", with the note "a". Option A was "Connector and dashboard
 first, without voice": the connector (local child process and `ssh HOST`, the same code), the
-Keychain secret, restart after a daemon restart, change notices, and `koinon-voice dashboard` with
+Keychain secret, restart after a daemon restart, change notices, and `koinon-voice serve` with
 a loopback dashboard that shows the waiting items by host and records a verdict by click as
 `mcp:koinon-voice`; the SSH test stays on #15, and the voice loop is the next sprint. The other
 options were all of Phase 1 in one sprint, and a terminal command without a dashboard. The
 recommendation was A.
+
+**Later correction (command name):** Maintainer, 2026-10-27 (UTC), in the terminal session with
+Claude, after live check 2 ran `koinon-voice serve`. Claude had asked on board item
+kv-via-check what "use dashboard" meant. The maintainer's answer: "no, you gave me koinon-voice
+server, the corresponding command on koinon is dashboard.  dont create new flags that do the
+same thing". Then: "CLI invocation should follow the koinon pattern, dont have 2 related
+binaries with completelty differnt command line flags". Scope: the command `koinon-voice
+serve` is renamed `koinon-voice dashboard`, after `koinon dashboard`; its behavior and its
+`--hosts`, `--listen` and `--no-open` flags do not change. Criterion 5 and the design text use
+the new name. The rest of the command line (usage, errors, output) is board item
+kv-cli-pattern and is not part of this sprint.
 
 ## Problem
 
