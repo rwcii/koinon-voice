@@ -4,7 +4,8 @@ import SidecarProtocol
 
 /// speak synthesizes each input frame's text as it arrives, in order, to the default output
 /// or to a file. The first audio event marks the first sample: the first one the output
-/// device renders, or the first one written to the file.
+/// device renders, or the first one written to the file. The default output plays with
+/// voice processing on (ADR 002, Decision 3), which needs microphone access.
 @MainActor
 func speak(_ request: Request, _ out: Output) async throws {
     struct P: Decodable {
@@ -35,7 +36,13 @@ func speak(_ request: Request, _ out: Output) async throws {
     guard let voice else { throw HelperError(code: "unavailable", message: "no en-US voice") }
 
     // One request plays at a time: the bridge speaks summaries in turn.
-    let sink: AudioSink = try p.output.map { try FileSink(path: $0) } ?? DeviceSink.shared
+    let sink: AudioSink
+    if let path = p.output {
+        sink = try FileSink(path: path)
+    } else {
+        try await requireMicrophone()
+        sink = DeviceSink.shared
+    }
     // The request opens before the summary starts, so the output is ready by its first sentence.
     try sink.prepare()
     let requested = Date()
@@ -97,7 +104,9 @@ protocol AudioSink: AnyObject {
 }
 
 /// DeviceSink plays through the default output with one engine kept running across requests,
-/// so a request's timing does not include starting the engine.
+/// so a request's timing does not include starting the engine. The engine has voice
+/// processing on: echo cancellation takes the played audio as its reference, and ordinary
+/// playback was silent through a multichannel USB mixer in Phase 0 (#8).
 @MainActor
 final class DeviceSink: AudioSink {
     static let shared = DeviceSink()
@@ -110,11 +119,23 @@ final class DeviceSink: AudioSink {
 
     var latency: Double { engine.outputNode.presentationLatency }
 
-    private init() { engine.attach(player) }
+    private init() {
+        engine.attach(player)
+        // The mixer and output must exist before voice processing is enabled; created after it,
+        // the output unit fails to initialize (-10875) when the engine starts.
+        _ = engine.mainMixerNode
+    }
 
     func prepare() throws {
         // The system voices synthesize 22.05 kHz mono; write reconnects for any other format.
         guard format == nil, let f = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1) else { return }
+        if !engine.inputNode.isVoiceProcessingEnabled {
+            do {
+                try engine.inputNode.setVoiceProcessingEnabled(true)
+            } catch {
+                throw HelperError(code: "unavailable", message: "voice processing: \(error.localizedDescription)")
+            }
+        }
         engine.connect(player, to: engine.mainMixerNode, format: f)
         try engine.start()
         format = f

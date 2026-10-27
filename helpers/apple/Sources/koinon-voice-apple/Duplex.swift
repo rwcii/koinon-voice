@@ -45,14 +45,7 @@ func duplex(_ request: Request, _ out: Output) async throws {
     }
     let p = try request.params(P.self)
     let seconds = p.seconds ?? 20
-    switch AVCaptureDevice.authorizationStatus(for: .audio) {
-    case .authorized:
-        break
-    case .notDetermined:
-        guard await AVCaptureDevice.requestAccess(for: .audio) else { throw microphoneDenied }
-    default:
-        throw microphoneDenied
-    }
+    try await requireMicrophone()
 
     // Synthesize first: the whole text is a few buffers, and the player's format is theirs.
     let synth = AVSpeechSynthesizer()

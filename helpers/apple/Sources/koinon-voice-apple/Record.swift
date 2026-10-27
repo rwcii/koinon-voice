@@ -7,15 +7,7 @@ import Foundation
 /// 14-channel USB interface carries the microphone on one channel, and folding all of them
 /// into one gives silence.
 func record(seconds: Double, to path: String, channel: Int = 1) async throws {
-    // Without access macOS hands the engine silence, not an error, so ask first.
-    switch AVCaptureDevice.authorizationStatus(for: .audio) {
-    case .authorized:
-        break
-    case .notDetermined:
-        guard await AVCaptureDevice.requestAccess(for: .audio) else { throw microphoneDenied }
-    default:
-        throw microphoneDenied
-    }
+    try await requireMicrophone()
     let engine = AVAudioEngine()
     let input = engine.inputNode
     let source = input.outputFormat(forBus: 0)
@@ -96,6 +88,19 @@ func silenceHint(_ peaks: [Float], channel: Int) -> String {
         return "no channel of the input device has sound, so the device is not sending the microphone to the Mac: check its routing to USB and the channel's gain. Peak by channel: \(levels)"
     }
     return "check the microphone access in System Settings > Privacy & Security > Microphone, and the input device"
+}
+
+/// requireMicrophone asks for microphone access when it is not yet decided. Without access
+/// macOS hands an engine's input silence, not an error, so callers ask first.
+func requireMicrophone() async throws {
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized:
+        break
+    case .notDetermined:
+        guard await AVCaptureDevice.requestAccess(for: .audio) else { throw microphoneDenied }
+    default:
+        throw microphoneDenied
+    }
 }
 
 let microphoneDenied = HelperError(code: "unavailable", message: "no microphone access: allow this terminal in System Settings > Privacy & Security > Microphone, then run it again")

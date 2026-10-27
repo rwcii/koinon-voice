@@ -4,6 +4,18 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The Apple helper's `speak` plays through an engine with voice processing on, as ADR 002,
+  Decision 3 now decides, in place of ordinary playback, which was silent through a
+  multichannel USB mixer (#8). Playing to the output device now needs microphone access.
+- ADR 001 is accepted by the maintainer: each connector runs Koinon's maintainer mode,
+  `koinon mcp --maintainer`, on stdio, locally or over SSH, with the daemon's secret from the
+  Keychain.
+- ADR 002 is accepted: the maintainer decided its default engines (Apple `SpeechTranscriber`
+  with Koinon names resolved after recognition, Kokoro at speed 1.1, and openWakeWord with a
+  retrained "Koinon" model), that all speech plays through the Swift helper with voice
+  processing, and that Kokoro and openWakeWord run in native runtimes, without Python.
+- PDR 004, Decision 2 is decided by the maintainer: external inference is enabled per host,
+  with Claude Haiku where it is on and the local Qwen3-4B where it is off.
 - The summary prompt gives the asker as a person says it, the agent family and then the
   project ("Codex, working in Koinon Voice"), and asks the engine to say other session names
   the same way and to keep only the figures that the decision needs (#13).
