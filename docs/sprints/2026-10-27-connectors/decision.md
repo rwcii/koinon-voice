@@ -13,6 +13,17 @@ a loopback dashboard that shows the waiting items by host and records a verdict 
 options were all of Phase 1 in one sprint, and a terminal command without a dashboard. The
 recommendation was A.
 
+**Later correction (command name):** Maintainer, 2026-10-27 (UTC), in the terminal session with
+Claude, after live check 2 ran `koinon-voice serve`. Claude had asked on board item
+kv-via-check what "use dashboard" meant. The maintainer's answer: "no, you gave me koinon-voice
+server, the corresponding command on koinon is dashboard.  dont create new flags that do the
+same thing". Then: "CLI invocation should follow the koinon pattern, dont have 2 related
+binaries with completelty differnt command line flags". Scope: the command `koinon-voice
+serve` is renamed `koinon-voice dashboard`, after `koinon dashboard`; its behavior and its
+`--hosts`, `--listen` and `--no-open` flags do not change. Criterion 5 and the design text use
+the new name. The rest of the command line (usage, errors, output) is board item
+kv-cli-pattern and is not part of this sprint.
+
 ## Problem
 
 Phase 0 settled the engines and mapped Koinon; ADR 001 is accepted, and Koinon v0.5.0 has the
@@ -40,7 +51,7 @@ maintainer mode it needs. Koinon Voice has no connection to Koinon yet:
 4. **Restart.** When the process exits, the SSH connection drops or a request answers
    `maintainer_token_expired`, the connector starts the process again and reads its state
    again; while it is down, the host shows as disconnected (ADR 001, Decision 2).
-5. **Dashboard.** `koinon-voice serve` serves a page on a loopback address that shows each
+5. **Dashboard.** `koinon-voice dashboard` serves a page on a loopback address that shows each
    host's connection state and its waiting items, labeled by host, and updates when a notice
    arrives.
 6. **Verdict.** From the page, the maintainer approves or declines a decision item, or

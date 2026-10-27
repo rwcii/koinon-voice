@@ -56,3 +56,35 @@ reproduced each with probe tests, which pass on the fix.
 3. **F3 and R1. Rooms kept only their latest 50 posts.** The limit had no source, and the plan
    requires every page. Disposition: fixed. A room's state holds every post that Koinon
    retains; `TestConnectorKeepsEveryPost` reads 75 posts in pages of 20.
+
+Bounded re-review at bb335f4, both passed:
+[peer review](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450503950) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450504486). PR #27
+merged as 21afebb.
+
+## Chunk 02 (cb3fbd3, PR #28)
+
+Peer review, changes requested
+([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6450694303)); refusal
+review, pass ([comment](https://github.com/rwcii/koinon-voice/pull/28#issuecomment-6450694890)).
+Codex reproduced the three findings in the page's script with Node.
+
+1. **F1. A note started during a read was erased.** The script took the notes before it
+   fetched the board, so a note begun during the fetch was lost in the swap. Disposition:
+   fixed. The script checks the focus and takes the notes just before the swap; with a note
+   in focus it swaps after the note loses focus.
+2. **F2. Reads could finish out of order.** Two reads in flight could show the older board
+   last. Disposition: fixed. One read runs at a time; a change during a read causes one more
+   read, so the newest board is shown last.
+3. **F3. A change with no stream open was missed.** A change between the page's render and
+   the stream's start, or during a reconnect, had no event. Disposition: fixed. The stream's
+   open event, which also comes after each reconnect, reads the board.
+
+`TestScript` runs the script under Node with a stand-in DOM (skipped where Node is not
+installed) and checks each case; the script before the fix fails it.
+
+Also: one run of the full race suite on this branch failed `TestConnectorReadsEverything`
+(chunk 01) with two starts where it expects one; 24 later runs passed. The likely cause, not
+confirmed, is the test's 2-second request timeout on a machine loaded by the whole suite.
+The tests now use 10 seconds unless they time a request out on purpose, and the test logs
+each disconnection's code and reason, so a repeat shows its cause.

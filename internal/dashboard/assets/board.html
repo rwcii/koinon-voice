@@ -1,0 +1,35 @@
+{{$csrf := .CSRF}}
+{{range .Hosts}}{{$host := .Host}}
+<section class="host" data-host="{{.Host}}">
+<h2>{{.Host}} <span class="status {{.Status}}">{{.Status}}</span></h2>
+{{if eq (print .Status) "connected"}}
+<p class="counts">{{.Counts.Waiting}} waiting · {{.Counts.OpenFYI}} open fyi · {{.Counts.InProgress}} in progress</p>
+{{else if .Reason}}
+<p class="reason">{{if .Code}}<code>{{.Code}}</code> {{end}}{{.Reason}}</p>
+{{end}}
+{{range .Items}}
+<article class="item {{.Kind}}">
+<h3>{{.Title}}</h3>
+<p class="meta"><code>{{.Reference}}</code> · {{.Kind}} · revision {{.Revision}} · from {{.AuthorName}}{{if .Where}} · {{.Where}}{{end}}</p>
+{{if .Context}}<div class="text">{{.Context}}</div>{{end}}
+{{if .Recommendation}}<h4>Recommendation</h4><div class="text">{{.Recommendation}}</div>{{end}}
+{{if .AgentText}}<h4>For the agent</h4><div class="text">{{.AgentText}}</div>{{end}}
+{{if .Commands}}<h4>Commands</h4>{{range .Commands}}<pre>{{.}}</pre>{{end}}{{end}}
+<form method="post" action="/verdict">
+<input type="hidden" name="csrf" value="{{$csrf}}">
+<input type="hidden" name="host" value="{{$host}}">
+<input type="hidden" name="reference" value="{{.Reference}}">
+<input type="hidden" name="revision" value="{{.Revision}}">
+<label>Note <textarea name="note" rows="2" data-key="{{$host}}/{{.Reference}}"></textarea></label>
+{{if eq .Kind "fyi"}}<button name="verdict" value="dismissed">Dismiss</button>
+{{else}}<button name="verdict" value="approved">Approve</button> <button name="verdict" value="declined">Decline</button>{{end}}
+</form>
+</article>
+{{end}}
+{{if .Inbox}}
+<h3>Inbox</h3>
+<ul class="inbox">{{range .Inbox}}<li><span class="meta">{{.SenderName}} · {{time .CreatedAt}}</span><div class="text">{{.Body}}</div></li>{{end}}</ul>
+{{end}}
+</section>
+{{else}}<p>No hosts.</p>
+{{end}}

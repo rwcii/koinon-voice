@@ -4,6 +4,10 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice dashboard` serves the dashboard on a loopback address: each host's state, the
+  waiting decision and fyi items with their full text, the maintainer's inbox, and a verdict
+  by click, recorded with the client `mcp:koinon-voice`. It updates on Koinon's change
+  notices, and logs in with a one-time link.
 - `koinon-voice board` connects to each Koinon daemon listed in
   `~/.config/koinon-voice/hosts.toml` through Koinon's maintainer mode, locally or over
   `ssh`, with the daemon's maintainer secret from the Keychain, and prints each host's state

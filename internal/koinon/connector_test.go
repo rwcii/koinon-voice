@@ -37,8 +37,10 @@ func (s secrets) Get(ctx context.Context, name string) (string, error) {
 // fastOptions keep the waits short.
 func fastOptions() Options {
 	return Options{
-		Secrets:        secrets{"maintainer-test": secret},
-		RequestTimeout: 2 * time.Second,
+		Secrets: secrets{"maintainer-test": secret},
+		// Long enough for a loaded machine running the race-enabled suite; the tests that
+		// time a request out set their own.
+		RequestTimeout: 10 * time.Second,
 		Liveness:       time.Hour,
 		MinDelay:       20 * time.Millisecond,
 		MaxDelay:       200 * time.Millisecond,
@@ -152,7 +154,7 @@ func TestConnectorReadsEverything(t *testing.T) {
 		Rooms: []koinontest.FakeRoom{{RoomID: "r1", Name: "probe-room", Posts: []map[string]any{post(1, "a"), post(2, "b"), post(3, "c")}}},
 	}
 	c.SetBoard(board)
-	conn, _ := start(t, h, fastOptions())
+	conn, rec := start(t, h, fastOptions())
 	s := waitFor(t, conn, "five items", func(s State) bool { return connected(s) && len(s.Items) == 5 })
 	if s.Items[2].Context != "ctx 3" || s.Items[2].Recommendation != "rec 3" || s.Items[4].Kind != "fyi" {
 		t.Errorf("items not read in full: %+v", s.Items)
@@ -183,6 +185,13 @@ func TestConnectorReadsEverything(t *testing.T) {
 		return len(s.Items) == 6 && len(s.Inbox) == 2 && s.Inbox[1].Body == "fourth" && len(s.Rooms) == 1 && len(s.Rooms[0].Posts) == 4
 	})
 	if c.Starts() != 1 {
+		rec.mu.Lock()
+		for _, st := range rec.states {
+			if st.Status == Disconnected {
+				t.Logf("disconnected: %s %s", st.Code, st.Reason)
+			}
+		}
+		rec.mu.Unlock()
 		t.Errorf("%d starts", c.Starts())
 	}
 	noSecretInStarts(t, c)
