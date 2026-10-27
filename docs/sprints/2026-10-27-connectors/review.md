@@ -27,3 +27,9 @@ Refusal review, pass
 ([comment](https://github.com/rwcii/koinon-voice/pull/26#issuecomment-6449979405)): no
 unsourced restrictions; the board scope and Gate A were verified, and `decision.md` is
 unchanged from 197a776.
+
+## Plan (4374a58)
+
+Bounded re-review of F1 and F2, both passed:
+[peer review](https://github.com/rwcii/koinon-voice/pull/26#issuecomment-6450023730) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/26#issuecomment-6450024357).

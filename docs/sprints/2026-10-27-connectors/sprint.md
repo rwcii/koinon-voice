@@ -15,3 +15,9 @@ kv-sprint1-gate-a, "Koinon Voice: Gate A. Approve the connectors sprint decision
 held the decision's text and named its two additions to option A (criterion 7's
 configuration file, and the Build constraint for platforms without the Keychain), with no
 note.
+
+Gate B approved the reviewed plan at 4374a58 (review in `review.md`). Maintainer, 2026-10-27,
+approved board item kv-sprint1-gate-b, "Koinon Voice: Gate B. Approve the reviewed connectors
+sprint plan?", which recapped the chunks, the maintainer's part (live check 2), the evidence,
+both review findings and their fixes, and what the gate does not approve (the voice loop, the
+order of later phases and the SSH test, #15), with no note.
