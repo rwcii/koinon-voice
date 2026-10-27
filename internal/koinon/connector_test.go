@@ -422,3 +422,76 @@ func TestConnectorKillsAStubbornProcess(t *testing.T) {
 		t.Errorf("process %d is still running", pid)
 	}
 }
+
+// A notice that comes while start reads stays for the loop (review of 922e3f7, F2): here
+// the board changes after its read, while the inbox is read.
+func TestStartKeepsNoticesDuringReads(t *testing.T) {
+	client, srv := newPipeClient(t)
+	s := &session{c: New(Host{Label: "test"}, Options{RequestTimeout: 2 * time.Second}), client: client}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.start(context.Background())
+		done <- err
+	}()
+	answers := map[string]string{
+		"room_list":  `{"ok":true,"result":{"rooms":[]}}`,
+		"board_list": `{"ok":true,"result":{"counts":{},"items":[],"more":false,"next_after":null}}`,
+		"inbox":      `{"ok":true,"result":{"messages":[],"last_seq":0,"acked_through":0,"more":false}}`,
+	}
+	for read := 0; read < 3; {
+		line, err := srv.in.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m struct {
+			ID     *int64 `json:"id"`
+			Method string `json:"method"`
+			Params struct {
+				Name string `json:"name"`
+				URI  string `json:"uri"`
+			} `json:"params"`
+		}
+		_ = json.Unmarshal([]byte(line), &m)
+		if m.ID == nil {
+			continue
+		}
+		var result any = map[string]any{}
+		switch m.Method {
+		case "resources/subscribe":
+			srv.send(t, map[string]any{"jsonrpc": "2.0", "id": *m.ID, "result": result})
+			srv.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": m.Params.URI}})
+			continue
+		case "tools/call":
+			read++
+			if m.Params.Name == "inbox" {
+				srv.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": DecisionsURI}})
+				time.Sleep(50 * time.Millisecond)
+			}
+			result = toolResult(answers[m.Params.Name], false)
+		}
+		srv.send(t, map[string]any{"jsonrpc": "2.0", "id": *m.ID, "result": result})
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got := client.TakeNotices(); len(got) != 1 || got[0] != DecisionsURI {
+		t.Errorf("notices after start %v", got)
+	}
+}
+
+// A state holds every post that Koinon retains, over more than one page (review of
+// 922e3f7, F3).
+func TestConnectorKeepsEveryPost(t *testing.T) {
+	h, c := newHost(t, "local")
+	c.Write("page", "20")
+	var posts []map[string]any
+	for i := int64(1); i <= 75; i++ {
+		posts = append(posts, post(i, fmt.Sprint(i)))
+	}
+	c.SetBoard(koinontest.Board{Rooms: []koinontest.FakeRoom{{RoomID: "r1", Name: "busy", Posts: posts}}})
+	conn, _ := start(t, h, fastOptions())
+	s := waitFor(t, conn, "the room", func(s State) bool { return connected(s) && len(s.Rooms) == 1 && len(s.Rooms[0].Posts) > 0 })
+	if n := len(s.Rooms[0].Posts); n != 75 || s.Rooms[0].Posts[0].Body != "1" {
+		t.Errorf("%d of 75 posts", n)
+	}
+}

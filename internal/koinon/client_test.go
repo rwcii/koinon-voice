@@ -176,3 +176,36 @@ func TestClientEnds(t *testing.T) {
 		})
 	}
 }
+
+// A process that stops reading blocks the client's write; the request still ends at its
+// deadline, and the client stops (review of 922e3f7, F1).
+func TestClientBlockedWrite(t *testing.T) {
+	reqR, reqW := io.Pipe() // nobody reads reqR
+	ansR, ansW := io.Pipe()
+	defer ansW.Close()
+	c := NewClient(ansR, reqW)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.Call(ctx, "initialize", map[string]any{})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrStalled) {
+			t.Errorf("error %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the request did not end at its deadline")
+	}
+	select {
+	case <-c.Done():
+	default:
+		t.Error("the client did not stop")
+	}
+	if err := c.Notify(context.Background(), "notifications/initialized", map[string]any{}); !errors.Is(err, ErrStalled) {
+		t.Errorf("a later write: %v", err)
+	}
+	reqR.Close() // ends the blocked write
+}

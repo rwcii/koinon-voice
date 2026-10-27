@@ -24,6 +24,10 @@ var ErrClosed = errors.New("koinon mcp output closed")
 // ErrProtocol is output that is not JSON-RPC.
 var ErrProtocol = errors.New("koinon mcp protocol")
 
+// ErrStalled is a process that stopped reading its input: a write did not finish before
+// the request's deadline. The client stops, so its session ends and the process is killed.
+var ErrStalled = errors.New("koinon mcp stopped reading its input")
+
 // Client speaks MCP as newline-delimited JSON-RPC 2.0 on a reader and a writer. It is safe
 // for concurrent use. Notices arrive between answers; Notice signals them and TakeNotices
 // returns each changed URI once.
@@ -117,7 +121,7 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 		delete(c.calls, id)
 		c.mu.Unlock()
 	}()
-	if err := c.write(rpcMessage{JSONRPC: "2.0", ID: &id, Method: method, Params: raw}); err != nil {
+	if err := c.send(ctx, rpcMessage{JSONRPC: "2.0", ID: &id, Method: method, Params: raw}); err != nil {
 		return nil, err
 	}
 	select {
@@ -134,12 +138,28 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 }
 
 // Notify sends a notification, which has no answer.
-func (c *Client) Notify(method string, params any) error {
+func (c *Client) Notify(ctx context.Context, method string, params any) error {
 	raw, err := json.Marshal(params)
 	if err != nil {
 		return err
 	}
-	return c.write(rpcMessage{JSONRPC: "2.0", Method: method, Params: raw})
+	return c.send(ctx, rpcMessage{JSONRPC: "2.0", Method: method, Params: raw})
+}
+
+// send writes a message, and stops the client with ErrStalled when the write is still
+// blocked at ctx's end. The blocked write ends when its process's input is closed.
+func (c *Client) send(ctx context.Context, m rpcMessage) error {
+	written := make(chan error, 1)
+	go func() { written <- c.write(m) }()
+	select {
+	case err := <-written:
+		return err
+	case <-c.done:
+		return c.Err()
+	case <-ctx.Done():
+		c.fail(fmt.Errorf("%w: %s", ErrStalled, m.Method))
+		return c.Err()
+	}
 }
 
 // Initialize opens the MCP session.
@@ -152,7 +172,7 @@ func (c *Client) Initialize(ctx context.Context, version string) error {
 	if err != nil {
 		return err
 	}
-	return c.Notify("notifications/initialized", map[string]any{})
+	return c.Notify(ctx, "notifications/initialized", map[string]any{})
 }
 
 // Tool calls a tool and decodes Koinon's result into out. A refusal is a *Refusal.

@@ -28,9 +28,6 @@ const (
 	Disconnected Status = "disconnected"
 )
 
-// RoomPosts is the number of a room's latest posts that a state keeps.
-const RoomPosts = 50
-
 // State is what a connector knows of its host. A connector replaces its slices and never
 // changes them in place, so a State is safe to keep and read.
 type State struct {
@@ -52,7 +49,7 @@ type State struct {
 	Rooms []RoomState
 }
 
-// RoomState is a room with its latest posts.
+// RoomState is a room with every post that Koinon retains.
 type RoomState struct {
 	Room
 	Posts []Post
@@ -354,6 +351,9 @@ func (s *session) start(ctx context.Context) (bool, error) {
 	if err := s.readRooms(ctx); err != nil {
 		return false, err
 	}
+	// Each subscription sends one notice at once, which the reads below cover. A notice
+	// that comes during the reads stays for the loop, so a change after a read is read.
+	s.client.TakeNotices()
 	if err := s.readBoard(ctx); err != nil {
 		return false, err
 	}
@@ -365,8 +365,6 @@ func (s *session) start(ctx context.Context) (bool, error) {
 			return false, err
 		}
 	}
-	// Notices from the subscriptions above are covered by these reads.
-	s.client.TakeNotices()
 	s.publish(true)
 	return true, nil
 }
@@ -387,10 +385,11 @@ func (s *session) loop(ctx context.Context) error {
 		case <-s.c.refresh:
 			err = s.follow(ctx, []string{DecisionsURI})
 		case <-idle.C:
-			// The liveness read; it also finds rooms created since the last read.
+			// The liveness read. It finds rooms created since the last read, and reads
+			// the board and the inbox again in case a change had no notice.
 			err = s.readRooms(ctx)
 			if err == nil {
-				s.publish(false)
+				err = s.follow(ctx, []string{DecisionsURI, InboxURI})
 			}
 		}
 		if err != nil {
@@ -552,11 +551,7 @@ func (s *session) readRoom(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		posts := append(append([]Post(nil), rc.posts...), p.Posts...)
-		if len(posts) > RoomPosts {
-			posts = posts[len(posts)-RoomPosts:]
-		}
-		rc.posts = posts
+		rc.posts = append(append([]Post(nil), rc.posts...), p.Posts...)
 		if n := len(p.Posts); n > 0 {
 			rc.after = p.Posts[n-1].Seq
 		}
