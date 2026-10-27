@@ -51,7 +51,7 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	doSpeak := fs.Bool("speak", false, "speak each summary through the Apple helper as it streams, and time the first spoken word")
 	helper := fs.String("helper", "", "the Apple helper's path (default: helper in the engines file)")
 	voice := fs.String("voice", "", "an AVSpeechSynthesisVoice identifier (default: voice in the engines file, else the system's en-US voice)")
-	blind := fs.Bool("blind", false, "hide engine names, show each rated item first, and ask for a 1 to 5 rating per summary; q stops rating")
+	blind := fs.Bool("blind", false, "hide engine names, show each rated item first, and ask for a rating per summary, 1 worst to 5 best; q stops rating")
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
 	rescore := fs.String("rescore", "", "with --fixtures, check this scorecard's recorded summaries again without running an engine, and write it to --out or stdout")
 	if err := fs.Parse(args); err != nil {
@@ -274,7 +274,7 @@ func (r *rater) printKey() {
 
 func ask(in *bufio.Scanner, stdout io.Writer, label string) (int, error) {
 	for {
-		fmt.Fprintf(stdout, "Rating for %s (1 to 5, q to stop): ", label)
+		fmt.Fprintf(stdout, "Rating for %s (1 worst to 5 best, q to stop): ", label)
 		if !in.Scan() {
 			if err := in.Err(); err != nil {
 				return 0, err
