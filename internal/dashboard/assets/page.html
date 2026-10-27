@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koinon Voice</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header><h1>Koinon Voice</h1></header>
+<main>
+{{with .Notice}}
+<p class="notice {{if .OK}}ok{{else}}warn{{end}}" role="status">
+{{- if eq .Code "recorded"}}Verdict recorded on {{.Reference}} ({{.Host}}).
+{{- else if eq .Code "stale_revision"}}{{.Reference}} on {{.Host}} changed after the page showed it. It shows below as it is now; give the verdict again.
+{{- else if eq .Code "not_found"}}{{.Reference}} on {{.Host}} has left the board. No verdict was given.
+{{- else if eq .Code "decided"}}{{.Reference}} on {{.Host}} already has a verdict.
+{{- else if eq .Code "disconnected"}}{{.Host}} is not connected. No verdict was given.
+{{- else if eq .Code "invalid_verdict"}}That verdict does not fit {{.Reference}}: a decision item takes approve or decline, an fyi item takes dismiss.
+{{- else}}Koinon did not record the verdict on {{.Reference}} ({{.Host}}): {{.Code}}.{{end -}}
+</p>
+{{end}}
+<div id="board">{{template "board.html" .}}</div>
+</main>
+</body>
+</html>

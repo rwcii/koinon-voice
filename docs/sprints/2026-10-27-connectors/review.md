@@ -56,3 +56,8 @@ reproduced each with probe tests, which pass on the fix.
 3. **F3 and R1. Rooms kept only their latest 50 posts.** The limit had no source, and the plan
    requires every page. Disposition: fixed. A room's state holds every post that Koinon
    retains; `TestConnectorKeepsEveryPost` reads 75 posts in pages of 20.
+
+Bounded re-review at bb335f4, both passed:
+[peer review](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450503950) and
+[refusal review](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450504486). PR #27
+merged as 21afebb.
