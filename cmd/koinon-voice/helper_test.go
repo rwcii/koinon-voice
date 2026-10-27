@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rwcii/koinon-voice/internal/koinon/koinontest"
 	"github.com/rwcii/koinon-voice/internal/sidecar"
 )
 
@@ -21,6 +22,7 @@ const fakeHelperMode = "KOINON_VOICE_FAKE_CMD_HELPER"
 const fakeDuplexAfter = "KOINON_VOICE_FAKE_DUPLEX_AFTER"
 
 func TestMain(m *testing.M) {
+	koinontest.Main()
 	if os.Getenv(fakeHelperMode) != "" {
 		fakeHelper()
 		os.Exit(0)

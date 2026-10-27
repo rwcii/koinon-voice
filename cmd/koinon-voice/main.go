@@ -27,7 +27,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runCorpus(args[1:], stdin, stdout, stderr)
 	case len(args) > 0 && args[0] == "bench":
 		return runBench(args[1:], stdin, stdout, stderr)
+	case len(args) > 0 && args[0] == "board":
+		return runBoard(args[1:], stdout, stderr)
 	}
-	fmt.Fprintln(stderr, "Usage: koinon-voice version | summarize | helper | corpus | bench")
+	fmt.Fprintln(stderr, "Usage: koinon-voice version | summarize | helper | corpus | bench | board")
 	return 2
 }

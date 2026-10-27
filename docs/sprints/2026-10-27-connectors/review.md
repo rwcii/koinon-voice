@@ -33,3 +33,26 @@ unchanged from 197a776.
 Bounded re-review of F1 and F2, both passed:
 [peer review](https://github.com/rwcii/koinon-voice/pull/26#issuecomment-6450023730) and
 [refusal review](https://github.com/rwcii/koinon-voice/pull/26#issuecomment-6450024357).
+
+## Chunk 01 (922e3f7, PR #27)
+
+Peer review, changes requested
+([comment](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450421214)); refusal
+review, changes requested on the same room limit
+([comment](https://github.com/rwcii/koinon-voice/pull/27#issuecomment-6450421711)). Codex
+reproduced each with probe tests, which pass on the fix.
+
+1. **F1. A blocked write held a request past its deadline.** `Client.Call` wrote before it
+   waited on the deadline, so a process that stopped reading its input could hold a request,
+   and with it the session's end and cleanup. Disposition: fixed. Each write runs apart from
+   the caller; at the deadline the client stops with `ErrStalled`, the session ends, and
+   closing the process's input ends the write. `TestClientBlockedWrite` uses a pipe that
+   nobody reads.
+2. **F2. Notices during the startup reads were dropped.** `start` discarded every notice after
+   its reads, so a board change between the board read and the end of start stayed unread.
+   Disposition: fixed. `start` discards only the subscriptions' own notices, before the reads;
+   a notice during the reads stays for the loop. The liveness read now reads the board and the
+   inbox too. `TestStartKeepsNoticesDuringReads` sends a board notice during the inbox read.
+3. **F3 and R1. Rooms kept only their latest 50 posts.** The limit had no source, and the plan
+   requires every page. Disposition: fixed. A room's state holds every post that Koinon
+   retains; `TestConnectorKeepsEveryPost` reads 75 posts in pages of 20.

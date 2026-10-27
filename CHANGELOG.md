@@ -4,6 +4,11 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice board` connects to each Koinon daemon listed in
+  `~/.config/koinon-voice/hosts.toml` through Koinon's maintainer mode, locally or over
+  `ssh`, with the daemon's maintainer secret from the Keychain, and prints each host's state
+  and waiting items; `--watch` follows the change notices. Each connection starts again
+  after a daemon restart.
 - The connectors sprint is planned and approved (Gates A and B): connectors to each Koinon
   daemon through its maintainer mode, and a loopback dashboard with verdicts by click
   (`docs/sprints/2026-10-27-connectors/`).
