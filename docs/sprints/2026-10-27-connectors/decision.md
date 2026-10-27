@@ -7,7 +7,7 @@ by click. Speech is the next sprint. Claude drives the plan; Codex reviews.
 **Provenance:** Maintainer, 2026-10-27, approved board item kv-sprint1-scope, "Koinon Voice:
 what does the next sprint deliver?", with the note "a". Option A was "Connector and dashboard
 first, without voice": the connector (local child process and `ssh HOST`, the same code), the
-Keychain secret, restart after a daemon restart, change notices, and `koinon-voice serve` with
+Keychain secret, restart after a daemon restart, change notices, and `koinon-voice dashboard` with
 a loopback dashboard that shows the waiting items by host and records a verdict by click as
 `mcp:koinon-voice`; the SSH test stays on #15, and the voice loop is the next sprint. The other
 options were all of Phase 1 in one sprint, and a terminal command without a dashboard. The
@@ -40,7 +40,7 @@ maintainer mode it needs. Koinon Voice has no connection to Koinon yet:
 4. **Restart.** When the process exits, the SSH connection drops or a request answers
    `maintainer_token_expired`, the connector starts the process again and reads its state
    again; while it is down, the host shows as disconnected (ADR 001, Decision 2).
-5. **Dashboard.** `koinon-voice serve` serves a page on a loopback address that shows each
+5. **Dashboard.** `koinon-voice dashboard` serves a page on a loopback address that shows each
    host's connection state and its waiting items, labeled by host, and updates when a notice
    arrives.
 6. **Verdict.** From the page, the maintainer approves or declines a decision item, or

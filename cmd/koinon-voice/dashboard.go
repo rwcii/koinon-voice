@@ -26,24 +26,24 @@ var openLink = func(link string) error {
 	return exec.Command(name, link).Start()
 }
 
-const serveUsage = `Usage: koinon-voice serve [flags]
+const dashboardUsage = `Usage: koinon-voice dashboard [flags]
 
 Connect to each Koinon daemon in the hosts file and serve the dashboard on a loopback
 address: each host's state, the items that wait for the maintainer, the maintainer's inbox,
-and a verdict by click. serve prints a login link, which works once within 60 seconds, and
+and a verdict by click. It prints a login link, which works once within 60 seconds, and
 opens it unless --no-open.
 
 `
 
-func runServe(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+func runDashboard(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dashboard", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprint(stderr, serveUsage)
+		fmt.Fprint(stderr, dashboardUsage)
 		fs.PrintDefaults()
 	}
 	hostsFile := fs.String("hosts", defaultHosts(), "hosts file")
-	listen := fs.String("listen", "127.0.0.1:17680", "loopback address to serve on")
+	listen := fs.String("listen", "127.0.0.1:17680", "loopback address to listen on")
 	noOpen := fs.Bool("no-open", false, "print the login link without opening it")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -53,17 +53,17 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if err := dashboard.CheckListen(*listen); err != nil {
-		fmt.Fprintln(stderr, "koinon-voice serve:", err)
+		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
 	hosts, err := koinon.LoadHosts(*hostsFile)
 	if err != nil {
-		fmt.Fprintln(stderr, "koinon-voice serve:", err)
+		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
-		fmt.Fprintln(stderr, "koinon-voice serve:", err)
+		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
 
@@ -84,7 +84,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	srv, err = dashboard.New(views, ln.Addr().String())
 	if err != nil {
 		ln.Close()
-		fmt.Fprintln(stderr, "koinon-voice serve:", err)
+		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
 
@@ -98,7 +98,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 			c.Run(ctx)
 		}(c)
 	}
-	// Requests take the run's context, so open event streams end when serve stops.
+	// Requests take the run's context, so open event streams end when the dashboard stops.
 	httpSrv := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
 		BaseContext: func(net.Listener) context.Context { return ctx }}
 	served := make(chan error, 1)
@@ -108,7 +108,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "Koinon Voice dashboard at http://%s/\nLogin link (works once, within 60 seconds):\n%s\n", ln.Addr(), link)
 	if !*noOpen {
 		if err := openLink(link); err != nil {
-			fmt.Fprintln(stderr, "koinon-voice serve: open the link by hand:", err)
+			fmt.Fprintln(stderr, "koinon-voice dashboard: open the link by hand:", err)
 		}
 	}
 
@@ -117,7 +117,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	case <-ctx.Done():
 	case err := <-served:
 		if !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintln(stderr, "koinon-voice serve:", err)
+			fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 			code = 1
 		}
 	}

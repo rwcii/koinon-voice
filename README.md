@@ -60,10 +60,10 @@ line of the process's standard input and appears in no argument, log or output.
 
 ## Dashboard
 
-`koinon-voice serve` connects to every host and serves the dashboard on
+`koinon-voice dashboard` connects to every host and serves the dashboard on
 `http://127.0.0.1:17680/` (`--listen` takes another loopback address). It prints a login link
 and opens it unless `--no-open`; the link works once, within 60 seconds, and the session lasts
-while `serve` runs. Start `serve` again for a new link.
+while `koinon-voice dashboard` runs. Start it again for a new link.
 
 The page shows each host by label with its state, the items that wait for the maintainer
 (decision and fyi) with their full text, and the maintainer's unacknowledged inbox messages.

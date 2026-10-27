@@ -55,3 +55,6 @@ the Koinon Voice dashboard. The maintainer ran `koinon-voice serve` from the chu
 The first run of `serve` failed with `bind: address already in use` on the earlier default,
 `127.0.0.1:47680`. `lsof` showed the listener as Termius; the maintainer reported that the
 Koinon dashboard holds that port. The default moved to `127.0.0.1:17680` before this check.
+
+After this check, at the maintainer's direction, the command was renamed `koinon-voice
+dashboard` after `koinon dashboard`.

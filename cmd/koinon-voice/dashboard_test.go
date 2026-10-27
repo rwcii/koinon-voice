@@ -18,9 +18,9 @@ import (
 	"github.com/rwcii/koinon-voice/internal/koinon/koinontest"
 )
 
-// The whole path: serve, the printed link, the page, and a verdict by click that the fake
+// The whole path: dashboard, the printed link, the page, and a verdict by click that the fake
 // daemon records as mcp:koinon-voice.
-func TestServe(t *testing.T) {
+func TestDashboard(t *testing.T) {
 	hosts := boardHosts(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	watchContext = func() (context.Context, context.CancelFunc) { return ctx, cancel }
@@ -34,7 +34,7 @@ func TestServe(t *testing.T) {
 	var stderr bytes.Buffer
 	done := make(chan int, 1)
 	go func() {
-		done <- run([]string{"serve", "--hosts", hosts, "--listen", "127.0.0.1:0", "--no-open"}, nil, outW, &stderr)
+		done <- run([]string{"dashboard", "--hosts", hosts, "--listen", "127.0.0.1:0", "--no-open"}, nil, outW, &stderr)
 		outW.Close()
 	}()
 	var link string
@@ -106,17 +106,17 @@ func TestServe(t *testing.T) {
 			t.Errorf("exit %d: %s", code, stderr.String())
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("serve did not stop")
+		t.Fatal("dashboard did not stop")
 	}
 	if strings.Contains(printed.String()+stderr.String()+page, boardSecret) {
 		t.Error("the secret was printed or served")
 	}
 }
 
-func TestServeRefusesNonLoopback(t *testing.T) {
+func TestDashboardRefusesNonLoopback(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	for _, addr := range []string{"0.0.0.0:47680", "localhost:47680"} {
-		if code := run([]string{"serve", "--listen", addr, "--hosts", filepath.Join(os.TempDir(), "none.toml")}, nil, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "loopback") {
+		if code := run([]string{"dashboard", "--listen", addr, "--hosts", filepath.Join(os.TempDir(), "none.toml")}, nil, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "loopback") {
 			t.Errorf("%s: exit %d %q", addr, code, stderr.String())
 		}
 	}

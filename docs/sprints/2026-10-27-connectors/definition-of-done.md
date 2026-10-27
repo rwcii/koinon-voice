@@ -65,7 +65,7 @@ has run (the liveness read), for the case where no exit comes.
   with each remote word quoted for the remote shell. The `--` ends ssh's options before the
   destination; after the destination it would be a word of the remote command.
 - `koinon-voice board` prints each host's state and waiting items, for the chunk 01 checks.
-- `koinon-voice serve` serves the dashboard (chunk 02).
+- `koinon-voice dashboard` serves the dashboard (chunk 02).
 
 ## Tests (synthetic, in the Go suite)
 
@@ -119,7 +119,7 @@ has run (the liveness read), for the case where no exit comes.
    daemon with a generated secret and more waiting items than one `board_list` page holds,
    edits one item's context, restarts the daemon while subscribed, and records that every
    item and the edit show, the reconnection, and the `via` of a verdict.
-2. **The maintainer's daemon (5, 6, 8).** The maintainer runs `koinon-voice serve` against the
+2. **The maintainer's daemon (5, 6, 8).** The maintainer runs `koinon-voice dashboard` against the
    local daemon, opens the page, and records a verdict on a synthetic fyi item by click.
    `decision_history` shows `mcp:koinon-voice`. This is an ACTION FOR YOU item on the board.
 3. **SSH (1).** On #15, when the maintainer names a host. It is not a gate of this sprint.
@@ -131,7 +131,7 @@ has run (the liveness read), for the case where no exit comes.
 - Two hosts with items of the same reference: each verdict goes to its own host.
 - An item that leaves the board while the page shows it: the verdict answers `not_found`, and
   the page says so.
-- `serve` asked for a non-loopback listen address: refused.
+- `koinon-voice dashboard` asked for a non-loopback listen address: refused.
 - A child process that does not exit when its input closes: killed with its process group.
 
 ## Gate
