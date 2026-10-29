@@ -178,7 +178,7 @@ func TestBenchWake(t *testing.T) {
 		// One second of music is 1/3600 hour: one false wake is 3600 per hour.
 		"| openwakeword | background/music | 1 | 0 | 0.00 | 0.00 | 1 | 3600.00 |", "| openwakeword | background/podcast | 1 | 0 | 0.00 | 0.00 | 0 | 0.00 |",
 		"| openwakeword | all | 2 | 0 | 0.00 | 0.00 | 1 | 1800.00 |",
-		"threshold 0.50", "wakes on the word koinon",
+		"threshold 0.35", "wakes on the word koinon",
 		"| openwakeword | wake/near | 01 | 1 | 0.88 0.96 | 0.900 |",
 	} {
 		if !strings.Contains(string(card), want) {

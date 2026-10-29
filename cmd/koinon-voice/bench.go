@@ -144,7 +144,7 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		phrases := fs.String("phrases", phrasesFile, "phrase list, for the biasing list")
 		dir := fs.String("dir", defaultCorpus(), "corpus directory")
 		model := fs.String("model", defaultShare("wake-train", "model", "koinon.onnx"), "openWakeWord model")
-		threshold := fs.Float64("threshold", 0.5, "openWakeWord score that counts as a wake")
+		threshold := fs.Float64("threshold", 0.35, "openWakeWord score that counts as a wake")
 		fs.StringVar(&b.out, "out", "scorecard-wake.md", "scorecard file")
 		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
 			return badOptions(stderr)

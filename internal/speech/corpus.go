@@ -18,9 +18,11 @@ var Sets = []string{"clean", "noisy"}
 
 // WakeSets hold the maintainer saying "Koinon" once per file at three distances, and
 // BackgroundSets long recordings with no "Koinon" in them, for the wake bench (definition of
-// done, live check 4).
+// done, live check 4). TrainSets hold more such takes, kept apart from WakeSets, to train the
+// wake model on the maintainer's voice (#10).
 var (
 	WakeSets       = []string{"wake/near", "wake/mid", "wake/far"}
+	TrainSets      = []string{"wake-train/near", "wake-train/mid", "wake-train/far"}
 	BackgroundSets = []string{"background/music", "background/meeting", "background/podcast", "background/coffee"}
 )
 
@@ -65,7 +67,7 @@ func (c Corpus) Prepare(set string) (string, error) {
 }
 
 func allSets() []string {
-	return append(append(append([]string(nil), Sets...), WakeSets...), BackgroundSets...)
+	return append(append(append(append([]string(nil), Sets...), WakeSets...), TrainSets...), BackgroundSets...)
 }
 
 func validSet(set string) bool {

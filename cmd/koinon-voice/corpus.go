@@ -66,8 +66,9 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	channel := fs.Int("channel", 1, "with record, wake and background, the input device's channel that carries the microphone")
 	distance := fs.String("distance", "", "with wake: near (about 0.5 m), mid (about 1.5 m) or far (about 3 m)")
 	source := fs.String("source", "", "with background: music, meeting, podcast or coffee")
-	count := fs.Int("count", 0, "with wake, the takes per distance (default 20); with background, the recordings per source (default 3)")
+	count := fs.Int("count", 0, "with wake, the takes per distance (default 20, or 50 with --train); with background, the recordings per source (default 3)")
 	minutes := fs.Float64("minutes", 20, "with background, the length of each recording")
+	train := fs.Bool("train", false, "with wake, record training takes into wake-train/DISTANCE, kept apart from the scoring takes")
 	if err := fs.Parse(args[1:]); err != nil {
 		return badOptions(stderr)
 	}
@@ -76,6 +77,7 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		(args[0] == "record") != (*set != ""),
 		(args[0] == "wake") != (*distance != ""),
 		(args[0] == "background") != (*source != ""),
+		*train && args[0] != "wake",
 		*minutes <= 0:
 		return badOptions(stderr)
 	}
@@ -86,6 +88,12 @@ func runCorpus(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		n := *count
 		if n == 0 {
 			n = 20
+		}
+		if *train {
+			*set = "wake-train/" + *distance
+			if *count == 0 {
+				n = 50
+			}
 		}
 		var takeList []speech.Phrase
 		for i := 1; i <= n; i++ {
@@ -165,7 +173,7 @@ func corpusTakes(c speech.Corpus, set string, list []speech.Phrase, how takes, e
 
 func corpusStatus(c speech.Corpus, list []speech.Phrase, stdout, stderr io.Writer) int {
 	code := 0
-	for _, set := range append(append(append([]string(nil), speech.Sets...), speech.WakeSets...), speech.BackgroundSets...) {
+	for _, set := range append(append(append(append([]string(nil), speech.Sets...), speech.WakeSets...), speech.TrainSets...), speech.BackgroundSets...) {
 		m, err := c.Manifest(set)
 		if err != nil {
 			fmt.Fprintln(stderr, "koinon-voice corpus:", err)
@@ -183,7 +191,7 @@ func corpusStatus(c speech.Corpus, list []speech.Phrase, stdout, stderr io.Write
 		}
 		var line string
 		switch {
-		case strings.HasPrefix(set, "wake/"):
+		case strings.HasPrefix(set, "wake/"), strings.HasPrefix(set, "wake-train/"):
 			line = fmt.Sprintf("%s: %d takes", set, len(m))
 		case strings.HasPrefix(set, "background/"):
 			line = fmt.Sprintf("%s: %d recordings, %.0f minutes", set, len(m), seconds/60)
