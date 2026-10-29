@@ -4,6 +4,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The Kokoro speech sprint is planned and approved (Gates A and B): a native Kokoro helper on
+  kokoro-ios and MLX Swift, without Python, that plays through the Apple helper's voice
+  processing and becomes the default voice (#12, `docs/sprints/2026-10-29-kokoro-speech/`).
 - `koinon-voice corpus wake --train` records training takes of "Koinon" (50 per distance by
   default) into `wake-train/near`, `mid` and `far`, kept apart from the scoring takes in
   `wake/`, to retrain the wake model on the maintainer's voice (#10). `corpus status` lists
