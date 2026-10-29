@@ -181,21 +181,29 @@ func TestCorpusWakeAndBackground(t *testing.T) {
 		t.Errorf("wake:\n%s", stdout.String())
 	}
 	stdout.Reset()
+	if code := run([]string{"corpus", "wake", "--train", "--distance", "far", "--count", "1", "--phrases", phrases, "--dir", dir, "--helper", "/fake/helper"},
+		strings.NewReader("\n\n"), &stdout, &stderr); code != 0 {
+		t.Fatalf("wake --train exit %d: %s%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Done: 1 of 1 takes are in the wake-train/far set.") {
+		t.Errorf("wake --train:\n%s", stdout.String())
+	}
+	stdout.Reset()
 	if code := run([]string{"corpus", "background", "--source", "podcast", "--count", "1", "--minutes", "0.5", "--phrases", phrases, "--dir", dir, "--helper", "/fake/helper"},
 		strings.NewReader("\n\n"), &stdout, &stderr); code != 0 {
 		t.Fatalf("background exit %d: %s%s", code, stdout.String(), stderr.String())
 	}
-	if fmtFloats(*seconds) != "3,3,30" {
+	if fmtFloats(*seconds) != "3,3,3,30" {
 		t.Errorf("recording lengths %v", *seconds)
 	}
-	for _, d := range []string{filepath.Join(dir, "wake"), filepath.Join(dir, "wake", "far"), filepath.Join(dir, "background", "podcast")} {
+	for _, d := range []string{filepath.Join(dir, "wake"), filepath.Join(dir, "wake", "far"), filepath.Join(dir, "wake-train", "far"), filepath.Join(dir, "background", "podcast")} {
 		if fi, err := os.Stat(d); err != nil || fi.Mode().Perm() != 0o700 {
 			t.Errorf("%s: %v %v", d, fi.Mode(), err)
 		}
 	}
 	stdout.Reset()
 	run([]string{"corpus", "status", "--phrases", phrases, "--dir", dir}, nil, &stdout, &stderr)
-	for _, want := range []string{"wake/far: 2 takes", "wake/near: 0 takes", "background/podcast: 1 recordings, 0 minutes"} {
+	for _, want := range []string{"wake/far: 2 takes", "wake/near: 0 takes", "wake-train/far: 1 takes", "background/podcast: 1 recordings, 0 minutes"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("status lacks %q:\n%s", want, stdout.String())
 		}
@@ -205,6 +213,7 @@ func TestCorpusWakeAndBackground(t *testing.T) {
 		{"corpus", "background", "--phrases", phrases},
 		{"corpus", "wake", "--distance", "near", "--set", "clean", "--phrases", phrases},
 		{"corpus", "background", "--source", "music", "--minutes", "0", "--phrases", phrases},
+		{"corpus", "background", "--source", "music", "--train", "--phrases", phrases},
 	} {
 		if code := run(args, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 			t.Errorf("%q: exit %d", args, code)

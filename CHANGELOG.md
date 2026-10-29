@@ -4,6 +4,10 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice corpus wake --train` records training takes of "Koinon" (50 per distance by
+  default) into `wake-train/near`, `mid` and `far`, kept apart from the scoring takes in
+  `wake/`, to retrain the wake model on the maintainer's voice (#10). `corpus status` lists
+  them. `bench wake --threshold` now defaults to 0.35 in place of 0.5 (kv-10).
 - The command line follows Koinon's: `koinon-voice --help` (or no arguments) lists every
   command with its options; a command line that cannot be used prints Koinon's JSON error
   object on standard error and exits 1, and commands no longer print their own help.
