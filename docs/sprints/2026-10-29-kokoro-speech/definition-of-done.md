@@ -15,7 +15,7 @@ doing that.
 | `mlalma/kokoro-ios` (KokoroSwift) | MLX Swift 0.30.2 (exact pin in its `Package.swift`) | MisakiSwift 1.0.6: Misaki's dictionaries, then a BART model on MLX for words not in them | MIT; MisakiSwift Apache-2.0; MLX Swift MIT | macOS 15, iOS 18; not the iOS simulator | Chosen |
 | `FluidInference/FluidAudio` (`KokoroAneManager`) | Core ML, 7 stages | Misaki lexicon, then a BART G2P model on Core ML | Apache-2.0 | macOS 15, iOS 18 | Fallback only |
 | ONNX Runtime with an ONNX export | ONNX Runtime | None included; needs MisakiSwift or another | MIT; model Apache-2.0 | macOS, iOS | Not chosen: two pieces to join |
-| sherpa-onnx, kokoro-onnx and others that use espeak-ng | various | espeak-ng | espeak-ng is GPL-3.0 | | Excluded: GPL |
+| sherpa-onnx, kokoro-onnx and others that use espeak-ng | various | espeak-ng | espeak-ng is GPL-3.0 | | Not chosen: espeak-ng is a different text-to-phoneme step from the Misaki step that Phase 0 rated |
 
 Why kokoro-ios:
 
@@ -33,8 +33,9 @@ Why kokoro-ios:
 
 **Xcode is needed.** MLX Swift's README says that SwiftPM on the command line cannot build its
 Metal shaders and that `xcodebuild` can. The maintainer's Mac has only the Command Line Tools
-(`xcode-select -p` is `/Library/Developer/CommandLineTools`; `xcodebuild` and `metal` are not
-found). Before chunk 01 the maintainer installs Xcode, which iOS and iPadOS builds (criterion 7)
+(`xcode-select -p` is `/Library/Developer/CommandLineTools`; `/usr/bin/xcodebuild` is only a stub
+that says it requires Xcode, and `xcrun -f metal` finds no Metal compiler), so no working Xcode
+toolchain is present. Before chunk 01 the maintainer installs Xcode, which iOS and iPadOS builds (criterion 7)
 also need. FluidAudio builds with SwiftPM alone, but it is the route with the crash above.
 
 What is not known yet, and chunk 01 checks first:
@@ -43,6 +44,11 @@ What is not known yet, and chunk 01 checks first:
 - That it reads Phase 0's voice files (`voices/af_heart.safetensors` in the same snapshot);
   the test app loads `voices.npz` instead.
 - That its output matches Phase 0's in length and sound for the same text, voice and speed.
+- How a synthesis is stopped. kokoro-ios's `generateAudio` (`KokoroTTS.swift` at 4d6d1d8)
+  runs synchronously and returns a whole sentence's samples, with no cancellation check, so a
+  sentence that has started cannot be stopped inside the helper. The plan stops it by ending
+  the helper process (below); chunk 01 measures how long a sentence takes to synthesize, how
+  long the process takes to end, and how long a new process takes to load the model.
 - How it pronounces "Koinon" and the other names in the six texts.
 
 If kokoro-ios fails one of these, chunk 01 stops and the plan is corrected (`sprint` skill)
@@ -59,7 +65,24 @@ before any later chunk. FluidAudio is the fallback only on macOS 26.6 or later.
   The hello names the helper, its version, the model file's SHA-256 and the voices found.
   Method `synthesize`, params `{text, voice, speed}`: audio frames of 16-bit mono PCM at
   24 kHz, an event `first_audio {since_request_ms}`, and the result
-  `{audio_seconds, elapsed_ms, phonemes}`. A cancel ends it with no more frames.
+  `{audio_seconds, elapsed_ms, phonemes}`. A cancel for a request whose sentence is not
+  synthesized yet ends it with no frames; frames of a cancelled request are not sent.
+- **Audio frames in Go.** `internal/sidecar` reads audio frames today but discards them
+  (`helper.go`, `read`), and `Stream` has no audio API; the Apple helper's `Server.swift`
+  discards incoming audio, and `helpers/apple/Package.swift` exports no product. Chunk 01
+  adds receiving: a helper's audio frames are routed by request ID to that request's
+  `Stream` in order, all of them before its result; frames for an unknown, finished or
+  cancelled request are dropped and counted; a receiver that does not read blocks only its
+  own request up to a bound, then the request fails. Chunk 02 adds sending: `Stream` sends
+  audio frames for its request, and an `input` with `end` closes them. Chunk 01 exports
+  `SidecarProtocol` as a library product so both helpers share it.
+- **Stopping.** A stop cancels the Apple helper's `play` request, which ends playback at
+  once, and ends the Kokoro helper's process group (`internal/sidecar`'s kill) when a
+  sentence is being synthesized. The next text starts a new Kokoro helper. Within a
+  sentence nothing is streamed: the helper sends a sentence's frames after it is
+  synthesized, and the pipelining is between sentences (criterion 4). The user's stop is
+  Ctrl-C (SIGINT) in `helper --say` and `summarize --speak`, which cancels the speaker's
+  context.
 - **Model files.** `koinon-voice kokoro install` downloads `kokoro-v1_0.safetensors`,
   `config.json` and the `af_heart` voice file from `mlx-community/Kokoro-82M-bf16` at
   revision `a71e4d38b236d968966a2002c4c895dbd12b1c3c` over HTTPS into
@@ -89,7 +112,9 @@ record what they receive:
 2. Audio frames from the Kokoro helper reach the Apple helper's `play` in order and unchanged,
    with `sample_rate` 24000.
 3. Sentence 2 is requested before sentence 1's playback ends.
-4. Cancel during sentence 1 stops synthesis and playback; no frame is sent after it.
+4. A stop during sentence 1's synthesis ends the Kokoro helper's process and cancels
+   `play`; no frame reaches `play` after the stop; the next text starts a new helper and
+   plays. A stop during playback cancels `play` at once.
 5. A Kokoro helper that exits mid-sentence gives an error that names it; the Apple helper's
    request is cancelled.
 6. With `engine = "apple"`, `speak` is used as now, with the configured Apple voice.
@@ -103,6 +128,11 @@ record what they receive:
 Swift (`helpers/kokoro`, `helpers/apple`), in their test scripts with no model:
 
 10. The Kokoro helper's hello and its error for a missing model file.
+10a. Audio frame routing in `internal/sidecar` (chunk 01): frames in order and before the
+    result; frames for an unknown, finished or cancelled request dropped; two requests'
+    frames kept apart; a receiver that does not read fails its own request only; a helper
+    exit mid-frames fails the open requests. Sending (chunk 02): frames and `end` in order;
+    a send after cancel is refused.
 11. `play` writes received frames to a `FileSink` at the given rate; cancel stops it.
 
 On the maintainer's Mac, recorded in `scorecard-kokoro-native.md` (WDR 006):
@@ -121,6 +151,10 @@ On the maintainer's Mac, recorded in `scorecard-kokoro-native.md` (WDR 006):
 16. **Names.** The phonemes and the sound of "Koinon", "Codex" and "Claude" in the six texts
     are recorded, and the maintainer says whether each is acceptable.
 17. **Stability.** 100 syntheses of text 01 in one helper process with no crash.
+17a. **Stop during synthesis (4).** With the real model, a stop while the longest sentence of
+    text 01 is synthesized: the time from the stop to the helper's exit is recorded (`ps`), no audio
+    plays after the stop, and the next `helper --say` speaks. The time to synthesize each
+    sentence, to end the process and to load the model again are recorded.
 18. **Later platforms (7).** The scorecard cites where kokoro-ios, MisakiSwift and MLX Swift
     document iOS and iPadOS support. Nothing is built for iOS.
 
