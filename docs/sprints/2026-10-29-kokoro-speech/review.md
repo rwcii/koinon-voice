@@ -18,3 +18,13 @@ audio. It checked the Gate A and voice-feedback entries against the board histor
 
 While fixing F1, the driver removed a time limit ("within 1 s") from check 17a that no
 source gave; the check records the time instead.
+
+## Plan review 2
+
+Codex, bounded re-review of `3e3a1ae..2781a33ca1ccb84e2a51b3cebb7a270384e366e8` in its own
+checkout, 2026-10-29: `peer-review` PASS and `refusal-review` PASS, with no remaining findings.
+F1, F2 and R1 are resolved as recorded above; the bound on frames held for a stalled receiver
+is sourced by the need to keep one stalled request from blocking the transport, with no
+number added. Codex asked for one table correction: chunk 01's checks in `sprint.md` said
+"16–18", which reads as including 17a, a chunk 02 check; it now says "16, 17, 18". The
+correction changes no criterion or check.
