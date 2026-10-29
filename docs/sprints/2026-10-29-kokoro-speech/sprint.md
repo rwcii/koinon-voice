@@ -17,3 +17,6 @@ fails, the chunk stops and the plan is corrected before it continues (`sprint` s
 Gate A approved `decision.md` at 533b3dc (DECISIONS.md#kv-12-gate-a). The maintainer kept one
 voice for this sprint and moved the comparison of other voices to after GA, #32
 (DECISIONS.md#kv-12-voices).
+
+Gate B approved the reviewed plan at 875d6c1 (review in `review.md`, DECISIONS.md#kv-12-gate-b),
+with no note. Chunk 01 starts when Xcode is installed (board item kv-12-xcode).

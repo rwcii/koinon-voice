@@ -108,3 +108,57 @@ Recommendation:
 Feedback:
 
 > Not at this time. Let's focus on getting this out and working with one voice. Open a tracking issue for this, but this is a post-GA release task.
+
+<a id="kv-12-gate-b"></a>
+
+## kv-12-gate-b
+
+<!-- koinon-decision kv-12-gate-b revision 1 approved 1793278320545 -->
+
+**Approved**, revision 1, 2026-10-29 12:52:00 UTC.
+
+- Title: Koinon Voice: approve the reviewed plan of the Kokoro speech sprint (#12, Gate B)?
+- Where: rwcii/koinon-voice, branch feature/kokoro-speech, commit 875d6c1, docs/sprints/2026-10-29-kokoro-speech/
+
+Context:
+
+> You approved the sprint decision at Gate A (533b3dc). You kept one voice, `af_heart`. Other voices are #32, after GA. This is the reviewed plan: `definition-of-done.md`, `sprint.md` and two chunks. Gate B approves it before I build the product.
+>
+> **The engine:** kokoro-ios (MIT) on MLX Swift, with MisakiSwift (Apache-2.0) to turn text into phonemes. The reasons:
+> - It uses the same model file that you rated in Phase 0, with the same SHA-256 (`4e9ecdf0…`).
+> - MisakiSwift is the Swift port of Misaki, the step that Phase 0 used.
+> - FluidAudio (Core ML) is the fallback only. Its documents list a Core ML crash on macOS 26.4 to 26.5.x, and your Mac has 26.5.
+>
+> **Chunk 01, the Kokoro helper:** a separate process, `koinon-voice-kokoro`. A crash in the model therefore does not stop recognition or playback.
+> - `koinon-voice kokoro install` downloads the model files and checks each file's SHA-256.
+> - Go receives audio frames from a helper.
+> - `bench tts` measures the native engine against Phase 0's Kokoro (787 ms to first audio).
+> - The chunk starts with feasibility steps: build, voice file, output against your Phase 0 recording, and the time to stop. If a step fails, I stop and correct the plan.
+>
+> **Chunk 02, speak with Kokoro:**
+> - The Apple helper plays Kokoro's audio with voice processing.
+> - Each sentence plays while the next one is synthesized.
+> - Ctrl-C stops speech. During synthesis, it ends the Kokoro process, because kokoro-ios cannot cancel a sentence once synthesis starts.
+> - Kokoro becomes the default voice of `summarize --speak` and `helper --say`. Apple's voice stays as a choice.
+>
+> **Your part:**
+> 1. Install Xcode (card kv-12-xcode). MLX can be built only with `xcodebuild`.
+> 2. In chunk 01: listen to text 01 and the names "Koinon", "Codex" and "Claude".
+> 3. In chunk 02: confirm that playback and stopping work, and rate the voice blind beside your Phase 0 recordings.
+>
+> **Review:** Codex review 1 found three problems:
+> - No real mechanism to stop speech.
+> - No audio transport between the processes.
+> - An exclusion of GPL software with no source.
+>
+> All three are fixed. Review 2: peer-review and refusal-review both pass, with no findings (`review.md`).
+>
+> **Gate B does not approve:** openWakeWord in a native runtime, the voice loop, an iOS build, or other voices (#32).
+
+Recommendation:
+
+> Approve. Then install Xcode (kv-12-xcode). I start chunk 01 when `xcrun -f metal` finds the Metal compiler.
+
+Commands:
+
+    git -C ~/dev/koinon-voice.worktrees/kokoro-speech log --oneline 9a659bf..875d6c1
