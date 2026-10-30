@@ -162,3 +162,93 @@ Recommendation:
 Commands:
 
     git -C ~/dev/koinon-voice.worktrees/kokoro-speech log --oneline 9a659bf..875d6c1
+
+<a id="kv-12-listen"></a>
+
+## kv-12-listen
+
+<!-- koinon-decision kv-12-listen revision 1 feedback 1793297656981 -->
+
+**Feedback**, revision 1, 2026-10-29 18:14:16 UTC.
+
+- Title: ACTION FOR YOU: listen to native Kokoro and its names, then accept or correct the pronunciations (#12, chunk 01)
+- Where: The maintainer's Mac, ~/.local/share/koinon-voice/kokoro-spike/listen/
+
+Context:
+
+> Chunk 01's feasibility steps passed. kokoro-ios builds with Xcode and runs Phase 0's model and voice natively, with no Python:
+>
+> - **Text 01 at speed 1.0:** 15.30 s, and 15.32 s in Phase 0.
+> - **First sentence:** 829 ms in a new process. Phase 0's median time to first audio was 787 ms.
+> - **Stop during synthesis:** the process ends in about 11 ms.
+>
+> Check 16 (names) is for you to hear. Misaki gives "Koinon" **two pronunciations**:
+>
+> - `Koinon` with a capital: `kOˈinˌɑn`, approximately "ko-EE-non" (texts 02 and 05).
+> - `koinon` in lower case: `kˈYnˌɑn`, approximately "KOY-non" (session names such as "koinon voice b nine").
+>
+> Also, `b9` in `claude-koinon-voice-b9` becomes `bˈi`: the 9 is not spoken. "Codex" (`kˈOdˌɛks`) and "Claude" (`klˈɔd`) are always the same.
+>
+> **Listen** with the commands below:
+>
+> 1. Text 01 at 1.1.
+> 2. "Koinon." with a capital.
+> 3. "koinon." in lower case.
+> 4. "Claude, the agent named claude-koinon-voice-b9, asks you to decide."
+> 5. "Codex and Claude are waiting in Koinon."
+>
+> If you hear no sound, the cause can be the multichannel USB mixer (#8). In that case, use `open FILE` to play the file in QuickTime.
+
+Recommendation:
+
+> In the note, write how "Koinon" must sound: "KOY-non", "ko-EE-non", or a different sound. Also write whether "Codex", "Claude" and the voice at 1.1 are acceptable. I will then add the pronunciation that you choose to the helper's lexicon as a fixed entry. I will also make the helper speak digits in session names. Approve if all names are acceptable as they are.
+
+Commands:
+
+    afplay ~/.local/share/koinon-voice/kokoro-spike/listen/01-native-1.1.wav
+    afplay ~/.local/share/koinon-voice/kokoro-spike/listen/name-koinon-capital.wav
+    afplay ~/.local/share/koinon-voice/kokoro-spike/listen/name-koinon-lower.wav
+    afplay ~/.local/share/koinon-voice/kokoro-spike/listen/name-session-b9.wav
+    afplay ~/.local/share/koinon-voice/kokoro-spike/listen/name-codex-claude.wav
+
+Feedback:
+
+> I'm not transcribing things for you. If I run a command, it should ask for my input and record it.
+
+## kv-12-listen
+
+<!-- koinon-decision kv-12-listen revision 2 completed 1793303752526 -->
+
+**Completed**, revision 2, 2026-10-29 19:55:52 UTC.
+
+- Title: ACTION FOR YOU: run one command that plays the native Kokoro clips and records your answers (#12, chunk 01)
+- Where: The maintainer's Mac, ~/.local/share/koinon-voice/kokoro-spike/listen/
+
+Context:
+
+> You said: "I'm not transcribing things for you. If I run a command, it should ask for my input and record it." (DECISIONS.md#kv-12-listen)
+>
+> The command below now does that. It plays each clip and asks you a question. You type one letter. It writes your answers to `~/.local/share/koinon-voice/kokoro-spike/listen/answers.md`. I read that file.
+>
+> It asks 4 questions:
+>
+> 1. Text 01 at speed 1.1: is the voice acceptable? (y or n)
+> 2. "Koinon": it plays clip A, then clip B. Which one is right? (a, b, or n for neither; for n, type how it must sound)
+> 3. The session name `claude-koinon-voice-b9`: is it acceptable? (y or n)
+> 4. "Codex" and "Claude": is each one acceptable? (y or n)
+>
+> After questions 1, 3 and 4, you can type a comment, or press Enter for none.
+>
+> At each question: `r` plays the clip again. `o` opens the clip in QuickTime, if you hear no sound from `afplay` (#8).
+
+Recommendation:
+
+> Run the command, then mark this task completed. I then add the "Koinon" pronunciation that you chose to the helper's lexicon, and make the helper speak the digits in session names.
+
+Commands:
+
+    ~/.local/share/koinon-voice/kokoro-spike/listen.sh
+
+Note:
+
+> Recorded in /Users/robert/.local/share/koinon-voice/kokoro-spike/listen/answers.md

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,6 +27,13 @@ var ErrDeadline = errors.New("helper missed its deadline")
 
 // ErrVersion is a helper that speaks another protocol version.
 var ErrVersion = errors.New("helper protocol version")
+
+// ErrAudioBehind is a request whose receiver left AudioBuffer audio frames unread. Only that
+// request fails; the helper and its other requests go on.
+var ErrAudioBehind = errors.New("audio receiver fell behind")
+
+// AudioBuffer bounds the audio frames held for one request that its receiver has not read.
+var AudioBuffer = 1024
 
 // Error is an error the helper reported for one request, such as code "unavailable" with
 // the engine's reason.
@@ -82,6 +90,8 @@ type Helper struct {
 	dead    error
 	done    chan struct{} // closed when the process has been reaped
 	exitErr error
+
+	dropped atomic.Int64 // audio frames for no request that receives audio
 }
 
 // Start runs the helper at path and waits for its hello. A missing or non-executable path,
@@ -148,6 +158,10 @@ func Start(ctx context.Context, path string, args ...string) (*Helper, error) {
 // Hello returns the helper's hello.
 func (h *Helper) Hello() Hello { return h.hello }
 
+// DroppedAudio counts the audio frames dropped because their request was unknown, finished,
+// cancelled or does not receive audio.
+func (h *Helper) DroppedAudio() int64 { return h.dropped.Load() }
+
 // Err is why the helper can take no more requests, or nil while it can.
 func (h *Helper) Err() error {
 	h.mu.Lock()
@@ -185,6 +199,12 @@ type Stream struct {
 	// eventMu is held while onEvent runs, so every event happens before Wait returns.
 	eventMu  sync.Mutex
 	finished bool
+
+	// audio holds the request's audio frames for OpenAudio's receiver; nil for Open. It is
+	// closed when the request finishes, under audioMu, so the reader never sends on it after.
+	audioMu     sync.Mutex
+	audio       chan []byte
+	audioClosed bool
 }
 
 type outcome struct {
@@ -195,6 +215,18 @@ type outcome struct {
 // Open sends a request. Events reach onEvent, which may be nil, in order on the bridge's
 // reader. Past ctx's deadline the bridge kills the helper (ErrDeadline).
 func (h *Helper) Open(ctx context.Context, method string, params any, onEvent func(Event)) (*Stream, error) {
+	return h.open(ctx, method, params, onEvent, false)
+}
+
+// OpenAudio is Open for a request that receives audio frames. Read them from Audio until it
+// is closed, then call Wait: every frame the helper sent before its result is on Audio, in
+// order. A receiver that leaves AudioBuffer frames unread fails the request with
+// ErrAudioBehind.
+func (h *Helper) OpenAudio(ctx context.Context, method string, params any, onEvent func(Event)) (*Stream, error) {
+	return h.open(ctx, method, params, onEvent, true)
+}
+
+func (h *Helper) open(ctx context.Context, method string, params any, onEvent func(Event), audio bool) (*Stream, error) {
 	raw, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
@@ -207,6 +239,9 @@ func (h *Helper) Open(ctx context.Context, method string, params any, onEvent fu
 	}
 	h.nextID++
 	s := &Stream{h: h, id: h.nextID, onEvent: onEvent, done: make(chan struct{})}
+	if audio {
+		s.audio = make(chan []byte, AudioBuffer)
+	}
 	h.calls[s.id] = s
 	h.mu.Unlock()
 
@@ -273,6 +308,10 @@ func (s *Stream) CloseInput() error {
 	return s.h.write(Message{Type: "input", ID: s.id, End: true})
 }
 
+// Audio returns the request's audio frames, each one the PCM bytes of one frame. It is
+// closed when the request finishes. It is nil for a request opened with Open.
+func (s *Stream) Audio() <-chan []byte { return s.audio }
+
 // Wait returns the request's result, the helper's error for it, or why the helper is gone.
 func (s *Stream) Wait() (json.RawMessage, error) {
 	<-s.done
@@ -285,8 +324,35 @@ func (s *Stream) finish(o outcome) {
 		s.finished = true
 		s.eventMu.Unlock()
 		s.out = o
+		s.audioMu.Lock()
+		if s.audio != nil {
+			close(s.audio)
+		}
+		s.audioClosed = true
+		s.audioMu.Unlock()
 		close(s.done)
 	})
+}
+
+// receive queues one audio frame and reports whether the request took it. A request whose
+// receiver is AudioBuffer frames behind fails, and only it.
+func (s *Stream) receive(pcm []byte) bool {
+	s.audioMu.Lock()
+	if s.audio == nil || s.audioClosed {
+		s.audioMu.Unlock()
+		return false
+	}
+	select {
+	case s.audio <- pcm:
+		s.audioMu.Unlock()
+		return true
+	default:
+	}
+	s.audioMu.Unlock()
+	if s.h.take(s.id) {
+		s.finish(outcome{err: fmt.Errorf("%w: %d frames unread", ErrAudioBehind, cap(s.audio))})
+	}
+	return false
 }
 
 func (s *Stream) event(e Event) {
@@ -341,7 +407,13 @@ func (h *Helper) read(r io.Reader) {
 			return
 		}
 		if f.msg == nil {
-			continue // no Phase 0 request receives audio frames
+			h.mu.Lock()
+			s := h.calls[f.id]
+			h.mu.Unlock()
+			if s == nil || !s.receive(f.audio) {
+				h.dropped.Add(1)
+			}
+			continue
 		}
 		m := f.msg
 		h.mu.Lock()
