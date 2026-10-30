@@ -44,6 +44,8 @@ jobs:
             [ "$(printf '%s\n' 26.4 "$version" | sort -V | head -1)" = 26.4 ]; then
             swift build -c release --package-path helpers/apple
             helpers/apple/test.sh
+            # The Kokoro helper's tests need no model or Metal library; its build needs Xcode.
+            helpers/kokoro/test.sh
           else
             echo "::notice::The macOS $version SDK lacks what the Apple helper needs; it was not built."
           fi

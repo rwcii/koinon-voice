@@ -26,6 +26,30 @@ command line koinon-voice cannot use prints one JSON error object on standard er
 Koinon's do, and exits 1. `koinon-voice version` prints the build as JSON, with the field
 names of `koinon version`.
 
+## Kokoro voice
+
+Koinon Voice speaks with Kokoro-82M, voice `af_heart`
+([ADR 002](docs/architecture/adr/002-local-speech-engine-sidecars.md), Decision 2), natively and without Python
+(Decision 4). The helper `koinon-voice-kokoro` runs it on MLX Swift through kokoro-ios, with
+MisakiSwift to turn text into phonemes. It opens no audio device: it sends 16-bit mono PCM at
+24 kHz to the bridge, one sentence at a time.
+
+MLX's Metal shaders build only with Xcode, so the helper needs Xcode and its Metal Toolchain
+(`xcodebuild -downloadComponent MetalToolchain`). Build and install it, then install the model:
+
+```sh
+scripts/build-kokoro-helper.sh   # into ~/.local/share/koinon-voice/bin/kokoro/
+koinon-voice kokoro install      # into ~/.local/share/koinon-voice/kokoro/
+koinon-voice kokoro status
+```
+
+The helper's frameworks and resource bundles sit beside it in `bin/kokoro/`; run it by that
+path, not through a symlink. `kokoro install` downloads the model, its config and the
+`af_heart` voice from `mlx-community/Kokoro-82M-bf16` at the revision that Phase 0 rated,
+checks each file's size and SHA-256 against the values in `internal/kokoro`, and keeps a file
+only when they match. `kokoro status` checks the files again and exits 1 when one is missing
+or changed. Both take `--dir DIR`.
+
 ## Connect to Koinon
 
 Koinon Voice reaches each Koinon daemon through Koinon's maintainer mode,

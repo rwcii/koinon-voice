@@ -4,6 +4,15 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- The Kokoro helper `koinon-voice-kokoro` runs Kokoro-82M natively on MLX Swift, with
+  MisakiSwift for text to phonemes and no Python, and sends each sentence's audio to the
+  bridge as frames. `scripts/build-kokoro-helper.sh` builds it with Xcode.
+  `koinon-voice kokoro install` downloads the model files and keeps each one only when its
+  SHA-256 matches; `koinon-voice kokoro status` checks them. "Koinon" has the pronunciation
+  the maintainer chose ("KOY-non") in every case. `bench tts` measures this engine in place of
+  the Python bench helper's Kokoro, takes `--kokoro-helper` and `--speed` (default 1.1),
+  counts clicks for each WAV file, and writes to `bench/tts-native` by default, so Phase 0's
+  recordings stay (#12, chunk 01).
 - The Kokoro speech sprint is planned and approved (Gates A and B): a native Kokoro helper on
   kokoro-ios and MLX Swift, without Python, that plays through the Apple helper's voice
   processing and becomes the default voice (#12, `docs/sprints/2026-10-29-kokoro-speech/`).
