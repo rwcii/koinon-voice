@@ -8,6 +8,11 @@ let package = Package(
     name: "koinon-voice-apple",
     // tokenCount(for:) needs macOS 26.4.
     platforms: [.macOS("26.4")],
+    products: [
+        .executable(name: "koinon-voice-apple", targets: ["koinon-voice-apple"]),
+        // The Kokoro helper (helpers/kokoro) shares this protocol implementation.
+        .library(name: "SidecarProtocol", targets: ["SidecarProtocol"]),
+    ],
     targets: [
         .target(name: "SidecarProtocol"),
         .executableTarget(

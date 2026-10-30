@@ -1,5 +1,6 @@
 /bin/
 /helpers/apple/.build/
+/helpers/kokoro/.build/
 /koinon-voice
 *.log
 *.sock
