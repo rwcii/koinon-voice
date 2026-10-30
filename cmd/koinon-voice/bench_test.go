@@ -93,7 +93,7 @@ func TestBenchTTS(t *testing.T) {
 	t.Setenv(fakeHelperMode, "1")
 	tmp := t.TempDir()
 	texts := filepath.Join(tmp, "texts.md")
-	os.WriteFile(texts, []byte("01. Codex asks you to merge. [SYN-01, test]\n02. Claude asks you to choose. [SYN-02, test]\n"), 0o600)
+	os.WriteFile(texts, []byte("01. Codex asks you to merge. It passes its checks. [SYN-01, test]\n02. Claude asks you to choose. [SYN-02, test]\n"), 0o600)
 	var played []string
 	oldPlay, oldShuffle := playAudio, shuffle
 	playAudio = func(_ context.Context, path string) error {
@@ -106,7 +106,7 @@ func TestBenchTTS(t *testing.T) {
 	out := filepath.Join(tmp, "card.md")
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"bench", "tts", "--texts", texts, "--dir", filepath.Join(tmp, "audio"), "--helper", os.Args[0],
-		"--python", os.Args[0], "--engines", "/nonexistent", "--out", out}, strings.NewReader("4\n2\n5\nq\n"), &stdout, &stderr)
+		"--kokoro-helper", os.Args[0], "--engines", "/nonexistent", "--out", out}, strings.NewReader("4\n2\n5\nq\n"), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d: %s%s", code, stdout.String(), stderr.String())
 	}
@@ -120,7 +120,8 @@ func TestBenchTTS(t *testing.T) {
 	}
 	card, _ := os.ReadFile(out)
 	for _, want := range []string{"Text 01 A = kokoro", "Text 02 A = kokoro", "Rating stopped",
-		"| kokoro | 2 | 0 | 7 ms | 4.5 (2) |", "| apple | 2 | 0 | 2 ms | 2.0 (1) |", "| 01 | kokoro | 7 ms | 1.5 s | 4 |"} {
+		"| kokoro | 2 | 0 | 7 ms | 4.5 (2) |", "| apple | 2 | 0 | 2 ms | 2.0 (1) |", "| 01 | kokoro | 7 ms | 2.0 s | 4 | 4 |", "| 02 | kokoro | 7 ms | 1.0 s | 2 | 5 |", "| 01 | apple | 2 ms | 0.0 s |  | 2 |",
+		"Kokoro-82M on MLX Swift through koinon-voice-kokoro, voice af_heart, speed 1.1"} {
 		if !strings.Contains(got+string(card), want) {
 			t.Errorf("output lacks %q:\n%s\n%s", want, got, card)
 		}

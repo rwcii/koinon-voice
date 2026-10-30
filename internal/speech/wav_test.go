@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -63,5 +64,30 @@ func TestReadWAV(t *testing.T) {
 	empty := write("empty.wav", wavBytes(1, 16, 0, nil))
 	if _, err := CheckCorpusFile(empty); !errors.Is(err, ErrBadAudio) {
 		t.Errorf("empty: %v", err)
+	}
+}
+
+func TestClicks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "clicks.wav")
+	// One jump up and one down above 0.3 of full scale; a ramp of small steps is not a click.
+	samples := []int16{0, 0, 10000, 0, 1000, 2000, 3000, -ClickJump, 0}
+	if err := WriteWAV(path, 24000, samples); err != nil {
+		t.Fatal(err)
+	}
+	a, err := ReadWAV(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 0 to 10000, 10000 to 0, 3000 to -9830; -9830 to 0 is exactly the bound, not above it.
+	if a.Clicks != 3 {
+		t.Errorf("clicks %d, want 3", a.Clicks)
+	}
+}
+
+func TestSentences(t *testing.T) {
+	got := Sentences(`Codex asks you to merge pull request 4.1. "It passes." Claude agrees!  No deadline`)
+	want := []string{"Codex asks you to merge pull request 4.1.", `"It passes."`, "Claude agrees!", "No deadline"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("sentences %q", got)
 	}
 }

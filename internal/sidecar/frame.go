@@ -72,6 +72,11 @@ func WriteMessage(w io.Writer, m Message) error {
 	return writeMessage(w, m)
 }
 
+// WriteAudio writes one audio frame for request id, for synthetic helpers in tests.
+func WriteAudio(w io.Writer, id uint64, pcm []byte) error {
+	return writeAudio(w, id, pcm)
+}
+
 // ReadMessage reads the next JSON frame, skipping audio frames.
 func ReadMessage(r io.Reader) (Message, error) {
 	for {

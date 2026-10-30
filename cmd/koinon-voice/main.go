@@ -26,7 +26,7 @@ const usage = `Usage: koinon-voice version
        koinon-voice corpus background --source music|meeting|podcast|coffee [--count N] [--minutes N] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice corpus status [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice bench stt [--phrases FILE] [--dir DIR] [--sets SET,...] [--out FILE]
-       koinon-voice bench tts [--texts FILE] [--dir DIR] [--kokoro-voice VOICE] [--rate=false] [--out FILE]
+       koinon-voice bench tts [--texts FILE] [--dir DIR] [--kokoro-helper PATH] [--kokoro-voice VOICE] [--speed N] [--rate=false] [--out FILE]
        koinon-voice bench wake [--phrases FILE] [--dir DIR] [--model FILE] [--threshold N] [--out FILE]
        koinon-voice bench interrupt [--texts FILE] [--text N] [--say TEXT] [--control] [--seconds N] [--dir DIR] [--out FILE]
        koinon-voice bench names [--phrases FILE] [--scorecard FILE] [--ordinary FILE,...] [--out FILE]

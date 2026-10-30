@@ -13,7 +13,13 @@ type Audio struct {
 	Rate, Channels, Bits int
 	Frames               int
 	Peak                 float64 // largest sample magnitude, 0 to 1
+	// Clicks counts sample-to-sample jumps above ClickJump on the first channel of a 16-bit
+	// file, as Phase 0 counted them (scorecard-speech.md, Synthesis).
+	Clicks int
 }
+
+// ClickJump is a jump of 0.3 of full scale between two 16-bit samples.
+const ClickJump = 9830
 
 // Seconds is the file's duration.
 func (a Audio) Seconds() float64 {
@@ -128,6 +134,13 @@ func ReadWAV(path string) (Audio, error) {
 				peak = max(peak, v, -v)
 			}
 			a.Peak = float64(peak) / 32768
+			step := 2 * a.Channels
+			for i := step; i+1 < len(b); i += step {
+				d := int(int16(binary.LittleEndian.Uint16(b[i:]))) - int(int16(binary.LittleEndian.Uint16(b[i-step:])))
+				if d > ClickJump || d < -ClickJump {
+					a.Clicks++
+				}
+			}
 			return a, nil
 		default:
 			if _, err := f.Seek(size+size%2, io.SeekCurrent); err != nil {
