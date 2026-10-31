@@ -71,6 +71,11 @@ func fakeHelper(mode string) {
 	send(Message{Type: "hello", Protocol: Version, Helper: "fake", HelperVer: "0.0.1", Capabilities: []string{"echo", "speak"}})
 	in := bufio.NewReader(os.Stdin)
 	var spoken []string
+	var pair []uint64
+	audio := func(id uint64, b byte) {
+		writeAudio(out, id, []byte{b, b})
+		out.Flush()
+	}
 	for {
 		f, err := readFrame(in)
 		if err != nil {
@@ -95,6 +100,39 @@ func fakeHelper(mode string) {
 			// No answer: the bridge's deadline ends this.
 		case m.Type == "request" && mode == "junk":
 			os.Stdout.Write([]byte{0, 0, 0, 3, 'X', 'Y', 'Z'})
+		case m.Type == "request" && m.Method == "synth":
+			// Sends n audio frames, then the result; with crash, exits after them instead.
+			var p struct {
+				N     int
+				Crash bool
+			}
+			json.Unmarshal(m.Params, &p)
+			for i := 0; i < p.N; i++ {
+				audio(m.ID, byte(i))
+			}
+			if p.Crash {
+				fmt.Fprintln(os.Stderr, "fatal: synthesis crashed")
+				os.Exit(3)
+			}
+			send(Message{Type: "result", ID: m.ID, Data: json.RawMessage(fmt.Sprintf(`{"frames":%d}`, p.N))})
+		case m.Type == "request" && m.Method == "late":
+			// A result, then audio for the finished request and for one never opened.
+			send(Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{}`)})
+			audio(m.ID, 1)
+			audio(999, 1)
+		case m.Type == "request" && m.Method == "pair":
+			// Holds the first request until the second comes, then interleaves their frames.
+			pair = append(pair, m.ID)
+			if len(pair) == 2 {
+				for i := 0; i < 3; i++ {
+					audio(pair[0], byte(10+i))
+					audio(pair[1], byte(20+i))
+				}
+				for _, id := range pair {
+					send(Message{Type: "result", ID: id, Data: json.RawMessage(`{}`)})
+				}
+				pair = nil
+			}
 		case m.Type == "request" && m.Method == "echo":
 			var p struct{ Text string }
 			json.Unmarshal(m.Params, &p)
@@ -408,5 +446,118 @@ func TestCancelAfterResult(t *testing.T) {
 	}
 	if _, err := h.Call(context.Background(), "echo", map[string]string{"text": "again"}, nil); err != nil {
 		t.Fatalf("next call: %v", err)
+	}
+}
+
+// drain reads a request's audio frames until the request finishes, then its result.
+func drain(s *Stream) ([]byte, error) {
+	var got []byte
+	for pcm := range s.Audio() {
+		got = append(got, pcm[0])
+	}
+	_, err := s.Wait()
+	return got, err
+}
+
+func TestAudioInOrderBeforeResult(t *testing.T) {
+	h := start(t, "ok")
+	s, err := h.OpenAudio(context.Background(), "synth", map[string]any{"n": 5}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := drain(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, []byte{0, 1, 2, 3, 4}) {
+		t.Fatalf("frames %v, want 0 to 4 in order", got)
+	}
+	if n := h.DroppedAudio(); n != 0 {
+		t.Fatalf("dropped %d frames", n)
+	}
+}
+
+func TestAudioDropped(t *testing.T) {
+	h := start(t, "ok")
+	// A finished request's frame and a frame for an unknown ID.
+	if _, err := h.Call(context.Background(), "late", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	// A request opened without audio receives none; its frames are dropped too.
+	if _, err := h.Call(context.Background(), "synth", map[string]any{"n": 2}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.DroppedAudio(); n != 4 {
+		t.Fatalf("dropped %d frames, want 4", n)
+	}
+}
+
+func TestAudioCancelled(t *testing.T) {
+	h := start(t, "deaf")
+	ctx, cancel := context.WithCancel(context.Background())
+	s, err := h.OpenAudio(ctx, "synth", map[string]any{"n": 1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	got, err := drain(s)
+	if len(got) != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("frames %v, err %v; want none and context.Canceled", got, err)
+	}
+}
+
+func TestAudioTwoRequestsApart(t *testing.T) {
+	h := start(t, "ok")
+	a, err := h.OpenAudio(context.Background(), "pair", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := h.OpenAudio(context.Background(), "pair", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotA, errA := drain(a)
+	gotB, errB := drain(b)
+	if errA != nil || errB != nil {
+		t.Fatal(errA, errB)
+	}
+	if !bytes.Equal(gotA, []byte{10, 11, 12}) || !bytes.Equal(gotB, []byte{20, 21, 22}) {
+		t.Fatalf("frames %v and %v, want 10 to 12 and 20 to 22", gotA, gotB)
+	}
+}
+
+func TestAudioReceiverBehind(t *testing.T) {
+	defer func(n int) { AudioBuffer = n }(AudioBuffer)
+	AudioBuffer = 2
+	h := start(t, "ok")
+	s, err := h.OpenAudio(context.Background(), "synth", map[string]any{"n": 5}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The receiver reads nothing until the request has failed.
+	if _, err := s.Wait(); !errors.Is(err, ErrAudioBehind) {
+		t.Fatalf("err %v, want ErrAudioBehind", err)
+	}
+	// Only that request failed: the helper answers the next one.
+	if _, err := h.Call(context.Background(), "echo", map[string]string{"text": "still here"}, nil); err != nil {
+		t.Fatalf("next request: %v", err)
+	}
+	if err := h.Err(); err != nil {
+		t.Fatalf("helper: %v", err)
+	}
+}
+
+func TestAudioHelperExitMidFrames(t *testing.T) {
+	h := start(t, "ok")
+	s, err := h.OpenAudio(context.Background(), "synth", map[string]any{"n": 2, "crash": true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := drain(s)
+	if !bytes.Equal(got, []byte{0, 1}) {
+		t.Fatalf("frames %v, want the 2 sent before the exit", got)
+	}
+	if !errors.Is(err, ErrExited) || !strings.Contains(err.Error(), "synthesis crashed") {
+		t.Fatalf("err %v, want ErrExited with stderr", err)
 	}
 }

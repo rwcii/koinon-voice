@@ -76,8 +76,11 @@ type Rendition struct {
 	Text   Text
 	Path   string
 	Spoken
-	Rating int
-	Err    error
+	// Clicks is the WAV file's count (Audio.Clicks); HasClicks is false for other files.
+	Clicks    int
+	HasClicks bool
+	Rating    int
+	Err       error
 }
 
 // TTSOptions bounds the synthesis bench.
@@ -157,6 +160,11 @@ func RunTTS(ctx context.Context, synths []Synthesizer, texts []Text, dir string,
 				r.Spoken, r.Err = s.Speak(rctx, helpers[i], t.Text, r.Path)
 				cancel()
 			}
+			if r.Err == nil && s.Ext == ".wav" {
+				if a, err := ReadWAV(r.Path); err == nil && a.Bits == 16 {
+					r.Clicks, r.HasClicks = a.Clicks, true
+				}
+			}
 			out = append(out, r)
 			if opts.After != nil {
 				if err := opts.After(&out[len(out)-1]); err != nil {
@@ -227,34 +235,67 @@ func AppleSpeak(voice string) func(ctx context.Context, h *sidecar.Helper, text,
 	}
 }
 
-// BenchSpeak speaks through a bench helper's synthesize request.
-func BenchSpeak(voice string) func(ctx context.Context, h *sidecar.Helper, text, output string) (Spoken, error) {
+// sentenceEnd ends a sentence: its mark, any closing quote or bracket, then space.
+var sentenceEnd = regexp.MustCompile(`[.!?]["')\]]?\s+`)
+
+// Sentences splits a text after each sentence's end; a text with none is one sentence.
+func Sentences(text string) []string {
+	var out []string
+	rest := strings.TrimSpace(text)
+	for rest != "" {
+		loc := sentenceEnd.FindStringIndex(rest)
+		if loc == nil {
+			out = append(out, rest)
+			break
+		}
+		out = append(out, strings.TrimSpace(rest[:loc[1]]))
+		rest = rest[loc[1]:]
+	}
+	return out
+}
+
+// KokoroRate is the sample rate of koinon-voice-kokoro's audio frames.
+const KokoroRate = 24000
+
+// KokoroSpeak speaks through koinon-voice-kokoro: one synthesize request for each sentence,
+// in turn, with the frames written to a 16-bit WAV file at output. First audio is the first
+// sentence's, as the helper measured it from its request.
+func KokoroSpeak(voice string, speed float64) func(ctx context.Context, h *sidecar.Helper, text, output string) (Spoken, error) {
 	return func(ctx context.Context, h *sidecar.Helper, text, output string) (Spoken, error) {
 		var sp Spoken
-		var mu sync.Mutex
-		data, err := h.Call(ctx, "synthesize", map[string]string{"text": text, "voice": voice, "output": output}, func(e sidecar.Event) {
-			if d, ok := firstAudio(e); ok {
-				mu.Lock()
-				if sp.FirstAudio == 0 {
-					sp.FirstAudio = d
+		var pcm []int16
+		for i, sentence := range Sentences(text) {
+			var mu sync.Mutex
+			var first time.Duration
+			s, err := h.OpenAudio(ctx, "synthesize", map[string]any{"text": sentence, "voice": voice, "speed": speed}, func(e sidecar.Event) {
+				if d, ok := firstAudio(e); ok {
+					mu.Lock()
+					first = d
+					mu.Unlock()
 				}
-				mu.Unlock()
+			})
+			if err != nil {
+				return sp, err
 			}
-		})
-		if err != nil {
-			return sp, err
+			for frame := range s.Audio() {
+				for j := 0; j+1 < len(frame); j += 2 {
+					pcm = append(pcm, int16(uint16(frame[j])|uint16(frame[j+1])<<8))
+				}
+			}
+			if _, err := s.Wait(); err != nil {
+				return sp, fmt.Errorf("sentence %d: %w", i+1, err)
+			}
+			if i == 0 {
+				mu.Lock()
+				sp.FirstAudio = first
+				mu.Unlock()
+				if sp.FirstAudio == 0 {
+					return sp, fmt.Errorf("the helper reported no first audio")
+				}
+			}
 		}
-		var r struct {
-			AudioSeconds float64 `json:"audio_seconds"`
-		}
-		json.Unmarshal(data, &r)
-		mu.Lock()
-		defer mu.Unlock()
-		sp.AudioSeconds = r.AudioSeconds
-		if sp.FirstAudio == 0 {
-			return sp, fmt.Errorf("the helper reported no first audio")
-		}
-		return sp, nil
+		sp.AudioSeconds = float64(len(pcm)) / KokoroRate
+		return sp, WriteWAV(output, KokoroRate, pcm)
 	}
 }
 
@@ -297,19 +338,22 @@ func WriteTTSScorecard(w io.Writer, infos []EngineInfo, rs []Rendition) {
 		}
 		fmt.Fprintf(b, "| %s | %d | %d | %d ms | %s |\n", e.Name, n, failed, medianDuration(first).Milliseconds(), rating)
 	}
-	b.WriteString("\n## Renditions\n\n| Text | Engine | First audio | Audio | Rating |\n| --- | --- | --- | --- | --- |\n")
+	b.WriteString("\n## Renditions\n\n| Text | Engine | First audio | Audio | Clicks | Rating |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, r := range rs {
-		first, audio, rating := "", "", ""
+		first, audio, clicks, rating := "", "", "", ""
 		if r.Err != nil {
 			first = "failed: " + cell(r.Err.Error())
 		} else {
 			first = fmt.Sprintf("%d ms", r.FirstAudio.Milliseconds())
 			audio = fmt.Sprintf("%.1f s", r.AudioSeconds)
 		}
+		if r.HasClicks {
+			clicks = strconv.Itoa(r.Clicks)
+		}
 		if r.Rating > 0 {
 			rating = strconv.Itoa(r.Rating)
 		}
-		fmt.Fprintf(b, "| %02d | %s | %s | %s | %s |\n", r.Text.N, r.Engine, first, audio, rating)
+		fmt.Fprintf(b, "| %02d | %s | %s | %s | %s | %s |\n", r.Text.N, r.Engine, first, audio, clicks, rating)
 	}
 	io.WriteString(w, b.String())
 }

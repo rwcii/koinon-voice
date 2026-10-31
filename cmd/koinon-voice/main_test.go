@@ -45,7 +45,7 @@ func TestUsage(t *testing.T) {
 			t.Errorf("%q: exit %d stdout %q stderr %q", args, code, stdout.String(), stderr.String())
 		}
 	}
-	for _, cmd := range []string{"version", "board", "dashboard", "summarize", "helper", "corpus record", "corpus wake", "corpus background", "corpus status", "bench stt", "bench tts", "bench wake", "bench interrupt", "bench names"} {
+	for _, cmd := range []string{"version", "board", "dashboard", "summarize", "helper", "kokoro install", "corpus record", "corpus wake", "corpus background", "corpus status", "bench stt", "bench tts", "bench wake", "bench interrupt", "bench names"} {
 		if !strings.Contains(usage, "koinon-voice "+cmd) {
 			t.Errorf("usage lacks %s", cmd)
 		}

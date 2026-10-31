@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +90,24 @@ func fakeHelper() {
 				events = `[12.5]`
 			}
 			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"events":` + events + `,"max_score":0.9}`)})
+		case m.Type == "request" && m.Method == "synthesize" && !strings.Contains(string(m.Params), `"output"`):
+			// koinon-voice-kokoro: one second of silence at 24 kHz with one spike, so two clicks.
+			var p struct {
+				Text, Voice string
+				Speed       float64
+			}
+			json.Unmarshal(m.Params, &p)
+			if p.Voice != "af_heart" || p.Speed != 1.1 {
+				send(sidecar.Message{Type: "error", ID: m.ID, Code: "bad_request", Message: fmt.Sprintf("voice %q speed %g", p.Voice, p.Speed)})
+				continue
+			}
+			send(sidecar.Message{Type: "event", ID: m.ID, Event: "first_audio", Data: json.RawMessage(`{"since_request_ms":7}`)})
+			pcm := make([]byte, 2*24000)
+			binary.LittleEndian.PutUint16(pcm[200:], 10000)
+			for i := 0; i < len(pcm); i += 9600 {
+				sidecar.WriteAudio(out, m.ID, pcm[i:min(i+9600, len(pcm))])
+			}
+			send(sidecar.Message{Type: "result", ID: m.ID, Data: json.RawMessage(`{"audio_seconds":1}`)})
 		case m.Type == "request" && m.Method == "synthesize":
 			var p struct{ Text, Output string }
 			json.Unmarshal(m.Params, &p)

@@ -39,8 +39,9 @@ gofmt -l .                        # must print nothing
 go test -race -timeout 30m ./...
 git diff --check
 bash -n scripts/setup-repo.sh     # when shell files change
-sh -n .githooks/pre-commit .githooks/commit-msg scripts/check-attribution.sh helpers/apple/test.sh  # when shell files change
+sh -n .githooks/pre-commit .githooks/commit-msg scripts/check-attribution.sh helpers/apple/test.sh helpers/kokoro/test.sh helpers/kokoro/fetch-misaki.sh scripts/build-kokoro-helper.sh  # when shell files change
 swift build -c release --package-path helpers/apple && helpers/apple/test.sh  # when helpers/apple changes, on macOS
+helpers/kokoro/test.sh && scripts/build-kokoro-helper.sh  # when helpers/kokoro changes, on macOS with Xcode
 python3 -m py_compile helpers/bench/bench_helper.py  # when helpers/bench changes
 ```
 

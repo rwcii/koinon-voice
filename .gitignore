@@ -1,5 +1,8 @@
 /bin/
 /helpers/apple/.build/
+/helpers/kokoro/.build/
+/helpers/kokoro/.misaki/
+/helpers/kokoro/.misaki.new/
 /koinon-voice
 *.log
 *.sock

@@ -152,14 +152,19 @@ func runBench(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return benchWake(&b, *phrases, *dir, *model, *threshold, stdout, stderr)
 	}
 	texts := fs.String("texts", ttsFile, "synthesis texts")
-	dir := fs.String("dir", defaultShare("bench", "tts"), "directory for the synthesized audio")
-	kokoroVoice := fs.String("kokoro-voice", "af_heart", "Kokoro voice")
+	// Not Phase 0's bench/tts: its recordings, 01-kokoro.wav among them, are kept for the
+	// blind rating beside the native engine's (definition of done, check 14).
+	dir := fs.String("dir", defaultShare("bench", "tts-native"), "directory for the synthesized audio")
+	k := kokoroFlags{}
+	fs.StringVar(&k.helper, "kokoro-helper", defaultShare("bin", "kokoro", "koinon-voice-kokoro"), "koinon-voice-kokoro's path")
+	fs.StringVar(&k.voice, "kokoro-voice", "af_heart", "Kokoro voice")
+	fs.Float64Var(&k.speed, "speed", 1.1, "Kokoro speed")
 	rate := fs.Bool("rate", true, "play each rendition and ask for a blind rating")
 	fs.StringVar(&b.out, "out", "scorecard-speech-tts.md", "scorecard file")
 	if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
 		return badOptions(stderr)
 	}
-	return benchTTS(&b, *texts, *dir, *kokoroVoice, *rate, bufio.NewScanner(stdin), stdout, stderr)
+	return benchTTS(&b, *texts, *dir, k, *rate, bufio.NewScanner(stdin), stdout, stderr)
 }
 
 const speechCard = "docs/sprints/2026-10-23-phase0-spike/scorecard-speech.md"
@@ -274,7 +279,13 @@ func writeCard(path string, write func(io.Writer), stdout, stderr io.Writer) int
 	return 0
 }
 
-func benchTTS(b *benchFlags, textsPath, dir, kokoroVoice string, rate bool, in *bufio.Scanner, stdout, stderr io.Writer) int {
+// kokoroFlags are bench tts's options for the native Kokoro engine.
+type kokoroFlags struct {
+	helper, voice string
+	speed         float64
+}
+
+func benchTTS(b *benchFlags, textsPath, dir string, k kokoroFlags, rate bool, in *bufio.Scanner, stdout, stderr io.Writer) int {
 	f, err := os.Open(textsPath)
 	if err != nil {
 		fmt.Fprintln(stderr, "koinon-voice bench: synthesis texts:", err)
@@ -301,7 +312,9 @@ func benchTTS(b *benchFlags, textsPath, dir, kokoroVoice string, rate bool, in *
 	}
 	all := []speech.Synthesizer{
 		{Name: "apple", Note: appleNote, Ext: ".caf", Start: apple, Speak: speech.AppleSpeak(voice)},
-		{Name: "kokoro", Note: "Kokoro-82M through mlx-audio, voice " + kokoroVoice, Ext: ".wav", Start: b.starter("kokoro"), Speak: speech.BenchSpeak(kokoroVoice)},
+		{Name: "kokoro", Note: fmt.Sprintf("Kokoro-82M on MLX Swift through koinon-voice-kokoro, voice %s, speed %g", k.voice, k.speed), Ext: ".wav",
+			Start: func(ctx context.Context) (*sidecar.Helper, error) { return sidecar.Start(ctx, k.helper) },
+			Speak: speech.KokoroSpeak(k.voice, k.speed)},
 	}
 	var synths []speech.Synthesizer
 	for _, s := range all {

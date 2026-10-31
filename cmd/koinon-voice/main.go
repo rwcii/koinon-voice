@@ -20,12 +20,13 @@ const usage = `Usage: koinon-voice version
        koinon-voice dashboard [--hosts FILE] [--listen 127.0.0.1:PORT] [--no-open]
        koinon-voice summarize (--fixtures DIR | --item FILE) [--engines FILE] [--engine NAME,...] [--out FILE] [--timeout DURATION] [--speak] [--helper PATH] [--voice ID] [--blind] [--rate N] [--rescore FILE]
        koinon-voice helper [--engines FILE] [--helper PATH] [--transcribe FILE] [--say TEXT] [--out FILE] [--voice ID] [--timeout DURATION]
+       koinon-voice kokoro install|status [--dir DIR]
        koinon-voice corpus record --set clean|noisy [--only N,...] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice corpus wake --distance near|mid|far [--train] [--count N] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice corpus background --source music|meeting|podcast|coffee [--count N] [--minutes N] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice corpus status [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice bench stt [--phrases FILE] [--dir DIR] [--sets SET,...] [--out FILE]
-       koinon-voice bench tts [--texts FILE] [--dir DIR] [--kokoro-voice VOICE] [--rate=false] [--out FILE]
+       koinon-voice bench tts [--texts FILE] [--dir DIR] [--kokoro-helper PATH] [--kokoro-voice VOICE] [--speed N] [--rate=false] [--out FILE]
        koinon-voice bench wake [--phrases FILE] [--dir DIR] [--model FILE] [--threshold N] [--out FILE]
        koinon-voice bench interrupt [--texts FILE] [--text N] [--say TEXT] [--control] [--seconds N] [--dir DIR] [--out FILE]
        koinon-voice bench names [--phrases FILE] [--scorecard FILE] [--ordinary FILE,...] [--out FILE]
@@ -48,6 +49,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runSummarize(args[1:], stdin, stdout, stderr)
 	case "helper":
 		return runHelper(args[1:], stdout, stderr)
+	case "kokoro":
+		return runKokoro(args[1:], stdout, stderr)
 	case "corpus":
 		return runCorpus(args[1:], stdin, stdout, stderr)
 	case "bench":
