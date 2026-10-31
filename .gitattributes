@@ -1,0 +1,2 @@
+# Patches to other projects keep their context lines as diff writes them: " " on a blank line.
+helpers/kokoro/patches/*.patch -whitespace
