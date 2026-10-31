@@ -31,7 +31,9 @@ names of `koinon version`.
 Koinon Voice speaks with Kokoro-82M, voice `af_heart`
 ([ADR 002](docs/architecture/adr/002-local-speech-engine-sidecars.md), Decision 2), natively and without Python
 (Decision 4). The helper `koinon-voice-kokoro` runs it on MLX Swift through kokoro-ios, with
-MisakiSwift to turn text into phonemes. It opens no audio device: it sends 16-bit mono PCM at
+MisakiSwift to turn text into phonemes. MisakiSwift is version 1.0.6 with the patches in
+`helpers/kokoro/patches/`; `helpers/kokoro/fetch-misaki.sh` clones it, checks its commit and
+applies them, and the test and build scripts run it. It opens no audio device: it sends 16-bit mono PCM at
 24 kHz to the bridge, one sentence at a time.
 
 MLX's Metal shaders build only with Xcode, so the helper needs Xcode and its Metal Toolchain

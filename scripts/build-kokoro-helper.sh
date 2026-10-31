@@ -15,6 +15,7 @@ xcrun -f metal >/dev/null 2>&1 || {
 }
 
 mkdir -p "$derived" "$(dirname "$dest")"
+"$root/helpers/kokoro/fetch-misaki.sh"
 cd "$root/helpers/kokoro"
 # Without the coverage settings, Xcode instruments the package and the helper writes
 # default.profraw in its working directory.

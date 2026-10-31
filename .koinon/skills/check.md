@@ -24,7 +24,8 @@ each matching path or address. Confirm visible changes have an Unreleased CHANGE
 ## Conditional checks
 For shell edits: bash -n scripts/setup-repo.sh, sh -n .githooks/pre-commit,
 sh -n .githooks/commit-msg, sh -n scripts/check-attribution.sh, sh -n helpers/apple/test.sh,
-sh -n helpers/kokoro/test.sh and sh -n scripts/build-kokoro-helper.sh.
+sh -n helpers/kokoro/test.sh, sh -n helpers/kokoro/fetch-misaki.sh and
+sh -n scripts/build-kokoro-helper.sh.
 For edits under helpers/apple, on macOS: swift build -c release --package-path helpers/apple
 and helpers/apple/test.sh.
 For edits under helpers/kokoro, on macOS: helpers/kokoro/test.sh, and with Xcode,

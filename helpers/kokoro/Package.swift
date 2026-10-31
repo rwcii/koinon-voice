@@ -12,8 +12,9 @@ let package = Package(
     dependencies: [
         .package(path: "../apple"),
         .package(url: "https://github.com/mlalma/kokoro-ios", exact: "1.0.11"),
-        // The versions kokoro-ios 1.0.11 pins.
-        .package(url: "https://github.com/mlalma/MisakiSwift", exact: "1.0.6"),
+        // The versions kokoro-ios 1.0.11 pins. MisakiSwift 1.0.6 is a local copy with the
+        // patches in patches/, which fetch-misaki.sh makes; kokoro-ios uses it too.
+        .package(path: ".misaki/MisakiSwift"),
         .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.30.2"),
     ],
     targets: [

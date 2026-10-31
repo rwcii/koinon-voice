@@ -21,14 +21,11 @@ import Testing
     #expect(prepare("[a] [b](c") == "a b(c")
 }
 
-@Test func inlineFormsFollowOnlyOneUnitCharacters() {
-    // MisakiSwift 1.0.6 reads a UTF-16 position as a character position (Codex's PR #34
-    // findings): after an emoji, Koinon is left to Misaki.
-    #expect(prepare("🙂 Koinon") == "🙂 Koinon")
-    #expect(prepare("Koinon 🙂 Koinon") == "[Koinon](/kˈYnˌɑn/) 🙂 Koinon")
-    // Composed first, so "é" is one unit.
-    #expect(prepare("Cafe\u{301} Koinon") == "Café [Koinon](/kˈYnˌɑn/)")
-    #expect(prepare("Ready.\r\nKoinon") == "Ready.\n[Koinon](/kˈYnˌɑn/)")
+@Test func unicodeIsKept() {
+    // Codex's PR #34 findings: Koinon after an emoji or a combining mark keeps its phonemes,
+    // and the text is not changed.
+    #expect(prepare("🙂 Koinon") == "🙂 [Koinon](/kˈYnˌɑn/)")
+    #expect(prepare("Cafe\u{301} Koinon\r\nKoinon") == "Cafe\u{301} [Koinon](/kˈYnˌɑn/)\r\n[Koinon](/kˈYnˌɑn/)")
     // A combining mark is part of the word, so it is not Koinon.
     #expect(prepare("Koinon\u{332}") == "Koinon\u{332}")
 }

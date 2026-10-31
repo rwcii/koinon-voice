@@ -252,12 +252,13 @@ func serve(models: String) {
 /// must give. scripts/build-kokoro-helper.sh runs them on each build ("check-text").
 let textCases: [(text: String, phonemes: String)] = [
     ("Codex and Claude are waiting in Koinon.", "kˈOdˌɛks ænd klˈɔd ɑɹ wˈATɪŋ ɪn kˈYnˌɑn."),
-    // Codex's PR #34 findings: a link inside a link sets no phonemes, and an emoji before a
-    // lexicon word does not stop Misaki.
+    // Codex's PR #34 findings: a link inside a link sets no phonemes, and Koinon keeps its
+    // phonemes after characters of more than one UTF-16 unit (patches/).
     ("[[approve](/x/)](/dɪklˈYn/)", "əpɹˈuv"),
-    ("🙂 Koinon", "ˈɛks kOˈinˌɑn"),
-    ("Koinon 🙂 Koinon", "kˈYnˌɑn ˈɛks kOˈinˌɑn"),
+    ("🙂 Koinon", "ˈɛks kˈYnˌɑn"),
+    ("Koinon 🙂 Koinon", "kˈYnˌɑn ˈɛks kˈYnˌɑn"),
     ("Cafe\u{301} Koinon", "kˈæf kˈYnˌɑn"),
+    ("👍🏽 Ready, Koinon waits.", "ˈɛks ɹˈɛdi, kˈYnˌɑn wˈAts."),
 ]
 
 /// checkText runs textCases and prints each result; it exits 1 when one differs.

@@ -4,6 +4,7 @@
 # Xcode, plain `swift test` works.
 set -eu
 cd "$(dirname "$0")"
+./fetch-misaki.sh
 frameworks=/Library/Developer/CommandLineTools/Library/Developer/Frameworks
 if [ "$(xcode-select -p)" = /Library/Developer/CommandLineTools ] && [ -d "$frameworks" ]; then
 	exec swift test -Xswiftc "-F$frameworks" -Xlinker "-F$frameworks" \

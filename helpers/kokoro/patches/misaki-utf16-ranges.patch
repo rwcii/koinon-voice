@@ -1,0 +1,23 @@
+MisakiSwift 1.0.6 (Apache-2.0, https://github.com/mlalma/MisakiSwift): read the range of an
+inline form [word](/phonemes/) as UTF-16 units, as NSRegularExpression gives it, not as
+characters. Without it, a form after an emoji is read at the wrong place or stops Misaki
+(Codex's review of PR #34). helpers/kokoro/fetch-misaki.sh applies it.
+
+diff --git a/Sources/MisakiSwift/English/EnglishG2P.swift b/Sources/MisakiSwift/English/EnglishG2P.swift
+index 48631b5..6439dd8 100644
+--- a/Sources/MisakiSwift/English/EnglishG2P.swift
++++ b/Sources/MisakiSwift/English/EnglishG2P.swift
+@@ -152,9 +152,10 @@ final public class EnglishG2P {
+     linkRegex.enumerateMatches(in: input, options: [], range: fullRange) { match, _, _ in
+       guard let m = match else { return }
+ 
+-      let range = m.range
+-      let start = input.index(input.startIndex, offsetBy: range.location)
+-      let end = input.index(start, offsetBy: range.length)
++      // NSRange counts UTF-16 units, not characters.
++      guard let range = Range(m.range, in: input) else { return }
++      let start = range.lowerBound
++      let end = range.upperBound
+ 
+       result += String(input[lastEnd..<start])
+       tokens.append(contentsOf: String(input[lastEnd..<start]).split(separator: " ").map(String.init))

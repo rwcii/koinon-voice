@@ -13,7 +13,9 @@ gates); this file holds measurements, phonemes, versions and hashes.
   (build 17F113) with Metal Toolchain 17F109, Go 1.27.3.
 - Packages, as `helpers/kokoro/Package.resolved` pins them:
   - kokoro-ios 1.0.11, `4d6d1d8ff8cd012014180c9cd4cf0151e7682354` (MIT)
-  - MisakiSwift 1.0.6, `6835a1ce4a8854075c89f18ff75c74b13ef58e15` (Apache-2.0)
+  - MisakiSwift 1.0.6, `6835a1ce4a8854075c89f18ff75c74b13ef58e15` (Apache-2.0); since Codex's
+    review of PR #34, a local copy with `helpers/kokoro/patches/misaki-utf16-ranges.patch`
+    (`helpers/kokoro/fetch-misaki.sh`). Checks 12, 13 and 17 ran before the patch.
   - mlx-swift 0.30.2, `f58bd2c2b3b84316da69182f436db4219aff30b9` (MIT)
   - MLXUtilsLibrary 0.0.6, swift-numerics 1.1.1 and ZIPFoundation 0.9.20, through kokoro-ios
 - Model files, from `mlx-community/Kokoro-82M-bf16` at revision
@@ -121,11 +123,10 @@ The helper gives "Koinon" `kˈYnˌɑn` through Misaki's inline form `[Koinon](/k
 (`helpers/kokoro`, `lexicon`); a word joined by hyphens, as in a session name, is left to
 Misaki. Codex's review of PR #34 found that MisakiSwift 1.0.6 reads the position of an inline
 form in UTF-16 units as a position in characters: after an emoji, the form made Misaki stop
-("String index out of bounds"). The helper now leaves "Koinon" to Misaki after a character of
-more than one UTF-16 unit, so "🙂 Koinon" gives `ˈɛks kOˈinˌɑn`. The same review found that a
-link inside a link set phonemes: `[[approve](/x/)](/dɪklˈYn/)` gave `dɪklˈYn`; it now gives
-`əpɹˈuv`. `koinon-voice-kokoro check-text` runs these sentences through MisakiSwift on each
-build. In the helper, "Codex and Claude are waiting in Koinon."
+("String index out of bounds"). With the patch, Misaki reads the position as a range of the
+text, and "🙂 Koinon" gives `ˈɛks kˈYnˌɑn`. The same review found that a link inside a link
+set phonemes: `[[approve](/x/)](/dɪklˈYn/)` gave `dɪklˈYn`; it now gives `əpɹˈuv`.
+`koinon-voice-kokoro check-text` runs these sentences through MisakiSwift on each build. In the helper, "Codex and Claude are waiting in Koinon."
 gives `kˈOdˌɛks ænd klˈɔd ɑɹ wˈATɪŋ ɪn kˈYnˌɑn.`
 
 ## Check 17 — Stability
