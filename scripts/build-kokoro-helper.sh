@@ -33,6 +33,12 @@ mkdir -p "$stage/Frameworks"
 cp "$products/koinon-voice-kokoro" "$stage/"
 cp -R "$products"/*.bundle "$stage/"
 cp -R "$products"/PackageFrameworks/*.framework "$stage/Frameworks/"
+# The text cases run the real G2P; a failure keeps the helper installed before.
+"$stage/koinon-voice-kokoro" check-text >"$derived-check-text.log" 2>&1 || {
+	cat "$derived-check-text.log" >&2
+	echo "build-kokoro-helper: check-text failed; $dest is unchanged" >&2
+	exit 1
+}
 rm -rf "$dest"
 mv "$stage" "$dest"
 chmod 0700 "$dest"

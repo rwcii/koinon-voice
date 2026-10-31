@@ -6,20 +6,37 @@ import Foundation
 /// The phonemes of names whose pronunciation the maintainer chose. Misaki reads them from its
 /// inline form `[word](/phonemes/)`.
 public let lexicon: [String: String] = [
-    // "KOY-non", in every case (DECISIONS.md#kv-12-listen; scorecard-kokoro-native.md, check 16).
+    // "KOY-non", in upper and lower case (DECISIONS.md#kv-12-listen; scorecard-kokoro-native.md, check 16).
     "koinon": "kˈYnˌɑn",
 ]
 
-/// prepare turns a sentence into Misaki's input. Markdown links keep only their text, so a
-/// summary cannot set phonemes, and each lexicon word, in any case, gets its fixed phonemes.
-/// A lexicon word joined to others by a hyphen, as in a session name, is left to Misaki.
+/// prepare turns a sentence into Misaki's input. Markdown links keep only their text, also
+/// links inside links, and the brackets that remain are removed, so a summary cannot set
+/// phonemes. Then each lexicon word, in any case, gets its fixed phonemes. A lexicon word
+/// joined to others by a hyphen, as in a session name, is left to Misaki.
+///
+/// MisakiSwift 1.0.6 reads the position of an inline form in UTF-16 units as a position in
+/// characters (EnglishG2P.preprocess), so the two must agree for each character before the
+/// form. The text is composed (NFC) and its line ends made "\n" first; a lexicon word after a
+/// character of more than one UTF-16 unit, such as an emoji, is left to Misaki.
 public func prepare(_ text: String) -> String {
-    var out = text.replacingOccurrences(of: #"\[([^\]]*)\]\([^\)]*\)"#, with: "$1", options: .regularExpression)
+    var out = text.precomposedStringWithCanonicalMapping.replacingOccurrences(of: "\r\n", with: "\n")
+    while true {
+        let next = out.replacingOccurrences(of: #"\[([^\[\]]*)\]\([^\)]*\)"#, with: "$1", options: .regularExpression)
+        if next == out { break }
+        out = next
+    }
+    out.removeAll { $0 == "[" || $0 == "]" }
     for (word, phonemes) in lexicon {
-        let pattern = #"(?<![\p{L}\p{N}_-])("# + NSRegularExpression.escapedPattern(for: word) + #")(?![\p{L}\p{N}_-])"#
+        let pattern = #"(?<![\p{L}\p{M}\p{N}_-])"# + NSRegularExpression.escapedPattern(for: word) + #"(?![\p{L}\p{M}\p{N}_-])"#
         let re = try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-        let range = NSRange(out.startIndex..., in: out)
-        out = re.stringByReplacingMatches(in: out, range: range, withTemplate: "[$1](/" + NSRegularExpression.escapedTemplate(for: phonemes) + "/)")
+        let matches = re.matches(in: out, range: NSRange(out.startIndex..., in: out))
+        for m in matches.reversed() {
+            guard let r = Range(m.range, in: out) else { continue }
+            let before = out[..<r.lowerBound]
+            guard before.utf16.count == before.count else { continue }
+            out.replaceSubrange(r, with: "[" + out[r] + "](/" + phonemes + "/)")
+        }
     }
     return out
 }

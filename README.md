@@ -44,7 +44,9 @@ koinon-voice kokoro status
 ```
 
 The helper's frameworks and resource bundles sit beside it in `bin/kokoro/`; run it by that
-path, not through a symlink. `kokoro install` downloads the model, its config and the
+path, not through a symlink. Before it installs the helper, the build script runs
+`koinon-voice-kokoro check-text`: fixed sentences through MisakiSwift, with the phonemes each
+must give. A failure keeps the helper installed before. `kokoro install` downloads the model, its config and the
 `af_heart` voice from `mlx-community/Kokoro-82M-bf16` at the revision that Phase 0 rated,
 checks each file's size and SHA-256 against the values in `internal/kokoro`, and keeps a file
 only when they match. `kokoro status` checks the files again and exits 1 when one is missing

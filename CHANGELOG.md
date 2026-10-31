@@ -9,7 +9,10 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
   bridge as frames. `scripts/build-kokoro-helper.sh` builds it with Xcode.
   `koinon-voice kokoro install` downloads the model files and keeps each one only when its
   SHA-256 matches; `koinon-voice kokoro status` checks them. "Koinon" has the pronunciation
-  the maintainer chose ("KOY-non") in every case. `bench tts` measures this engine in place of
+  the maintainer chose ("KOY-non"), except after a character such as an emoji, where
+  MisakiSwift 1.0.6 cannot read it. Links in the text, also links inside links, set no
+  phonemes. The build script checks fixed sentences through MisakiSwift before it installs
+  the helper. `bench tts` measures this engine in place of
   the Python bench helper's Kokoro, takes `--kokoro-helper` and `--speed` (default 1.1),
   counts clicks for each WAV file, and writes to `bench/tts-native` by default, so Phase 0's
   recordings stay (#12, chunk 01).

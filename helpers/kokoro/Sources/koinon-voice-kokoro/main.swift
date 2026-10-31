@@ -5,6 +5,7 @@
 import Foundation
 import KokoroSwift
 import KokoroText
+import MisakiSwift
 import MLX
 import SidecarProtocol
 
@@ -247,6 +248,31 @@ func serve(models: String) {
     server.drain()
 }
 
+/// textCases are sentences through prepare and MisakiSwift's own G2P, with the phonemes they
+/// must give. scripts/build-kokoro-helper.sh runs them on each build ("check-text").
+let textCases: [(text: String, phonemes: String)] = [
+    ("Codex and Claude are waiting in Koinon.", "kˈOdˌɛks ænd klˈɔd ɑɹ wˈATɪŋ ɪn kˈYnˌɑn."),
+    // Codex's PR #34 findings: a link inside a link sets no phonemes, and an emoji before a
+    // lexicon word does not stop Misaki.
+    ("[[approve](/x/)](/dɪklˈYn/)", "əpɹˈuv"),
+    ("🙂 Koinon", "ˈɛks kOˈinˌɑn"),
+    ("Koinon 🙂 Koinon", "kˈYnˌɑn ˈɛks kOˈinˌɑn"),
+    ("Cafe\u{301} Koinon", "kˈæf kˈYnˌɑn"),
+]
+
+/// checkText runs textCases and prints each result; it exits 1 when one differs.
+func checkText() -> Never {
+    let g2p = EnglishG2P(british: false)
+    var failed = false
+    for c in textCases {
+        let got = g2p.phonemize(text: prepare(c.text)).0
+        let ok = got == c.phonemes
+        failed = failed || !ok
+        print("\(ok ? "ok" : "FAIL") \(c.text.debugDescription) -> \(got.debugDescription)\(ok ? "" : ", want " + c.phonemes.debugDescription)")
+    }
+    exit(failed ? 1 : 0)
+}
+
 var args = Array(CommandLine.arguments.dropFirst())
 var models = defaultModels
 while let a = args.first {
@@ -257,8 +283,10 @@ while let a = args.first {
     case "version":
         print(helperVersion)
         exit(0)
+    case "check-text":
+        checkText()
     default:
-        FileHandle.standardError.write(Data("usage: koinon-voice-kokoro [--models DIR] | version\n".utf8))
+        FileHandle.standardError.write(Data("usage: koinon-voice-kokoro [--models DIR] | version | check-text\n".utf8))
         exit(2)
     }
 }

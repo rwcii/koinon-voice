@@ -15,6 +15,22 @@ import Testing
 
 @Test func linksKeepOnlyTheirText() {
     #expect(prepare("See [the board](https://example.invalid/) and [x](/hˈæk/).") == "See the board and x.")
+    // Codex's PR #34 findings: a link inside a link, and brackets that are not a link.
+    #expect(prepare("[[approve](/x/)](/dɪklˈYn/)") == "approve")
+    #expect(prepare("[[Koinon](/x/)](/hˈæk/)") == "[Koinon](/kˈYnˌɑn/)")
+    #expect(prepare("[a] [b](c") == "a b(c")
+}
+
+@Test func inlineFormsFollowOnlyOneUnitCharacters() {
+    // MisakiSwift 1.0.6 reads a UTF-16 position as a character position (Codex's PR #34
+    // findings): after an emoji, Koinon is left to Misaki.
+    #expect(prepare("🙂 Koinon") == "🙂 Koinon")
+    #expect(prepare("Koinon 🙂 Koinon") == "[Koinon](/kˈYnˌɑn/) 🙂 Koinon")
+    // Composed first, so "é" is one unit.
+    #expect(prepare("Cafe\u{301} Koinon") == "Café [Koinon](/kˈYnˌɑn/)")
+    #expect(prepare("Ready.\r\nKoinon") == "Ready.\n[Koinon](/kˈYnˌɑn/)")
+    // A combining mark is part of the word, so it is not Koinon.
+    #expect(prepare("Koinon\u{332}") == "Koinon\u{332}")
 }
 
 @Test func pcmIsLittleEndianAndClipped() {

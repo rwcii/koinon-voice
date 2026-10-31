@@ -117,9 +117,15 @@ each clip and records the answers (DECISIONS.md#kv-12-listen). The answers, 2026
 - "Claude": acceptable, with the comment "Koinon was mispronounced". The clip was "Codex and
   Claude are waiting in Koinon.", with the capital `kOˈinˌɑn`.
 
-The helper gives "Koinon" `kˈYnˌɑn` in every case, through Misaki's inline form
-`[Koinon](/kˈYnˌɑn/)` (`helpers/kokoro`, `lexicon`); a word joined by hyphens, as in a
-session name, is left to Misaki. In the helper, "Codex and Claude are waiting in Koinon."
+The helper gives "Koinon" `kˈYnˌɑn` through Misaki's inline form `[Koinon](/kˈYnˌɑn/)`
+(`helpers/kokoro`, `lexicon`); a word joined by hyphens, as in a session name, is left to
+Misaki. Codex's review of PR #34 found that MisakiSwift 1.0.6 reads the position of an inline
+form in UTF-16 units as a position in characters: after an emoji, the form made Misaki stop
+("String index out of bounds"). The helper now leaves "Koinon" to Misaki after a character of
+more than one UTF-16 unit, so "🙂 Koinon" gives `ˈɛks kOˈinˌɑn`. The same review found that a
+link inside a link set phonemes: `[[approve](/x/)](/dɪklˈYn/)` gave `dɪklˈYn`; it now gives
+`əpɹˈuv`. `koinon-voice-kokoro check-text` runs these sentences through MisakiSwift on each
+build. In the helper, "Codex and Claude are waiting in Koinon."
 gives `kˈOdˌɛks ænd klˈɔd ɑɹ wˈATɪŋ ɪn kˈYnˌɑn.`
 
 ## Check 17 — Stability
