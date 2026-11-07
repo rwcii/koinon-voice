@@ -72,6 +72,8 @@ func fakeHelper(mode string) {
 	in := bufio.NewReader(os.Stdin)
 	var spoken []string
 	var pair []uint64
+	sinks := map[uint64][]byte{} // audio received by each sink request, first byte per frame
+	var cancels []uint64
 	audio := func(id uint64, b byte) {
 		writeAudio(out, id, []byte{b, b})
 		out.Flush()
@@ -83,9 +85,23 @@ func fakeHelper(mode string) {
 		}
 		m := f.msg
 		if m == nil {
+			if got, ok := sinks[f.id]; ok {
+				sinks[f.id] = append(got, f.audio[0])
+			}
 			continue
 		}
 		switch {
+		case m.Type == "request" && m.Method == "sink":
+			sinks[m.ID] = []byte{}
+		case m.Type == "input" && m.End && sinks[m.ID] != nil:
+			data, _ := json.Marshal(map[string]any{"frames": sinks[m.ID]})
+			delete(sinks, m.ID)
+			send(Message{Type: "result", ID: m.ID, Data: data})
+		case m.Type == "cancel":
+			cancels = append(cancels, m.ID)
+		case m.Type == "request" && m.Method == "cancels":
+			data, _ := json.Marshal(map[string]any{"ids": cancels})
+			send(Message{Type: "result", ID: m.ID, Data: data})
 		case m.Type == "request" && mode == "error":
 			send(Message{Type: "error", ID: m.ID, Code: "unavailable", Message: "appleIntelligenceNotEnabled"})
 		case m.Type == "request" && mode == "crash":
@@ -559,5 +575,69 @@ func TestAudioHelperExitMidFrames(t *testing.T) {
 	}
 	if !errors.Is(err, ErrExited) || !strings.Contains(err.Error(), "synthesis crashed") {
 		t.Fatalf("err %v, want ErrExited with stderr", err)
+	}
+}
+
+func TestAudioSent(t *testing.T) {
+	h := start(t, "ok")
+	s, err := h.Open(context.Background(), "sink", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := byte(0); i < 5; i++ {
+		if err := s.SendAudio([]byte{i, i}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.CloseInput(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct{ Frames []byte }
+	json.Unmarshal(data, &got)
+	if !bytes.Equal(got.Frames, []byte{0, 1, 2, 3, 4}) {
+		t.Fatalf("helper received %v, want 0 to 4 in order before the end", got.Frames)
+	}
+}
+
+func TestCancel(t *testing.T) {
+	h := start(t, "ok")
+	s, err := h.Open(context.Background(), "sink", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SendAudio([]byte{1, 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Cancel(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Wait(); !errors.Is(err, context.Canceled) {
+		t.Fatalf("wait: %v, want context.Canceled", err)
+	}
+	for name, send := range map[string]func() error{
+		"SendAudio":  func() error { return s.SendAudio([]byte{2, 2}) },
+		"Send":       func() error { return s.Send(map[string]string{"text": "late"}) },
+		"CloseInput": s.CloseInput,
+	} {
+		if err := send(); !errors.Is(err, ErrCancelled) {
+			t.Errorf("%s after cancel: %v, want ErrCancelled", name, err)
+		}
+	}
+	// The helper lives on and was told which request ended.
+	data, err := h.Call(context.Background(), "cancels", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct{ IDs []uint64 }
+	json.Unmarshal(data, &got)
+	if len(got.IDs) != 1 || got.IDs[0] != s.id {
+		t.Fatalf("helper saw cancels %v, want [%d]", got.IDs, s.id)
+	}
+	if err := h.Err(); err != nil {
+		t.Fatalf("helper: %v", err)
 	}
 }

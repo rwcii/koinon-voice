@@ -6,10 +6,21 @@
 # and so cuts OpenAI service-account keys:
 #   security add-generic-password -U -a koinon-voice -s koinon-voice-openai -w "$(tr -d '\n' < FILE)"
 
-# The Apple helper (helpers/apple), for the apple engine and for --speak.
+# The Apple helper (helpers/apple), for the apple engine and for --speak; it plays the speech
+# of both speech engines.
 helper = "/Users/NAME/.local/share/koinon-voice/bin/koinon-voice-apple"
-# The voice that speaks summaries; empty is the system's en-US voice.
+# Apple's voice for engine = "apple" when [speech] names none; empty is the system's en-US
+# voice.
 voice = "com.apple.voice.enhanced.en-US.Evan"
+
+# The voice of summarize --speak and helper --say. Kokoro is the default: voice af_heart at
+# speed 1.1, through koinon-voice-kokoro (scripts/build-kokoro-helper.sh and
+# koinon-voice kokoro install). engine = "apple" speaks with Apple's voice instead; its voice
+# is an AVSpeechSynthesisVoice identifier, and speed is Kokoro's only.
+[speech]
+engine = "kokoro"
+voice = "af_heart"
+speed = 1.1
 
 [[engine]]
 name = "claude-haiku"

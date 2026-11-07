@@ -39,6 +39,9 @@ type Voice struct {
 	Helper *Launcher
 	// Voice is an AVSpeechSynthesisVoice identifier; empty is the system's en-US voice.
 	Voice string
+	// Output, when set, is an audio file the speech is written to in place of the output
+	// device.
+	Output string
 }
 
 // Spoken is one utterance's timing.
@@ -76,6 +79,9 @@ func (v *Voice) Start(ctx context.Context) (Speech, error) {
 	params := map[string]string{}
 	if v.Voice != "" {
 		params["voice"] = v.Voice
+	}
+	if v.Output != "" {
+		params["output"] = v.Output
 	}
 	u.s, err = h.Open(ctx, "speak", params, func(e sidecar.Event) {
 		if e.Name == "first_audio" {

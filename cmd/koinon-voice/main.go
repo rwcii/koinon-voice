@@ -18,8 +18,8 @@ var version = "dev"
 const usage = `Usage: koinon-voice version
        koinon-voice board [--hosts FILE] [--watch] [--timeout DURATION]
        koinon-voice dashboard [--hosts FILE] [--listen 127.0.0.1:PORT] [--no-open]
-       koinon-voice summarize (--fixtures DIR | --item FILE) [--engines FILE] [--engine NAME,...] [--out FILE] [--timeout DURATION] [--speak] [--helper PATH] [--voice ID] [--blind] [--rate N] [--rescore FILE]
-       koinon-voice helper [--engines FILE] [--helper PATH] [--transcribe FILE] [--say TEXT] [--out FILE] [--voice ID] [--timeout DURATION]
+       koinon-voice summarize (--fixtures DIR | --item FILE) [--engines FILE] [--engine NAME,...] [--out FILE] [--timeout DURATION] [--speak] [--helper PATH] [--voice VOICE] [--blind] [--rate N] [--rescore FILE]
+       koinon-voice helper [--engines FILE] [--helper PATH] [--transcribe FILE] [--say TEXT] [--out FILE] [--engine kokoro|apple] [--voice VOICE] [--speed N] [--timeout DURATION]
        koinon-voice kokoro install|status [--dir DIR]
        koinon-voice corpus record --set clean|noisy [--only N,...] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]
        koinon-voice corpus wake --distance near|mid|far [--train] [--count N] [--channel N] [--phrases FILE] [--dir DIR] [--engines FILE] [--helper PATH]

@@ -54,6 +54,26 @@ checks each file's size and SHA-256 against the values in `internal/kokoro`, and
 only when they match. `kokoro status` checks the files again and exits 1 when one is missing
 or changed. Both take `--dir DIR`.
 
+`koinon-voice summarize --speak` and `koinon-voice helper --say TEXT` speak with Kokoro by
+default. Each text starts a new `koinon-voice-kokoro`, which synthesizes it sentence by
+sentence; the Apple helper (`helper` in the engines file) plays each sentence through its
+voice-processing engine (ADR 002, Decision 3) while the next one is synthesized. Ctrl-C stops
+the playback and the synthesis. When the helper or a model file is missing, the command names
+it with the command that installs it, and exits 1 before any audio.
+
+The engines file's `[speech]` table chooses the voice:
+
+```toml
+[speech]
+engine = "kokoro"   # the default; "apple" speaks with Apple's voice
+voice = "af_heart"  # a Kokoro voice, or an AVSpeechSynthesisVoice identifier for "apple"
+speed = 1.1         # Kokoro only
+```
+
+With `engine = "apple"` and no `voice` in `[speech]`, the top-level `voice` applies, as before.
+`helper --say` takes `--engine kokoro|apple`, `--voice` and `--speed` for one text, and
+`--out FILE` to write the speech to a file in place of the output device.
+
 ## Connect to Koinon
 
 Koinon Voice reaches each Koinon daemon through Koinon's maintainer mode,

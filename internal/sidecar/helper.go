@@ -32,6 +32,9 @@ var ErrVersion = errors.New("helper protocol version")
 // request fails; the helper and its other requests go on.
 var ErrAudioBehind = errors.New("audio receiver fell behind")
 
+// ErrCancelled is a send for a request that Cancel ended.
+var ErrCancelled = errors.New("request cancelled")
+
 // AudioBuffer bounds the audio frames held for one request that its receiver has not read.
 var AudioBuffer = 1024
 
@@ -186,8 +189,9 @@ func (h *Helper) Close() error {
 	return nil
 }
 
-// Stream is one request in flight. Send writes input frames for a request that takes them,
-// CloseInput ends its input, and Wait returns its result.
+// Stream is one request in flight. Send and SendAudio write input frames for a request that
+// takes them, CloseInput ends its input, Cancel ends the request, and Wait returns its
+// result.
 type Stream struct {
 	h       *Helper
 	id      uint64
@@ -205,6 +209,8 @@ type Stream struct {
 	audioMu     sync.Mutex
 	audio       chan []byte
 	audioClosed bool
+
+	cancelled atomic.Bool
 }
 
 type outcome struct {
@@ -300,12 +306,40 @@ func (s *Stream) Send(params any) error {
 	if err != nil {
 		return err
 	}
+	if s.cancelled.Load() {
+		return ErrCancelled
+	}
 	return s.h.write(Message{Type: "input", ID: s.id, Params: raw})
+}
+
+// SendAudio writes one audio frame of PCM bytes for the request, in the format its params
+// name. Frames reach the helper in the order they are sent, before a later CloseInput.
+func (s *Stream) SendAudio(pcm []byte) error {
+	if s.cancelled.Load() {
+		return ErrCancelled
+	}
+	return s.h.writeAudio(s.id, pcm)
 }
 
 // CloseInput tells the helper no more input is coming.
 func (s *Stream) CloseInput() error {
+	if s.cancelled.Load() {
+		return ErrCancelled
+	}
 	return s.h.write(Message{Type: "input", ID: s.id, End: true})
+}
+
+// Cancel ends the request at once and tells the helper to stop its work; the helper lives
+// on. Wait returns context.Canceled, later sends are refused with ErrCancelled, and the
+// helper's later frames for the request are dropped. A request that already has its
+// outcome keeps it.
+func (s *Stream) Cancel() error {
+	s.cancelled.Store(true)
+	if !s.h.take(s.id) {
+		return nil
+	}
+	s.finish(outcome{err: context.Canceled})
+	return s.h.write(Message{Type: "cancel", ID: s.id})
 }
 
 // Audio returns the request's audio frames, each one the PCM bytes of one frame. It is
@@ -373,6 +407,21 @@ func (h *Helper) write(m Message) error {
 	h.writeMu.Lock()
 	defer h.writeMu.Unlock()
 	if err := writeMessage(h.stdin, m); err != nil {
+		return fmt.Errorf("%w: write: %v", ErrExited, err)
+	}
+	return nil
+}
+
+func (h *Helper) writeAudio(id uint64, pcm []byte) error {
+	h.mu.Lock()
+	dead := h.dead
+	h.mu.Unlock()
+	if dead != nil {
+		return dead
+	}
+	h.writeMu.Lock()
+	defer h.writeMu.Unlock()
+	if err := writeAudio(h.stdin, id, pcm); err != nil {
 		return fmt.Errorf("%w: write: %v", ErrExited, err)
 	}
 	return nil

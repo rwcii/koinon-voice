@@ -1,15 +1,20 @@
 import Foundation
 import SidecarProtocol
 
-/// Output writes frames to stdout, one at a time.
+/// Output writes frames to stdout, or to the writer a test gives, one at a time.
 final class Output: @unchecked Sendable {
     private let lock = NSLock()
+    private let write: (Data) -> Void
+
+    init(write: @escaping (Data) -> Void = { FileHandle.standardOutput.write($0) }) {
+        self.write = write
+    }
 
     func send<D: Encodable>(_ m: Outgoing<D>) {
         guard let wire = try? encodeMessage(m) else { return }
         lock.lock()
         defer { lock.unlock() }
-        FileHandle.standardOutput.write(wire)
+        write(wire)
     }
 
     func event<D: Encodable>(_ id: UInt64, _ name: String, _ data: D) {
@@ -31,12 +36,13 @@ struct HelperError: Error {
     var message: String
 }
 
-/// Request is one request as a handler sees it: its raw message, and its input for a
-/// request that takes input frames.
+/// Request is one request as a handler sees it: its raw message, its input frames, and the
+/// PCM bytes of its audio frames. Both streams end with the request's input end or cancel.
 struct Request {
     var id: UInt64
     var body: Data
     var input: AsyncStream<Data>
+    var audio: AsyncStream<Data>
 
     func params<P: Decodable>(_ type: P.Type) throws -> P {
         do {
@@ -58,6 +64,8 @@ func serve(handlers: [String: (Request, Output) async throws -> Void], info: som
     out.send(Outgoing.hello(helper: "koinon-voice-apple", version: helperVersion, capabilities: handlers.keys.sorted(), info: info))
 
     var inputs: [UInt64: AsyncStream<Data>.Continuation] = [:]
+    var audio: [UInt64: AsyncStream<Data>.Continuation] = [:]
+    var running: [UInt64: Task<Void, Never>] = [:]
     var tasks: [Task<Void, Never>] = []
     for await chunk in stdinChunks() {
         frames.append(chunk)
@@ -71,36 +79,47 @@ func serve(handlers: [String: (Request, Output) async throws -> Void], info: som
             }
             guard case .json(let body)? = frame else {
                 if frame == nil { break }
-                continue // no request sends audio to this helper
+                if case .audio(let id, let pcm)? = frame { audio[id]?.yield(pcm) }
+                continue
             }
             guard let m = try? JSONDecoder().decode(Incoming.self, from: body), let id = m.id else { continue }
             switch m.type {
             case "request":
                 let (stream, continuation) = AsyncStream<Data>.makeStream()
+                let (pcm, pcmContinuation) = AsyncStream<Data>.makeStream()
                 inputs[id] = continuation
+                audio[id] = pcmContinuation
                 let method = m.method ?? ""
                 guard let handler = handlers[method] else {
                     out.error(id, "unknown_method", method)
                     continue
                 }
-                let request = Request(id: id, body: body, input: stream)
-                tasks.append(Task {
+                let request = Request(id: id, body: body, input: stream, audio: pcm)
+                let task = Task {
                     do {
                         try await handler(request, out)
                     } catch let e as HelperError {
                         out.error(id, e.code, e.message)
+                    } catch is CancellationError {
+                        out.error(id, "cancelled", "cancelled")
                     } catch {
                         out.error(id, "engine_error", "\(error)")
                     }
-                })
+                }
+                running[id] = task
+                tasks.append(task)
             case "input":
                 if m.end == true {
                     inputs.removeValue(forKey: id)?.finish()
+                    audio.removeValue(forKey: id)?.finish()
                 } else {
                     inputs[id]?.yield(body)
                 }
             case "cancel":
+                // The bridge has already ended the request; its handler stops at once.
+                running.removeValue(forKey: id)?.cancel()
                 inputs.removeValue(forKey: id)?.finish()
+                audio.removeValue(forKey: id)?.finish()
             default:
                 continue
             }
@@ -108,6 +127,7 @@ func serve(handlers: [String: (Request, Output) async throws -> Void], info: som
     }
     // stdin closed: the bridge is done. Finish what is in flight, then exit.
     for c in inputs.values { c.finish() }
+    for c in audio.values { c.finish() }
     for t in tasks { await t.value }
 }
 

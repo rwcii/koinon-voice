@@ -62,7 +62,7 @@ const speechTimeout = 3 * time.Minute
 // Run summarizes every item with every engine, one request at a time so timings do not
 // compete. A failing engine fails its own rows and the run goes on. With a voice, each
 // summary is spoken while it streams and the next request waits until it has played. The
-// error is After's, with the results so far.
+// error is After's, or ctx's when it ends the run, with the results so far.
 func Run(ctx context.Context, engines []Configured, items []Fixture, opts Options) ([]Result, error) {
 	results := make([]Result, 0, len(engines)*len(items))
 	for _, item := range items {
@@ -76,6 +76,9 @@ func Run(ctx context.Context, engines []Configured, items []Fixture, opts Option
 			opts.Order(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
 		}
 		for _, e := range order {
+			if err := ctx.Err(); err != nil {
+				return results, err
+			}
 			r := Result{Item: item.Name, Row: e.Row}
 			if e.Err != nil {
 				r.Err = e.Err

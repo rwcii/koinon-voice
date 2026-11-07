@@ -125,12 +125,12 @@ func fakeHelper() {
 func TestHelperCommand(t *testing.T) {
 	t.Setenv(fakeHelperMode, "1")
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"helper", "--helper", os.Args[0], "--transcribe", "check.wav", "--say", "Hello."}, nil, &stdout, &stderr)
+	code := run([]string{"helper", "--helper", os.Args[0], "--engines", filepath.Join(t.TempDir(), "none.toml"), "--transcribe", "check.wav", "--say", "Hello.", "--engine", "apple"}, nil, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	for _, want := range []string{"hello: fake 0.0.1, capabilities [duplex speak synthesize transcribe wake]", `{"speech":"1.2.3"}`,
-		`transcribe: {"text":"Koinon, read my inbox."}`, "speak: first audio", `speak: {"voice":"fake-voice"}`} {
+		`transcribe: {"text":"Koinon, read my inbox."}`, "speak: first audio", "speak: apple, voice fake-voice"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout lacks %q:\n%s", want, stdout.String())
 		}
@@ -138,7 +138,7 @@ func TestHelperCommand(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := run([]string{"helper", "--helper", os.Args[0], "--transcribe", "check.aiff"}, nil, &stdout, &stderr); code != 1 ||
+	if code := run([]string{"helper", "--helper", os.Args[0], "--engines", filepath.Join(t.TempDir(), "none.toml"), "--transcribe", "check.aiff"}, nil, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "transcribe: bad_audio: want 16 kHz mono") {
 		t.Errorf("exit %d, stderr %q", code, stderr.String())
 	}
@@ -150,7 +150,7 @@ func TestHelperCommandFailures(t *testing.T) {
 	os.WriteFile(engines, []byte("[[engine]]\nname = \"a\"\nadapter = \"openai\"\nbase_url = \"u\"\nmodel = \"m\"\nlocal = true\n"), 0o600)
 	for name, args := range map[string][]string{
 		"no helper": {"helper", "--engines", engines},
-		"missing":   {"helper", "--helper", filepath.Join(dir, "absent")},
+		"missing":   {"helper", "--engines", engines, "--helper", filepath.Join(dir, "absent")},
 	} {
 		var stdout, stderr bytes.Buffer
 		if code := run(args, nil, &stdout, &stderr); code != 1 || stderr.Len() == 0 {
@@ -160,5 +160,30 @@ func TestHelperCommandFailures(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"helper", "extra"}, nil, &stdout, &stderr); code != 1 || !isCommandError(stderr.String()) {
 		t.Errorf("extra argument: exit %d", code)
+	}
+}
+
+// Check 7: with Kokoro, the default, a missing helper or model is named with the command that
+// installs it, with exit status 1, before the Apple helper starts or any audio plays.
+func TestHelperSayKokoroMissing(t *testing.T) {
+	dir := t.TempDir()
+	models := filepath.Join(dir, "kokoro")
+	defer func(h, m func() string) { kokoroHelper, kokoroModels = h, m }(kokoroHelper, kokoroModels)
+	kokoroHelper = func() string { return filepath.Join(dir, "absent", "koinon-voice-kokoro") }
+	kokoroModels = func() string { return models }
+	never := filepath.Join(dir, "never-started")
+	engines := filepath.Join(dir, "none.toml")
+	for name, want := range map[string]string{
+		"helper": "scripts/build-kokoro-helper.sh",
+		"model":  "run koinon-voice kokoro install",
+	} {
+		if name == "model" {
+			kokoroHelper = func() string { return os.Args[0] }
+		}
+		var stdout, stderr bytes.Buffer
+		code := run([]string{"helper", "--engines", engines, "--helper", never, "--say", "Hello."}, nil, &stdout, &stderr)
+		if code != 1 || !strings.Contains(stderr.String(), want) || stdout.Len() != 0 {
+			t.Errorf("%s missing: exit %d, stdout %q, stderr %q", name, code, stdout.String(), stderr.String())
+		}
 	}
 }
