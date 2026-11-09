@@ -169,17 +169,15 @@ func TestHelperSayKokoroMissing(t *testing.T) {
 	dir := t.TempDir()
 	models := filepath.Join(dir, "kokoro")
 	defer func(h, m func() string) { kokoroHelper, kokoroModels = h, m }(kokoroHelper, kokoroModels)
-	kokoroHelper = func() string { return filepath.Join(dir, "absent", "koinon-voice-kokoro") }
 	kokoroModels = func() string { return models }
 	never := filepath.Join(dir, "never-started")
 	engines := filepath.Join(dir, "none.toml")
-	for name, want := range map[string]string{
-		"helper": "scripts/build-kokoro-helper.sh",
-		"model":  "run koinon-voice kokoro install",
+	for _, c := range []struct{ name, helper, want string }{
+		{"helper", filepath.Join(dir, "absent", "koinon-voice-kokoro"), "scripts/build-kokoro-helper.sh"},
+		{"model", os.Args[0], "run koinon-voice kokoro install"},
 	} {
-		if name == "model" {
-			kokoroHelper = func() string { return os.Args[0] }
-		}
+		name, want := c.name, c.want
+		kokoroHelper = func() string { return c.helper }
 		var stdout, stderr bytes.Buffer
 		code := run([]string{"helper", "--engines", engines, "--helper", never, "--say", "Hello."}, nil, &stdout, &stderr)
 		if code != 1 || !strings.Contains(stderr.String(), want) || stdout.Len() != 0 {
