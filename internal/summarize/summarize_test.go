@@ -233,16 +233,21 @@ func TestLoadEngines(t *testing.T) {
 	if !strings.HasSuffix(config.Helper, "/koinon-voice-apple") || config.Voice != "com.apple.voice.enhanced.en-US.Evan" || rows[6].Adapter != "apple" || !rows[6].Local {
 		t.Errorf("helper %q, apple row %+v", config.Helper, rows[6])
 	}
+	if sp := config.Speaking(); sp != (SpeechConfig{Engine: "kokoro", Voice: "af_heart", Speed: 1.1}) {
+		t.Errorf("speech %+v", sp)
+	}
 	dir := t.TempDir()
 	for name, body := range map[string]string{
-		"empty":        ``,
-		"no name":      "[[engine]]\nadapter = \"openai\"\nmodel = \"m\"\nbase_url = \"u\"\nlocal = true\n",
-		"bad adapter":  "[[engine]]\nname = \"a\"\nadapter = \"grpc\"\nmodel = \"m\"\nlocal = true\n",
-		"no base":      "[[engine]]\nname = \"a\"\nadapter = \"openai\"\nmodel = \"m\"\nlocal = true\n",
-		"no provider":  "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\n",
-		"apple remote": "[[engine]]\nname = \"a\"\nadapter = \"apple\"\nmodel = \"m\"\nprovider = \"Apple\"\n",
-		"unknown":      "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\ntemperature = 1\n",
-		"duplicate":    "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
+		"speech engine": "[speech]\nengine = \"espeak\"\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
+		"speech speed":  "[speech]\nspeed = -1.0\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
+		"empty":         ``,
+		"no name":       "[[engine]]\nadapter = \"openai\"\nmodel = \"m\"\nbase_url = \"u\"\nlocal = true\n",
+		"bad adapter":   "[[engine]]\nname = \"a\"\nadapter = \"grpc\"\nmodel = \"m\"\nlocal = true\n",
+		"no base":       "[[engine]]\nname = \"a\"\nadapter = \"openai\"\nmodel = \"m\"\nlocal = true\n",
+		"no provider":   "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\n",
+		"apple remote":  "[[engine]]\nname = \"a\"\nadapter = \"apple\"\nmodel = \"m\"\nprovider = \"Apple\"\n",
+		"unknown":       "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\ntemperature = 1\n",
+		"duplicate":     "[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n[[engine]]\nname = \"a\"\nadapter = \"anthropic\"\nmodel = \"m\"\nprovider = \"p\"\n",
 	} {
 		p := filepath.Join(dir, strings.ReplaceAll(name, " ", "-")+".toml")
 		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
@@ -487,6 +492,23 @@ func TestRescoreRoundTrip(t *testing.T) {
 		edit(bad)
 		if _, _, err := Rescore(strings.Join(bad, "\n"), fixtures); err == nil {
 			t.Errorf("%s: no error", name)
+		}
+	}
+}
+
+// [speech] defaults: Kokoro's af_heart at 1.1; Apple's voice is [speech]'s or the top-level one.
+func TestSpeaking(t *testing.T) {
+	for _, c := range []struct {
+		config Config
+		want   SpeechConfig
+	}{
+		{Config{Voice: "top"}, SpeechConfig{Engine: "kokoro", Voice: "af_heart", Speed: 1.1}},
+		{Config{Speech: SpeechConfig{Voice: "am_michael", Speed: 0.9}}, SpeechConfig{Engine: "kokoro", Voice: "am_michael", Speed: 0.9}},
+		{Config{Voice: "top", Speech: SpeechConfig{Engine: "apple"}}, SpeechConfig{Engine: "apple", Voice: "top"}},
+		{Config{Voice: "top", Speech: SpeechConfig{Engine: "apple", Voice: "own"}}, SpeechConfig{Engine: "apple", Voice: "own"}},
+	} {
+		if got := c.config.Speaking(); got != c.want {
+			t.Errorf("%+v: %+v, want %+v", c.config, got, c.want)
 		}
 	}
 }

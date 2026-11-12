@@ -8,18 +8,46 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rwcii/koinon-voice/internal/kokoro"
+	"github.com/rwcii/koinon-voice/internal/speech"
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
-// newSpeaker makes the voice that speaks summaries; tests replace it so no test plays audio
-// (WDR 006).
-var newSpeaker = func(helper *summarize.Launcher, voice string) summarize.Speaker {
-	return &summarize.Voice{Helper: helper, Voice: voice}
+// newSpeaker checks the speaker and returns it as the voice that speaks summaries; tests
+// replace it so no test plays audio (WDR 006).
+var newSpeaker = func(s *speech.Speaker) (summarize.Speaker, error) {
+	return s, s.Check()
+}
+
+// Where the Kokoro helper and its model files are; tests replace them (WDR 006).
+var (
+	kokoroHelper = speech.DefaultKokoroHelper
+	kokoroModels = kokoro.DefaultDir
+)
+
+// speakerFor is the speaker of the engines file's [speech]; a non-empty engine or voice, or
+// a speed above 0, replaces the file's.
+func speakerFor(config summarize.Config, launcher *summarize.Launcher, engine, voice string, speed float64) (*speech.Speaker, error) {
+	if engine != "" && engine != summarize.SpeechKokoro && engine != summarize.SpeechApple {
+		return nil, fmt.Errorf("speech engine %q is not kokoro or apple", engine)
+	}
+	if engine != "" && engine != config.Speaking().Engine {
+		// The file's voice and speed are its own engine's.
+		config.Speech = summarize.SpeechConfig{Engine: engine}
+	}
+	if voice != "" {
+		config.Speech.Voice = voice
+	}
+	if speed > 0 {
+		config.Speech.Speed = speed
+	}
+	return &speech.Speaker{Speech: config.Speaking(), Apple: launcher, KokoroHelper: kokoroHelper(), Models: kokoroModels()}, nil
 }
 
 // keys reads API keys; tests replace it so no test reads the Keychain (WDR 006).
@@ -38,9 +66,9 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	only := fs.String("engine", "", "comma-separated engine names to run (default all)")
 	out := fs.String("out", "", "write the scorecard to this file (default stdout)")
 	timeout := fs.Duration("timeout", 90*time.Second, "per-request timeout")
-	doSpeak := fs.Bool("speak", false, "speak each summary through the Apple helper as it streams, and time the first spoken word")
+	doSpeak := fs.Bool("speak", false, "speak each summary with the engines file's [speech] engine as it streams, and time the first spoken word; Ctrl-C stops")
 	helper := fs.String("helper", "", "the Apple helper's path (default: helper in the engines file)")
-	voice := fs.String("voice", "", "an AVSpeechSynthesisVoice identifier (default: voice in the engines file, else the system's en-US voice)")
+	voice := fs.String("voice", "", "the speech engine's voice: a Kokoro voice, or an AVSpeechSynthesisVoice identifier for engine = \"apple\" (default: from the engines file)")
 	blind := fs.Bool("blind", false, "hide engine names, show each rated item first, and ask for a rating per summary, 1 worst to 5 best; q stops rating")
 	rateItems := fs.Int("rate", 5, "with --blind, the number of items to rate (0 rates all)")
 	rescore := fs.String("rescore", "", "with --fixtures, check this scorecard's recorded summaries again without running an engine, and write it to --out or stdout")
@@ -77,15 +105,25 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 		return 1
 	}
 
-	ctx := context.Background()
+	// Ctrl-C stops the speech and the run; the command exits once the helpers have stopped.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	launcher := &summarize.Launcher{Path: config.Helper}
 	if *helper != "" {
 		launcher.Path = *helper
 	}
-	if *voice == "" {
-		*voice = config.Voice
-	}
 	defer launcher.Close()
+	var speaker summarize.Speaker
+	if *doSpeak {
+		s, err := speakerFor(config, launcher, "", *voice, 0)
+		if err == nil {
+			speaker, err = newSpeaker(s)
+		}
+		if err != nil {
+			fmt.Fprintln(stderr, "koinon-voice summarize:", err)
+			return 1
+		}
+	}
 	configured := make([]summarize.Configured, len(rows))
 	for i, r := range rows {
 		e, err := summarize.Build(ctx, r, summarize.Env{Keys: keys, Helper: launcher})
@@ -95,12 +133,7 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 		}
 	}
 
-	opts := summarize.Options{Timeout: *timeout, Label: !*blind}
-	var speaker summarize.Speaker
-	if *doSpeak {
-		speaker = newSpeaker(launcher, *voice)
-		opts.Voice = speaker
-	}
+	opts := summarize.Options{Timeout: *timeout, Label: !*blind, Voice: speaker}
 	var r *rater
 	if *blind {
 		// Engines take turns in a new order for each item, so a listener cannot tell them
@@ -114,6 +147,10 @@ func runSummarize(args []string, stdin io.Reader, stdout, stderr io.Writer) int 
 	results, err := summarize.Run(ctx, configured, items, opts)
 	if r != nil {
 		r.printKey()
+	}
+	if ctx.Err() != nil {
+		fmt.Fprintln(stderr, "koinon-voice summarize: stopped")
+		return 1
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "koinon-voice summarize:", err)

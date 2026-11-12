@@ -4,6 +4,17 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- Kokoro is the default voice of `summarize --speak` and `helper --say`. Each text starts a
+  new `koinon-voice-kokoro`; its sentences are synthesized in turn and played by the Apple
+  helper's new `play` method through its voice-processing engine while the next sentence is
+  synthesized. Ctrl-C stops the playback and the synthesis. The engines file's `[speech]`
+  table chooses `engine` (`kokoro`, the default, or `apple`), `voice` (default `af_heart`) and
+  `speed` (default 1.1); with `engine = "apple"` the top-level `voice` keeps its meaning.
+  `helper --say` takes `--engine` and `--speed`, and `--voice` is the engine's voice. A
+  missing Kokoro helper or model file is named with the command that installs it, before any
+  audio. The time to the first spoken word is from the first sentence's request to the Apple
+  helper's first audio for both engines. The sidecar protocol sends audio frames to a helper,
+  and cancels one request without ending the helper (#12, chunk 02).
 - The Kokoro helper `koinon-voice-kokoro` runs Kokoro-82M natively on MLX Swift, with
   MisakiSwift for text to phonemes and no Python, and sends each sentence's audio to the
   bridge as frames. `scripts/build-kokoro-helper.sh` builds it with Xcode.

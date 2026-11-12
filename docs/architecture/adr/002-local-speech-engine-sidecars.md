@@ -253,3 +253,4 @@ engines run in native runtimes without Python.
 | 2026-10-24 | Decision 2's trade-off: name matching measured on Phase 0's transcripts (#11) |
 | 2026-10-26 | Decisions 3 and 4 decided by the maintainer: the audio path with voice processing, and native runtimes without Python |
 | 2026-10-26 | Decision 2 decided by the maintainer (board item kv-adr002-d2); the record is accepted |
+| 2026-11-07 | Decision 2: Kokoro is wired in and is the default voice of `summarize --speak` and `helper --say`; Apple's voice is the engines file's `engine = "apple"` (#12, PR #35) |

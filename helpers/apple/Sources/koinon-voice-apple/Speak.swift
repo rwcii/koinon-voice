@@ -44,7 +44,8 @@ func speak(_ request: Request, _ out: Output) async throws {
         sink = DeviceSink.shared
     }
     // The request opens before the summary starts, so the output is ready by its first sentence.
-    try sink.prepare()
+    // The system voices synthesize 22.05 kHz mono; write reconnects for any other format.
+    try sink.prepare(sampleRate: 22050)
     let requested = Date()
     var firstInput: Date?
     var sentFirst = false
@@ -96,10 +97,13 @@ func synthesize(_ synth: AVSpeechSynthesizer, _ utterance: AVSpeechUtterance) ->
 protocol AudioSink: AnyObject {
     /// write queues a buffer; first runs once its first sample has gone out.
     func write(_ buffer: AVAudioPCMBuffer, first: @escaping () -> Void) async throws
-    /// prepare gets the output ready before the first buffer.
-    func prepare() throws
+    /// prepare gets the output ready before the first buffer, at the rate it will most likely
+    /// get.
+    func prepare(sampleRate: Double) throws
     /// finish returns when everything written has gone out.
     func finish() async
+    /// stop drops what has not gone out yet, at once; a finish waiting for it returns.
+    func stop()
     var latency: Double { get }
 }
 
@@ -115,7 +119,9 @@ final class DeviceSink: AudioSink {
     private var format: AVAudioFormat?
     private var pending = 0
     private var drained: CheckedContinuation<Void, Never>?
-    private var watching = false
+    private var watching: Int?
+    // generation counts stops, so callbacks of buffers from before a stop are ignored.
+    private var generation = 0
 
     var latency: Double { engine.outputNode.presentationLatency }
 
@@ -126,9 +132,8 @@ final class DeviceSink: AudioSink {
         _ = engine.mainMixerNode
     }
 
-    func prepare() throws {
-        // The system voices synthesize 22.05 kHz mono; write reconnects for any other format.
-        guard format == nil, let f = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1) else { return }
+    func prepare(sampleRate: Double) throws {
+        guard format == nil, let f = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else { return }
         if !engine.inputNode.isVoiceProcessingEnabled {
             do {
                 try engine.inputNode.setVoiceProcessingEnabled(true)
@@ -156,29 +161,43 @@ final class DeviceSink: AudioSink {
             watchFirst(first)
         }
         pending += 1
+        let gen = generation
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            Task { @MainActor in self?.played() }
+            Task { @MainActor in self?.played(gen) }
         }
     }
 
     private func watchFirst(_ first: @escaping () -> Void) {
-        guard !watching else { return }
-        watching = true
+        let gen = generation
+        guard watching != gen else { return }
+        watching = gen
         Task {
-            while true {
+            while gen == generation {
                 if let node = player.lastRenderTime, let t = player.playerTime(forNodeTime: node), t.sampleTime > 0 {
                     break
                 }
                 try? await Task.sleep(for: .milliseconds(1))
             }
-            watching = false
-            first()
+            if watching == gen { watching = nil }
+            // A request stopped before its first sample rendered has no first audio.
+            if gen == generation { first() }
         }
     }
 
-    private func played() {
+    private func played(_ gen: Int) {
+        guard gen == generation else { return }
         pending -= 1
         if pending == 0, let d = drained {
+            drained = nil
+            d.resume()
+        }
+    }
+
+    func stop() {
+        generation += 1
+        pending = 0
+        player.stop()
+        if let d = drained {
             drained = nil
             d.resume()
         }
@@ -203,7 +222,7 @@ final class FileSink: AudioSink {
         url = URL(fileURLWithPath: path)
     }
 
-    func prepare() throws {}
+    func prepare(sampleRate: Double) throws {}
 
     func write(_ buffer: AVAudioPCMBuffer, first: @escaping () -> Void) async throws {
         if file == nil {
@@ -214,4 +233,6 @@ final class FileSink: AudioSink {
     }
 
     func finish() async { file = nil }
+
+    func stop() { file = nil }
 }

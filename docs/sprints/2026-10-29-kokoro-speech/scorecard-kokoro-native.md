@@ -1,7 +1,7 @@
 # Scorecard — Kokoro native
 
 Chunk 01's evidence (definition of done, checks 12, 13, 16, 17 and 18, and the feasibility
-steps of `chunks/01-kokoro-helper.md`). The model, the voices and the synthesized audio stay
+steps of `chunks/01-kokoro-helper.md`), and chunk 02's (checks 14, 15 and 17a). The model, the voices and the synthesized audio stay
 under `~/.local/share/koinon-voice/` and are not in Git (definition of done, Publication
 gates); this file holds measurements, phonemes, versions and hashes.
 
@@ -134,6 +134,32 @@ gives `kˈOdˌɛks ænd klˈɔd ɑɹ wˈATɪŋ ɪn kˈYnˌɑn.`
 One helper process, 100 runs of text 01's three sentences (300 `synthesize` requests) at
 speed 1.1, through `internal/sidecar`'s `OpenAudio`: 70 s, slowest run 1.335 s, no crash, no
 error, no dropped frame; the helper's resident memory afterwards was 503,136 KiB.
+
+## Check 17a — Stop during synthesis
+
+Measured on 2026-11-07 on the same Mac with the chunk 02 build: `koinon-voice-kokoro` 0.1.0
+with the MisakiSwift patch, and the Apple helper with `play`. Text 01, voice `af_heart`, speed
+1.1, through `internal/sidecar` and the `internal/speech` speaker; the Kokoro helper's process
+was found with `pgrep` and its end checked with `kill -0`.
+
+- Synthesis of each sentence in one helper process (helper's `elapsed_ms`): sentence 1,
+  "Codex asks whether you want to merge pull request twelve, …" (8.07 s of audio), 802 ms;
+  sentence 2 (4.67 s), 490 ms; sentence 3 (2.05 s), 527 ms. Sentence 1 is the longest. In
+  earlier runs of the same measurement, sentence 1 took 367 ms to 953 ms.
+- Loading the model again: a new helper said hello 176 ms after its start and was ready for a
+  first sentence 854 ms after its start, its warm-up synthesis included.
+- Ending the process: three stops 120 ms after sentence 1's request, by cancelling the
+  request's context as the speaker does. Each request ended cancelled at 121 ms, and the
+  helper's process was gone 6 ms, 9 ms and 7 ms after that.
+- Through the speaker, to a file (`play` with `output`): three texts stopped 974 ms after
+  `Start`, during sentence 1's synthesis. `Finish` returned "sentence 1: context canceled"
+  11 ms to 13 ms after the stop, the helper's process was already gone, and no output file
+  was written: no audio was played. Each time the next text, "No deadline is specified.",
+  spoke with a new helper (2.05 s of audio).
+- `helper --say` stopped by SIGINT 1.0 s after its start, writing to a file: exit status 1,
+  "speak: stopped", and no output file.
+
+Through the output device, the maintainer's check is part of check 15.
 
 ## Check 18 — Later platforms
 

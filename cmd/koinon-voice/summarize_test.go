@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rwcii/koinon-voice/internal/speech"
 	"github.com/rwcii/koinon-voice/internal/summarize"
 )
 
@@ -118,9 +119,9 @@ func stubSpeak(t *testing.T) *fakeSpeaker {
 	t.Helper()
 	f := &fakeSpeaker{}
 	old := newSpeaker
-	newSpeaker = func(_ *summarize.Launcher, voice string) summarize.Speaker {
-		f.voice = voice
-		return f
+	newSpeaker = func(s *speech.Speaker) (summarize.Speaker, error) {
+		f.voice = s.Speech.Voice
+		return f, nil
 	}
 	t.Cleanup(func() { newSpeaker = old })
 	return f
@@ -156,13 +157,17 @@ func TestSummarizeFixtures(t *testing.T) {
 	}
 }
 
-// The engines file's voice speaks summaries unless --voice names another.
+// With engine = "apple", the engines file's voice speaks summaries unless --voice names
+// another; with no [speech], Kokoro's af_heart does.
 func TestSummarizeVoice(t *testing.T) {
-	for flag, want := range map[string]string{"": "file-voice", "flag-voice": "flag-voice"} {
+	for flag, want := range map[string]string{"": "file-voice", "flag-voice": "flag-voice", "kokoro": "af_heart"} {
 		dir, engines := setup(t)
+		if flag != "kokoro" {
+			apple(t, engines)
+		}
 		said := stubSpeak(t)
 		args := []string{"summarize", "--engines", engines, "--fixtures", dir, "--out", filepath.Join(dir, "card.md"), "--speak"}
-		if flag != "" {
+		if flag != "" && flag != "kokoro" {
 			args = append(args, "--voice", flag)
 		}
 		var stdout, stderr bytes.Buffer
@@ -359,5 +364,31 @@ func TestSummarizeRescore(t *testing.T) {
 	}
 	if code := run([]string{"summarize", "--fixtures", dir, "--rescore", missing}, nil, &stdout, &stderr); code != 1 {
 		t.Errorf("--rescore of a missing file: exit %d", code)
+	}
+}
+
+// apple chooses Apple's voice in an engines file.
+func apple(t *testing.T, engines string) {
+	t.Helper()
+	body, err := os.ReadFile(engines)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = []byte(strings.Replace(string(body), "\n[[engine]]", "\n[speech]\nengine = \"apple\"\n\n[[engine]]", 1))
+	if err := os.WriteFile(engines, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Check 7: summarize --speak with Kokoro and no Kokoro helper fails with the build command
+// and exit status 1 before any engine runs.
+func TestSummarizeSpeakKokoroMissing(t *testing.T) {
+	dir, engines := setup(t)
+	defer func(h func() string) { kokoroHelper = h }(kokoroHelper)
+	kokoroHelper = func() string { return filepath.Join(dir, "absent") }
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"summarize", "--engines", engines, "--fixtures", dir, "--speak"}, nil, &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "scripts/build-kokoro-helper.sh") || stdout.Len() != 0 {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
 	}
 }

@@ -26,5 +26,6 @@ let package = Package(
             ]
         ),
         .testTarget(name: "SidecarProtocolTests", dependencies: ["SidecarProtocol"]),
+        .testTarget(name: "PlayTests", dependencies: ["koinon-voice-apple", "SidecarProtocol"], swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )
