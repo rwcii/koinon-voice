@@ -1,8 +1,10 @@
 # Sprint 2026-11-14 — Signed client of Koinon nodes — Decision
 
-This document settles the Koinon Voice side of rwcii/koinon#693 with the Koinon pair before
-either side builds (#36). Claude drives; Codex reviews. It is not yet a build plan: Gate A comes
-after the Koinon design is settled and the open points below are closed or deferred by name.
+This sprint delivers #36: Koinon Voice as a signed client of Koinon nodes, built in step with
+the Koinon pair's side of rwcii/koinon#693. This document first settles the Voice side of the
+contract with the Koinon pair; then both sides build against it, and exchange commits at each
+frozen checkpoint. Claude drives; Codex reviews. Gate A comes after the contract is settled and
+the open points below are closed or deferred by name.
 
 Each point is marked **[record]**, with its source, or **[proposal]**, which no record decides.
 
@@ -26,6 +28,12 @@ Each point is marked **[record]**, with its source, or **[proposal]**, which no 
   which was withdrawn, not decided, after Robert Capps answered in the terminal, 2026-11-14: "I
   would rather voice just contain the parts needed to communicate with full koinon nodes. I
   don't want it to run koinon itself." Recorded in ADR 004, Decision 2.
+- Robert Capps, 2026-11-14, terminal: "as you progress your implementation work, coordinate
+  with the koinon pair. keep in sync to deliver both parts. we can hold off on further modeling
+  work, while you work on implementation of the client work." Then: "this should be a new
+  sprint, we'll come back to the voice modeling work". So this is a new sprint, the client is
+  built in it in step with the Koinon pair, and the voice-model work (#10, and #12's ratings)
+  waits.
 - Koinon PDR 009 (maintainer mode) and PDR 011 (linked computers), as of 2026-11-14.
 - Koinon Voice ADR 001, PDRs 001 to 004, the connectors sprint
   (`docs/sprints/2026-10-27-connectors/`) and `internal/koinon/connector.go` at `cdb1e3a`;
@@ -63,7 +71,7 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
-| R9 | Each Koinon Voice install has a key pair per user; each computer accepts only registered public keys, each with a user name; each verdict records the user name. | **[record]** #693 | An action with an unknown key is refused with its code; a verdict's history shows the user name. |
+| R9 | Each Koinon Voice install has a key pair per user; each maintainer action, reads included, is signed before it leaves; each computer verifies the signature and accepts only registered public keys, each with a user name; each verdict records the user name. | **[record]** #693 | An unsigned action, an action with a bad signature and an action with an unknown key are each refused with their code, and nothing is recorded; a verdict's history shows the user name. |
 | R10 | The private key is in the macOS Keychain, as ADR 001, Decision 3 keeps secrets; other platforms stay open. | **[proposal]** | No private key in a file, log, argument or page. |
 | R11 | The signature covers the action and its arguments, the target computer, the client, a key ID, a request ID and a creation time. | **[proposal]**, derived from R9 | An envelope with any covered field changed is refused. |
 | R12 | The target computer is named by a stable identity, such as its pinned link key, not only by its name: the name is local to the receiver and can change (Koinon PDR 011, Decision 3). Koinon Voice keys its state (references, room IDs, cursors) by that identity and shows the name. | **[proposal]** | After a rename, an action and Voice's state still reach the same computer; two computers with the same reference stay apart (connectors sprint edge case). |
@@ -85,7 +93,7 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 | R18 | Each computer's connection state, with its reason and time. | **[record]** ADR 001, Decision 2; criterion 4; **[proposal]** per computer through one connection | A computer that goes offline shows as disconnected, with the others connected. |
 | R19 | A remote computer's restart or link loss does not end Voice's connection; that computer shows disconnected, then connected, and Voice catches up with a cursor for each computer and resource. The other computers' state stays. | **[proposal]** | A restart of one paired daemon leaves the others' items on screen, and the restarted one's items return with no gap. |
 | R20 | Paged reads with `more` and `next_after`. | **[record]** connectors sprint | As now. |
-| R21 | Latency: no record sets a number. The design stays notice-then-read with a liveness read when idle, with no polling for each computer. | **[record]** for the design; no number | — |
+| R21 | Latency: no record sets a number. The design stays notice-then-read, with a liveness read per connection when idle; through one connection, no polling for each remote computer. | **[record]** notice-then-read and the idle liveness read per connector (connectors sprint; `Options.Liveness` in connector.go); **[proposal]** no polling for each remote computer; no number | — |
 
 ### Where Voice connects
 
@@ -106,28 +114,30 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
   remote daemons over SSH is changed by kv-693-ssh; Phase 2 reaches paired computers through
   the links. PDR 001, Decision 2 (audio stays local) does not change.
 - **[proposal]** PDR 002: a verdict records the key's user name; the read-back names the
-  target computer; Voice says each outcome (R13). These change PDR 002 when the build sprint's
-  Gate A approves them.
+  target computer; Voice says each outcome (R13). These change PDR 002 when this sprint's Gate A
+  approves them.
 - **[record]** PDR 004, Decision 2 (external inference per host, off by default; board
   kv-pdr004-d2, 2026-10-26): the policy does not change. **[proposal]** The opt-in is kept by
   the computer's stable identity (R12), so a rename or a new pairing under a reused name never
   carries it to another computer.
 - **[record]** PDR 003 does not change.
-- **[proposal]** The build sprint, after Koinon's side ships: `internal/koinon` speaks to one
+- **[proposal]** In this sprint, in step with Koinon's build: `internal/koinon` speaks to one
   daemon for all computers; `hosts.toml` gives way to the computer list from that daemon;
   `koinon-voice board` and `koinon-voice dashboard` show computers by name and keep state by
   identity; `koinon-voice key create` and `koinon-voice key show` make the key pair and print
   the public key to register.
 
-## Acceptance criteria for the build sprint
+## Acceptance criteria
 
-**[proposal]** The build sprint's Gate A starts from these:
+**[proposal]** Gate A starts from these:
 
-1. Every [record] requirement of R1 to R23 is met, with its evidence, against the Koinon
+1. Every [record] requirement of R1 to R23 is met, with its evidence: first against the Koinon
+   pair's branch commits or scratch-daemon builds at each checkpoint, then against the Koinon
    release that ships #693.
-2. Each [proposal] requirement is met, or named as deferred in the build sprint's decision.
-3. The SSH connector is removed in the same sprint, after criterion 1 holds (ADR 004,
-   Decision 1).
+2. Each [proposal] requirement is met, or named as deferred in this sprint's plan.
+3. The SSH connector is removed only after Koinon ships signed maintainer actions over links and
+   Voice's client work merges (ADR 004, Decision 1). Voice's implementation does not wait for
+   that release; the removal does.
 4. R24 to R26 are settled with their sources before Gate A.
 
 ## Mapping to the Koinon draft
