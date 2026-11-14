@@ -89,11 +89,11 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
-| R17 | Change notices for each computer's maintainer inbox, board and rooms; a notice may carry only the resource, and Voice reads it again. | **[record]** connectors sprint, definition of done; **[proposal]** that each names its computer | A verdict on another computer sends a notice that names it. |
+| R17 | Voice learns of changes to each computer's maintainer inbox, board and rooms, and reads the changed topics again. | **[record]** notice-then-read (connectors sprint, definition of done); **[proposal]** the signed mechanism: one signed `changes` long wait per target that Voice shows (`wait_seconds` up to 30), with topic versions; Voice signs each next wait, and the node makes no reads of its own (Koinon contract D6.1, D6.2) | A verdict on another computer bumps that target's `decisions` version, and Voice reads it again. |
 | R18 | Each computer's connection state, with its reason and time. | **[record]** ADR 001, Decision 2; criterion 4; **[proposal]** per computer through one connection | A computer that goes offline shows as disconnected, with the others connected. |
-| R19 | A remote computer's restart or link loss does not end Voice's connection; that computer shows disconnected, then connected, and Voice catches up with a cursor for each computer and resource. The other computers' state stays. | **[proposal]** | A restart of one paired daemon leaves the others' items on screen, and the restarted one's items return with no gap. |
+| R19 | A remote computer's restart or link loss does not end Voice's connection; that target answers `computer_offline`, Voice watches the node's `computers` topic for its return, then reads each topic again from its stored version. The other computers' state stays. | **[proposal]** Koinon contract D6.3 to D6.5 | A restart of one paired daemon leaves the others' items on screen, and the restarted one's items return with no gap. |
 | R20 | Paged reads with `more` and `next_after`. | **[record]** connectors sprint | As now. |
-| R21 | Latency: no record sets a number. The design stays notice-then-read, with a liveness read per connection when idle; through one connection, no polling for each remote computer. | **[record]** notice-then-read and the idle liveness read per connector (connectors sprint; `Options.Liveness` in connector.go); **[proposal]** no polling for each remote computer; no number | — |
+| R21 | Latency: no record sets a number. Voice keeps one concurrent signed `changes` long wait for each target it shows, not a list read at an interval. | **[record]** notice-then-read and the idle liveness read per connector (connectors sprint; `Options.Liveness` in connector.go) for the current connectors; **[proposal]** the long waits for the signed client; no number | — |
 
 ### Where Voice connects
 
@@ -143,29 +143,47 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 ## Mapping to the Koinon draft
 
-Koinon draft: rwcii/koinon branch `docs/693-signed-maintainer`, commit `830345f`,
-`docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions). Gaps G1
-to G11 went to the Koinon pair on 2026-11-14 from both Voice agents; each closes when the
-revised draft answers it.
+Koinon contract: rwcii/koinon branch `docs/693-signed-maintainer`, frozen commit `15ec0ff`,
+`docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions); on the
+Koinon board as card LINK-693-SIGNED for the maintainer's approval. Gaps G1 to G17 went to the
+Koinon pair on 2026-11-14 from both Voice agents, and each is closed at that commit:
 
-| ID | Koinon draft section | Status |
+| Gap | Closed by | Head |
+| --- | --- | --- |
+| G1 snapshot bytes; the client computes the digest | D2.2 | `6fac345` |
+| G2 time check against the receipt; enroll's 10 minutes | D3.3, D3.5 | `6fac345` |
+| G3 signed `session` on `koinon mcp --maintainer --signed` | D5.1 | `6fac345` |
+| G4 the `computers` operation and topic | D2.4, D6.3 | `086b9f5` |
+| G5, G16 notices: client-signed `changes` waits, no node reads | D5.3, D6.1, D6.2 | `086b9f5` |
+| G6 the Serve route's protocol; the client on the tailnet | D5.2 | `6fac345` |
+| G7 the pin read on the target (`koinon link status`) | D1.4 | `6fac345` |
+| G8 Voice's records | Records | `6fac345` |
+| G9 receipts per authorization | D1.3, D4.1 | `6fac345` |
+| G10 receipts' 7 days; `unknown_request` | D4.3 | `6fac345` |
+| G11 `computer_offline` against `outcome_unknown` | D4.5 | `6fac345` |
+| G12 test vectors; v1 values; key ID without padding | D3.1, D3.2 | `a66c4f1` |
+| G13 `public_key` in the enrollment statement | D3.5 | `8dc1c25` |
+| G14 outcome's finality, serialized with writes | D3.3, D4.3, Acceptance 3 | `15ec0ff` |
+| G15 `commands` as an array in the snapshot only | D2.2 | `ea8b97a` |
+| G17 computer state for the Serve route | D6.3, D6.4 | `086b9f5` |
+
+| ID | Koinon contract section | Status |
 | --- | --- | --- |
 | R1, R5, R6, R20 | D2 (`board_list`, `decision_get`, `inbox`, `room_list`, `room_read`, paged) | covered |
-| R2, R3, R4 | D2 `decision_verdict` with every verdict the item's kind takes; `stale_revision`, `not_found` | covered, except G1: the snapshot digest's bytes, and that Voice computes it from what it shows |
+| R2, R3, R4 | D2, D2.1, D2.2 (`decision_verdict` with the snapshot digest; every verdict the kind takes; `stale_revision`, `not_found`, `snapshot_changed`) | covered |
 | R7 | D2 (`decision_history`, `ack`, `send`, `room_post`, `peers`, `peer_status`) | covered |
-| R8 | D2, the `peers` paragraph | covered |
-| R9, R10 | D1 (Ed25519 per user and install; private key with the client); D3.2 refusals | covered |
-| R11 | D3 (envelope `koinon-maintainer-1`, RFC 8785, Ed25519) | covered, except G2: the order of the time check and the receipt, and enroll's 5 or 10 minutes |
-| R12 | D3 `target` is the pin; D5.4 lists pins and names | covered, except G4 (the list operation and its notice) and G7 (where the pin comes from) |
-| R13 | D4.5 | gap G11: "not dispatched" and "answer lost" are one answer |
-| R14, R15 | D4 (receipts, `request_conflict`, `outcome`) | gaps G9 (receipt scope and key re-enrollment) and G10 (expired or unknown request ID) |
+| R8 | D2.3 | covered |
+| R9, R10 | D1; D3.3 refusals | covered |
+| R11 | D3 (envelope `koinon-maintainer-1`, RFC 8785, Ed25519; vectors) | covered; Voice's encoder passes the vectors (`internal/signed`) |
+| R12 | D3 `target` is the pin; D1.4; D2.4 | covered |
+| R13, R14, R15 | D4 (receipts per authorization, `request_conflict`, `outcome` with `now`, `computer_offline` against `outcome_unknown`) | covered |
 | R16 | D4.5, settled point 1; rwcii/koinon#695 | settled |
-| R17, R18, R19, R21 | D6, D5.4 | covered, except G5: the per-pin notice on the MCP wire |
+| R17, R18, R19, R21 | D6 (client-signed `changes` waits; `computers` topic) | covered |
 | R22, R23 | D5 | covered |
-| R24 | D5.2, settled point 2 | settled, except G6: the route's protocol and the tailnet |
-| R25 | D5.1, D5.3 | gap G3: the signed `session` on `koinon mcp --maintainer` |
-| R26 | D1.4, D1.5 | covered, except G7 |
-| Records | Koinon draft, Records | gap G8: Voice's records are ADR 004, ADR 001 (modified), PDRs 001 and 002, and PDR 004, Decision 2 (opt-in kept by pin) |
+| R24 | D5.2, settled point 2 | covered |
+| R25 | D5.1 | covered |
+| R26 | D1.4, D1.5, D3.5 | covered |
+| Records | Records | covered |
 
 ## Agreement
 
