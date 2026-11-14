@@ -4,6 +4,12 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `koinon-voice key create --user NAME`, `key show` and `key enroll --target PIN` make this
+  install's Ed25519 maintainer key, keep it in the Keychain item `koinon-voice-maintainer-key`
+  (written through `security` on standard input, never replaced), print its key ID, public key
+  and user, and sign an enrollment statement for one Koinon computer in Koinon's
+  `koinon-maintainer-1` envelope (RFC 8785 bytes, Ed25519), checked against Koinon's test
+  vectors (#36, rwcii/koinon#693).
 - Kokoro is the default voice of `summarize --speak` and `helper --say`. Each text starts a
   new `koinon-voice-kokoro`; its sentences are synthesized in turn and played by the Apple
   helper's new `play` method through its voice-processing engine while the next sentence is

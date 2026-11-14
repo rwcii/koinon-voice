@@ -111,6 +111,27 @@ the items that wait for the maintainer in full, the maintainer's inbox and the r
 new line on each change. The secret is written as the first
 line of the process's standard input and appears in no argument, log or output.
 
+### Maintainer key
+
+Koinon is moving maintainer actions to signatures: one key pair per user and install signs
+each action, and each Koinon computer accepts only keys enrolled on it
+([ADR 004](docs/architecture/adr/004-signed-client-of-koinon-nodes.md), rwcii/koinon#693).
+The connections above do not use the key yet.
+
+```sh
+koinon-voice key create --user NAME   # one Ed25519 key for this install, in the Keychain
+koinon-voice key show                 # its key ID, public key and user
+koinon-voice key enroll --target PIN  # a signed enrollment statement for one computer
+```
+
+`key create` refuses when this install has a key, and never replaces one. The private key is
+kept in the Keychain item `koinon-voice-maintainer-key`, written through `security` on
+standard input, and is printed nowhere. For `key enroll`, read the target's pin on the target
+itself: `koinon link status` prints it as `Fingerprint`. `--client` sets the client label
+(default `koinon-voice`) and `--out FILE` writes the statement to a new file. On the target,
+within 10 minutes, run `koinon maintainer key add --statement FILE` (a Koinon release with
+#693).
+
 ## Dashboard
 
 `koinon-voice dashboard` connects to every host and serves the dashboard on

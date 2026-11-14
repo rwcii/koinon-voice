@@ -18,6 +18,9 @@ var version = "dev"
 const usage = `Usage: koinon-voice version
        koinon-voice board [--hosts FILE] [--watch] [--timeout DURATION]
        koinon-voice dashboard [--hosts FILE] [--listen 127.0.0.1:PORT] [--no-open]
+       koinon-voice key create --user NAME
+       koinon-voice key show
+       koinon-voice key enroll --target PIN [--client LABEL] [--out FILE]
        koinon-voice summarize (--fixtures DIR | --item FILE) [--engines FILE] [--engine NAME,...] [--out FILE] [--timeout DURATION] [--speak] [--helper PATH] [--voice VOICE] [--blind] [--rate N] [--rescore FILE]
        koinon-voice helper [--engines FILE] [--helper PATH] [--transcribe FILE] [--say TEXT] [--out FILE] [--engine kokoro|apple] [--voice VOICE] [--speed N] [--timeout DURATION]
        koinon-voice kokoro install|status [--dir DIR]
@@ -59,6 +62,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runBoard(args[1:], stdout, stderr)
 	case "dashboard":
 		return runDashboard(args[1:], stdout, stderr)
+	case "key":
+		return runKey(args[1:], stdout, stderr)
 	}
 	return commandError(stderr, "unknown command; use koinon-voice --help")
 }
