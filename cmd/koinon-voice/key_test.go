@@ -152,12 +152,20 @@ func TestKeyErrors(t *testing.T) {
 		"short seed":  `{"v":1,"user":"robert","seed":"U0VOVElORUw="}`,
 		"bad user":    `{"v":1,"user":"","seed":"` + strings.Repeat("A", 43) + `="}`,
 		"extra field": `{"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `=","x":1}`,
+		"trailing":    `{"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="} SENTINEL`,
+		"second":      `{"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="}{"v":1}`,
+		"duplicate":   `{"v":2,"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="}`,
+		"dup user":    `{"v":1,"user":"robert","user":"other","seed":"` + strings.Repeat("A", 43) + `="}`,
 	} {
 		m.items[signed.KeychainService+"/"+signed.KeychainAccount] = payload
 		code, stdout, stderr := runOut("key", "show")
 		if code != 1 || strings.Contains(stdout+stderr, "SENTINEL") || strings.Contains(stdout+stderr, "U0VOVElORUw") {
 			t.Errorf("%s: %d %s %s", name, code, stdout, stderr)
 		}
+	}
+	m.items[signed.KeychainService+"/"+signed.KeychainAccount] = `{"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + "=\"}\n"
+	if code, _, stderr := runOut("key", "show"); code != 0 {
+		t.Errorf("a valid payload with a final newline: %s", stderr)
 	}
 	m.fail = fmt.Errorf("Keychain item %s could not be read (security exit 36)", signed.KeychainService)
 	if code, _, stderr := runOut("key", "show"); code != 1 || !strings.Contains(stderr, "exit 36") || strings.Contains(stderr, "key create") {

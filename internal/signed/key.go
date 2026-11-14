@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/rwcii/koinon-voice/internal/keychain"
 )
@@ -79,10 +80,8 @@ func Load(ctx context.Context, s Store) (Key, error) {
 		}
 		return Key{}, err
 	}
-	var p payload
-	dec := json.NewDecoder(bytes.NewReader([]byte(text)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&p); err != nil {
+	p, err := decodePayload(text)
+	if err != nil {
 		return Key{}, fmt.Errorf("the Keychain item %s is not a koinon-voice key", KeychainService)
 	}
 	if p.V != 1 {
@@ -96,6 +95,41 @@ func Load(ctx context.Context, s Store) (Key, error) {
 		return Key{}, fmt.Errorf("the Keychain item %s does not hold a 32-byte key", KeychainService)
 	}
 	return Key{User: p.User, Private: ed25519.NewKeyFromSeed(seed)}, nil
+}
+
+// decodePayload reads exactly one JSON object with the payload's fields, each once, and
+// nothing after it but white space.
+func decodePayload(text string) (payload, error) {
+	dec := json.NewDecoder(bytes.NewReader([]byte(text)))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return payload{}, errors.New("not an object")
+	}
+	seen := map[string]bool{}
+	for dec.More() {
+		t, err := dec.Token()
+		name, ok := t.(string)
+		if err != nil || !ok || seen[name] {
+			return payload{}, errors.New("a field name is missing or repeated")
+		}
+		seen[name] = true
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return payload{}, err
+		}
+	}
+	if t, err := dec.Token(); err != nil || t != json.Delim('}') {
+		return payload{}, errors.New("the object does not end")
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return payload{}, errors.New("text after the object")
+	}
+	var p payload
+	strict := json.NewDecoder(bytes.NewReader([]byte(text)))
+	strict.DisallowUnknownFields()
+	if err := strict.Decode(&p); err != nil {
+		return payload{}, err
+	}
+	return p, nil
 }
 
 func isNotFound(err error) bool { return errors.Is(err, keychain.ErrNotFound) }
