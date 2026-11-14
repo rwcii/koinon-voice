@@ -131,14 +131,15 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 **[proposal]** Gate A starts from these:
 
-1. Every [record] requirement of R1 to R23 is met, with its evidence: first against the Koinon
+1. Every [record] requirement of R1 to R26, and the recorded part of each mixed row, is met,
+   with its evidence: first against the Koinon
    pair's branch commits or scratch-daemon builds at each checkpoint, then against the Koinon
    release that ships #693.
 2. Each [proposal] requirement is met, or named as deferred in this sprint's plan.
 3. The SSH connector is removed only after Koinon ships signed maintainer actions over links and
    Voice's client work merges (ADR 004, Decision 1). Voice's implementation does not wait for
    that release; the removal does.
-4. R24 to R26 are settled with their sources before Gate A.
+4. The open parts of R24 to R26 (G3, G6, G7) are settled with their sources before Gate A.
 
 ## Mapping to the Koinon draft
 
