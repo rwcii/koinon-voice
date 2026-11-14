@@ -48,9 +48,10 @@ func (m *memoryStore) Add(_ context.Context, service, account string, data []byt
 func useStore(t *testing.T) *memoryStore {
 	t.Helper()
 	m := &memoryStore{items: map[string]string{}}
-	oldStore, oldNow := keyStore, keyNow
-	keyStore, keyNow = m, func() time.Time { return time.Unix(1794699000, 0) }
-	t.Cleanup(func() { keyStore, keyNow = oldStore, oldNow })
+	oldStore, oldClock := keyStore, keyClock
+	keyStore = m
+	keyClock = signed.Clock{Path: filepath.Join(t.TempDir(), "clock.json"), Now: func() time.Time { return time.Unix(1794699000, 0) }}
+	t.Cleanup(func() { keyStore, keyClock = oldStore, oldClock })
 	return m
 }
 
@@ -116,8 +117,14 @@ func TestKeyCreateShowEnroll(t *testing.T) {
 	if code, msg, stderr := runOut("key", "enroll", "--target", testPin, "--out", out); code != 0 || !strings.Contains(msg, "koinon maintainer key add --statement") {
 		t.Fatalf("enroll --out: %d %s %s", code, msg, stderr)
 	}
-	if b, _ := os.ReadFile(out); string(b) != statement {
-		t.Errorf("file %s", b)
+	b, _ := os.ReadFile(out)
+	var second signed.Envelope
+	if err := json.Unmarshal(b, &second); err != nil || signed.Verify(ed25519.PublicKey(pub), second) != nil {
+		t.Fatalf("file %s: %v", b, err)
+	}
+	// A second enrollment in the same second is signed strictly later (Koinon contract D1.7).
+	if second.Created != e.Created+1 {
+		t.Errorf("second enrollment created %d, first %d", second.Created, e.Created)
 	}
 	if info, _ := os.Stat(out); info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", info.Mode())

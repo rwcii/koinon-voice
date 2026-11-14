@@ -20,6 +20,7 @@ const usage = `Usage: koinon-voice version
        koinon-voice dashboard [--hosts FILE] [--listen 127.0.0.1:PORT] [--no-open]
        koinon-voice key create --user NAME
        koinon-voice key show
+       koinon-voice key clock --restore
        koinon-voice key enroll --target PIN [--client LABEL] [--out FILE]
        koinon-voice summarize (--fixtures DIR | --item FILE) [--engines FILE] [--engine NAME,...] [--out FILE] [--timeout DURATION] [--speak] [--helper PATH] [--voice VOICE] [--blind] [--rate N] [--rescore FILE]
        koinon-voice helper [--engines FILE] [--helper PATH] [--transcribe FILE] [--say TEXT] [--out FILE] [--engine kokoro|apple] [--voice VOICE] [--speed N] [--timeout DURATION]
