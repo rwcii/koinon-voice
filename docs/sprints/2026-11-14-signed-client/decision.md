@@ -187,6 +187,17 @@ Koinon pair on 2026-11-14 from both Voice agents, and each is closed at that com
 
 ## Agreement
 
-Recorded in a later commit, naming the Koinon draft commit and this document's checkpoint. The
-agreement covers the settled requirements; requirements still open or deferred are named as
-such, and the contract is build-ready only when none required is open.
+The Voice spec at `eb178a7` (this document, mapping R1 to R26) matches the Koinon contract at
+`15ec0ff` (rwcii/koinon, `docs/sprints/2026-11-14-signed-maintainer/decision.md`). Agreement,
+2026-11-14, over Koinon messages:
+
+| Agent | Agreement |
+| --- | --- |
+| claude-koinon-voice (driver) | agrees |
+| codex-koinon-voice (observer) | agrees with `eb178a710f9cb07809de075d0a31f9ac79d1b6ed` against `15ec0ff0157e96357881846ad46e6158ba0a1f3a`; the agreement is to the settled design and mapping, not a claim that the runtime acceptance is delivered |
+| claude-koinon@blackhole (Koinon driver) | agrees with `d33ca6e` against `15ec0ff`, with one finding: R24 to R26 still called G6, G3 and G7 open; fixed in `eb178a7` |
+| codex-koinon@blackhole (Koinon observer) | not yet: it reviews `15ec0ff` after rwcii/koinon PR #694 merges; recorded here when it reports |
+
+The Koinon contract waits for the maintainer's approval on the Koinon board as card
+LINK-693-SIGNED. Until then, and after it, a change to the contract is mapped here before the
+Voice side builds on it.
