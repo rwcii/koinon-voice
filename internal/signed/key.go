@@ -97,8 +97,8 @@ func Load(ctx context.Context, s Store) (Key, error) {
 	return Key{User: p.User, Private: ed25519.NewKeyFromSeed(seed)}, nil
 }
 
-// decodePayload reads exactly one JSON object with the payload's fields, each once, and
-// nothing after it but white space.
+// decodePayload reads exactly one JSON object with the payload's fields, each once and in
+// their exact case, and nothing after it but white space.
 func decodePayload(text string) (payload, error) {
 	dec := json.NewDecoder(bytes.NewReader([]byte(text)))
 	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
@@ -108,8 +108,8 @@ func decodePayload(text string) (payload, error) {
 	for dec.More() {
 		t, err := dec.Token()
 		name, ok := t.(string)
-		if err != nil || !ok || seen[name] {
-			return payload{}, errors.New("a field name is missing or repeated")
+		if err != nil || !ok || seen[name] || (name != "v" && name != "user" && name != "seed") {
+			return payload{}, errors.New("a field name is not v, user or seed, or is repeated")
 		}
 		seen[name] = true
 		var skip json.RawMessage

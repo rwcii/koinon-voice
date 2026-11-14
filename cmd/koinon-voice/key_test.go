@@ -156,6 +156,8 @@ func TestKeyErrors(t *testing.T) {
 		"second":      `{"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="}{"v":1}`,
 		"duplicate":   `{"v":2,"v":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="}`,
 		"dup user":    `{"v":1,"user":"robert","user":"other","seed":"` + strings.Repeat("A", 43) + `="}`,
+		"case":        `{"v":2,"V":1,"user":"robert","seed":"` + strings.Repeat("A", 43) + `="}`,
+		"USER":        `{"v":1,"USER":"robert","seed":"` + strings.Repeat("A", 43) + `="}`,
 	} {
 		m.items[signed.KeychainService+"/"+signed.KeychainAccount] = payload
 		code, stdout, stderr := runOut("key", "show")
