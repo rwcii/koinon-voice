@@ -101,9 +101,9 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 | --- | --- | --- | --- |
 | R22 | Voice contains only the parts that talk to full Koinon nodes and never runs Koinon itself. | **[record]** ADR 004, Decision 2 | Voice's install has no `koinon` binary and starts no daemon. |
 | R23 | Where a Koinon daemon runs on Voice's computer, Voice has one connection to it and reaches the paired computers through it. | **[record]** ADR 004, Decision 1 | One connection shows every paired computer. |
-| R24 | Where no Koinon daemon runs on Voice's computer, Voice reaches another computer's Remote (Tailscale Serve) address on a route that takes only signed actions, and authenticates there with its registered key. | **[record]** Robert Capps, 2026-11-14, in claude-koinon@blackhole's terminal, relayed over the link: "Remote address, signed-only"; the wire protocol is open (G6) | With no daemon on Voice's computer, the same actions work through another computer's Remote address; the route answers nothing but signed envelopes. |
-| R25 | Voice's connection to its own computer's daemon authenticates with a signed `session` in place of the maintainer secret, and every action, the local computer's included, is a signed envelope. | **[proposal]** Koinon draft, Decision 5.1 and 5.3; the session's exact form is open (G3) | The local connection opens with the key and no maintainer secret. |
-| R26 | A public key is registered on each computer by that computer's own maintainer login or secret, with a signed enrollment statement; a group join carries no keys. | **[record]** #693 for registration through each computer's login or secret; **[proposal]** Koinon draft, Decisions 1.4 and 1.5, for the statement and the group join; the source of the target's pin is open (G7) | `koinon-voice` prints a statement that `koinon maintainer key add` accepts on each computer. |
+| R24 | Where no Koinon daemon runs on Voice's computer, Voice reaches another computer's Remote (Tailscale Serve) address on a route that takes only signed actions, and authenticates there with its registered key. | **[record]** Robert Capps, 2026-11-14, in claude-koinon@blackhole's terminal, relayed over the link: "Remote address, signed-only"; the protocol is Koinon contract D5.2 at `15ec0ff` (session token, then one envelope per request; the client on the tailnet) | With no daemon on Voice's computer, the same actions work through another computer's Remote address; the route answers nothing but signed envelopes. |
+| R25 | Voice's connection to its own computer's daemon authenticates with a signed `session` in place of the maintainer secret, and every action, the local computer's included, is a signed envelope. | **[proposal]** Koinon contract D5.1 at `15ec0ff`: `koinon mcp --maintainer --signed`, the signed `session` as the first line of standard input, then the `signed` tool | The local connection opens with the key and no maintainer secret. |
+| R26 | A public key is registered on each computer by that computer's own maintainer login or secret, with a signed enrollment statement; a group join carries no keys. | **[record]** #693 for registration through each computer's login or secret; **[proposal]** Koinon contract D1.4, D1.5 and D3.5 at `15ec0ff` for the statement (with `public_key`), the group join and the pin, which is read on the target from `koinon link status` | `koinon-voice` prints a statement that `koinon maintainer key add` accepts on each computer. |
 
 ## Changes on the Koinon Voice side
 
@@ -139,7 +139,7 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 3. The SSH connector is removed only after Koinon ships signed maintainer actions over links and
    Voice's client work merges (ADR 004, Decision 1). Voice's implementation does not wait for
    that release; the removal does.
-4. The open parts of R24 to R26 (G3, G6, G7) are settled with their sources before Gate A.
+4. R24 to R26 follow Koinon contract D5.2, D5.1 and D1.4 at `15ec0ff`; a change to them there is mapped here before Gate A.
 
 ## Mapping to the Koinon draft
 
