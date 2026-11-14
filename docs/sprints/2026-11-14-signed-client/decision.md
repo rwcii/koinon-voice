@@ -80,10 +80,10 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
-| R13 | Each action's outcome reaches Voice: recorded there, refused there (with its code), queued here, or unknown. | **[proposal]** | Each outcome is shown in a test that makes it. |
-| R14 | A stable request ID: a retry with the same ID returns the first result and never records a second action. | **[proposal]** | A verdict whose answer is dropped, then retried, is recorded once. |
-| R15 | A read of an action's outcome by request ID, for reconciliation after a restart or a lost connection. | **[proposal]** | After a restart, Voice reads the outcome of an action it sent before. |
-| R16 | Verdicts and inbox acks are refused at once when the target computer cannot be reached; `send` and `room_post` queue like agent messages, with their delivery state. No record decides this; PDR 002, Decision 2's read-back confirms intent before the action, and Voice then says the outcome. | **[proposal]** | A verdict to an offline computer answers "computer offline"; a `send` shows `queued`. |
+| R13 | Each action's outcome reaches Voice: recorded there, refused there (with its code), not dispatched (`computer_offline`), or unknown (dispatched, answer lost). | **[proposal]** | Each outcome is shown in a test that makes it; a reply dropped after the target recorded the write is reported unknown, not `computer_offline`. |
+| R14 | A stable request ID: a retry with the same ID returns the first result and never records a second action, while the target keeps the receipt (7 days in the Koinon draft). | **[proposal]** | A verdict whose answer is dropped after it is recorded, then retried, is recorded once. |
+| R15 | A read of an action's outcome by request ID, for reconciliation after a restart or a lost connection; a defined answer for an unknown or expired request ID, so Voice never sends a new write for an action it may have recorded. | **[proposal]** | After a restart, Voice reads the outcome of an action it sent before. |
+| R16 | Signed actions, `send` and `room_post` included, are not queued: when the target cannot be reached they answer `computer_offline` at once, and Voice says so. The queue of `send` and `room_post` that Voice proposed is deferred to rwcii/koinon#695. | **[record]** Robert Capps, 2026-11-14, in claude-koinon@blackhole's terminal, relayed over the link: "No queue for now", and "file an issue to track any item we push off, so it's not lost." | An action to an offline computer answers `computer_offline` and is not recorded later. |
 
 ### Updates and connection state
 
@@ -101,9 +101,9 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 | --- | --- | --- | --- |
 | R22 | Voice contains only the parts that talk to full Koinon nodes and never runs Koinon itself. | **[record]** ADR 004, Decision 2 | Voice's install has no `koinon` binary and starts no daemon. |
 | R23 | Where a Koinon daemon runs on Voice's computer, Voice has one connection to it and reaches the paired computers through it. | **[record]** ADR 004, Decision 1 | One connection shows every paired computer. |
-| R24 | Where no Koinon daemon runs on Voice's computer, how Voice reaches a full node, and how it authenticates there with its registered key. | **Open**: R22 rules out starting or bundling a node; the endpoint is not decided | — |
-| R25 | How Voice's connection to its own computer's daemon authenticates: the key, the local maintainer secret (ADR 001, Decision 3), or both, and which one signs an action for the local computer. | **Open**, asked of Koinon | — |
-| R26 | How a public key is registered on each computer (#693: through that computer's maintainer login or secret), and whether a group join (Koinon PDR 011, Decision 5) carries registered keys to introduced computers. | **Open**, asked of Koinon | — |
+| R24 | Where no Koinon daemon runs on Voice's computer, Voice reaches another computer's Remote (Tailscale Serve) address on a route that takes only signed actions, and authenticates there with its registered key. | **[record]** Robert Capps, 2026-11-14, in claude-koinon@blackhole's terminal, relayed over the link: "Remote address, signed-only"; the wire protocol is open (G6) | With no daemon on Voice's computer, the same actions work through another computer's Remote address; the route answers nothing but signed envelopes. |
+| R25 | Voice's connection to its own computer's daemon authenticates with a signed `session` in place of the maintainer secret, and every action, the local computer's included, is a signed envelope. | **[proposal]** Koinon draft, Decision 5.1 and 5.3; the session's exact form is open (G3) | The local connection opens with the key and no maintainer secret. |
+| R26 | A public key is registered on each computer by that computer's own maintainer login or secret, with a signed enrollment statement; a group join carries no keys. | **[record]** #693 for registration through each computer's login or secret; **[proposal]** Koinon draft, Decisions 1.4 and 1.5, for the statement and the group join; the source of the target's pin is open (G7) | `koinon-voice` prints a statement that `koinon maintainer key add` accepts on each computer. |
 
 ## Changes on the Koinon Voice side
 
@@ -142,13 +142,29 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 ## Mapping to the Koinon draft
 
-Filled when the Koinon pair sends its draft (a named commit on rwcii/koinon). Each requirement
-maps to a section of the draft or is listed as a gap; each difference is settled by the pairs,
-or put to the maintainer on the board when it is material or needs the maintainer's direction.
+Koinon draft: rwcii/koinon branch `docs/693-signed-maintainer`, commit `830345f`,
+`docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions). Gaps G1
+to G11 went to the Koinon pair on 2026-11-14 from both Voice agents; each closes when the
+revised draft answers it.
 
 | ID | Koinon draft section | Status |
 | --- | --- | --- |
-| R1–R26 | — | waiting for the draft |
+| R1, R5, R6, R20 | D2 (`board_list`, `decision_get`, `inbox`, `room_list`, `room_read`, paged) | covered |
+| R2, R3, R4 | D2 `decision_verdict` with every verdict the item's kind takes; `stale_revision`, `not_found` | covered, except G1: the snapshot digest's bytes, and that Voice computes it from what it shows |
+| R7 | D2 (`decision_history`, `ack`, `send`, `room_post`, `peers`, `peer_status`) | covered |
+| R8 | D2, the `peers` paragraph | covered |
+| R9, R10 | D1 (Ed25519 per user and install; private key with the client); D3.2 refusals | covered |
+| R11 | D3 (envelope `koinon-maintainer-1`, RFC 8785, Ed25519) | covered, except G2: the order of the time check and the receipt, and enroll's 5 or 10 minutes |
+| R12 | D3 `target` is the pin; D5.4 lists pins and names | covered, except G4 (the list operation and its notice) and G7 (where the pin comes from) |
+| R13 | D4.5 | gap G11: "not dispatched" and "answer lost" are one answer |
+| R14, R15 | D4 (receipts, `request_conflict`, `outcome`) | gaps G9 (receipt scope and key re-enrollment) and G10 (expired or unknown request ID) |
+| R16 | D4.5, settled point 1; rwcii/koinon#695 | settled |
+| R17, R18, R19, R21 | D6, D5.4 | covered, except G5: the per-pin notice on the MCP wire |
+| R22, R23 | D5 | covered |
+| R24 | D5.2, settled point 2 | settled, except G6: the route's protocol and the tailnet |
+| R25 | D5.1, D5.3 | gap G3: the signed `session` on `koinon mcp --maintainer` |
+| R26 | D1.4, D1.5 | covered, except G7 |
+| Records | Koinon draft, Records | gap G8: Voice's records are ADR 004, ADR 001 (modified), PDRs 001 and 002, and PDR 004, Decision 2 (opt-in kept by pin) |
 
 ## Agreement
 
