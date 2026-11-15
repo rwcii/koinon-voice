@@ -350,3 +350,14 @@ func TestBoardServeRow(t *testing.T) {
 		t.Errorf("exit %d, hosts %v, sessions %d", code, got, route.Sessions)
 	}
 }
+
+func TestBoardFailedFirstReadIsNotOK(t *testing.T) {
+	_, node := signedHosts(t, true)
+	node.RemoveTarget(cmdOtherPin)
+	node.Change(cmdNodePin, func(tg *koinontest.Target) { tg.Fail["board_list"] = 1 << 20 })
+	hosts := signedOnly(t, fmt.Sprintf("[[host]]\nlabel = \"studio\"\nnode_pin = %q\n", cmdNodePin))
+	out, code := boardJSON(t, "--hosts", hosts, "--timeout", "20s")
+	if code == 0 || out.OK || len(out.Hosts) != 1 || out.Hosts[0].Code != "internal" {
+		t.Errorf("exit %d ok %v hosts %+v", code, out.OK, out.Hosts)
+	}
+}

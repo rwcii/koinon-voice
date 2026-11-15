@@ -134,7 +134,8 @@ type boardRoom struct {
 }
 
 // printBoard prints every host's state as one line of JSON, as koinon prints a result; ok
-// is false when a host is not connected or the pending verdicts file cannot be read. JSON
+// is false when a host is not connected, a signed computer was not read in full or its read
+// failed, or the pending verdicts file cannot be read. JSON
 // escapes control characters, so text from agents cannot move the cursor or change the
 // terminal. unresolved lists the pending verdicts through nodes that no row names.
 func printBoard(w io.Writer, src sources) bool {
@@ -155,7 +156,8 @@ func printBoard(w io.Writer, src sources) bool {
 		for _, r := range s.Rooms {
 			h.Rooms = append(h.Rooms, boardRoom{r.Room, nonNil(r.Posts)})
 		}
-		if s.Status != koinon.Connected {
+		// A signed computer is fine only when it was read in full and its last read did not fail.
+		if s.Status != koinon.Connected || (s.Pin != "" && (!s.Loaded || s.Code != "")) {
 			out.OK = false
 		}
 		out.Hosts = append(out.Hosts, h)
