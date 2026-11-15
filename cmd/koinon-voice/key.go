@@ -78,13 +78,16 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		b, _ := json.Marshal(e)
 		b = append(b, '\n')
 		// Every envelope to this computer carries the authorization that this statement
-		// makes. It is recorded only once the statement is out, so a statement that was not
-		// written never replaces the computer's earlier authorization.
+		// makes. It is recorded only once the whole statement is out, on standard output or in
+		// the file, so a statement that was not delivered never replaces the computer's
+		// earlier authorization.
 		if *out == "" {
-			if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
-				return commandError(stderr, "the statement was not recorded: "+err.Error())
+			if n, err := stdout.Write(b); err != nil || n != len(b) {
+				return commandError(stderr, "the statement was not printed in full; the earlier enrollment is kept; do not add any part of it")
 			}
-			stdout.Write(b)
+			if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
+				return commandError(stderr, "the statement was printed but not recorded, so the earlier enrollment is kept; do not add it, and run koinon-voice key enroll again: "+err.Error())
+			}
 			return 0
 		}
 		f, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)

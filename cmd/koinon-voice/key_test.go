@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,4 +202,28 @@ func seedOf(t *testing.T, m *memoryStore) string {
 		t.Fatalf("stored item: %v", err)
 	}
 	return p.Seed
+}
+
+// failingWriter accepts no bytes, as a closed pipe does.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestKeyEnrollToClosedStdoutKeepsEnrollment(t *testing.T) {
+	useStore(t)
+	if code, _, _ := runOut("key", "create", "--user", "robert"); code != 0 {
+		t.Fatal("create")
+	}
+	if code, _, _ := runOut("key", "enroll", "--target", testPin); code != 0 {
+		t.Fatal("first enroll")
+	}
+	before, _ := keyEnrollments.Load()
+	keyNow = func() time.Time { return time.Unix(1794699100, 0) }
+	var stderr bytes.Buffer
+	if code := run([]string{"key", "enroll", "--target", testPin}, strings.NewReader(""), failingWriter{}, &stderr); code != 1 || !strings.Contains(stderr.String(), "not printed") {
+		t.Errorf("closed stdout: %d %s", code, stderr.String())
+	}
+	if after, _ := keyEnrollments.Load(); after[testPin] != before[testPin] {
+		t.Errorf("an undelivered statement replaced the enrollment: %+v -> %+v", before[testPin], after[testPin])
+	}
 }
