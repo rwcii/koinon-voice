@@ -425,6 +425,9 @@ func resultCode(res koinon.VerdictResult) string {
 	switch {
 	case res.State == koinon.Recorded:
 		return "recorded"
+	case res.State == koinon.NotRun && res.Code == "too_many_calls":
+		// The node is connected and at its calls in flight; nothing ran.
+		return "too_many_calls"
 	case res.State == koinon.NotRun:
 		return "not_run"
 	case res.Pending:

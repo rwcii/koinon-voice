@@ -138,6 +138,7 @@ func TestSignedVerdictRoutesByRowAndPin(t *testing.T) {
 func TestSignedVerdictNotices(t *testing.T) {
 	for want, res := range map[string]koinon.VerdictResult{
 		"not_run":          {State: koinon.NotRun, Code: "computer_offline"},
+		"too_many_calls":   {State: koinon.NotRun, Code: "too_many_calls", Details: []byte(`{"limit":128}`)},
 		"unknown":          {State: koinon.Unknown},
 		"pending":          {State: koinon.Unknown, Pending: true},
 		"final_unknown":    {State: koinon.Unknown, Final: true},
@@ -160,6 +161,9 @@ func TestSignedVerdictNotices(t *testing.T) {
 		}
 		if want == "stale_revision" && !strings.Contains(page, "987654321") {
 			t.Error("the refusal's details are not shown")
+		}
+		if want == "too_many_calls" && (strings.Contains(page, "not reachable") || !strings.Contains(page, "is connected") || !strings.Contains(page, "128")) {
+			t.Errorf("too_many_calls is not shown as a connected node at its limit: %s", page)
 		}
 	}
 }
@@ -194,6 +198,7 @@ func TestSignedRepeatShowsItsResult(t *testing.T) {
 		"can no longer be asked":           {State: koinon.Unknown, Final: true, Repeat: true},
 		"changed after the page showed it": {State: koinon.Refused, Code: "stale_revision", Repeat: true},
 		"answer did not arrive":            {State: koinon.Unknown, Repeat: true},
+		"as many calls as it takes":        {State: koinon.NotRun, Code: "too_many_calls", Details: []byte(`{"limit":128}`), Repeat: true},
 	} {
 		a, _ := signedRows()
 		a.result = res

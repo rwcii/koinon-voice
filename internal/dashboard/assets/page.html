@@ -19,6 +19,7 @@
 {{- else if eq .Code "decided"}}{{.Reference}} on {{.Host}} already has a verdict.
 {{- else if eq .Code "disconnected"}}{{.Host}} is not connected. No verdict was given.
 {{- else if eq .Code "not_run"}}{{.Host}} is not reachable now. Nothing was sent; give the verdict again when it is connected.
+{{- else if eq .Code "too_many_calls"}}{{.Host}} is connected and was answering as many calls as it takes at once (<code>too_many_calls</code>). Nothing was sent; give the verdict again once its other calls finish.
 {{- else if eq .Code "unknown"}}The verdict on {{.Reference}} ({{.Host}}) was sent and its answer did not arrive. Koinon Voice is asking {{.Host}} for its outcome; it shows below until then.
 {{- else if eq .Code "pending"}}A verdict on {{.Reference}} ({{.Host}}) is still waiting for its outcome. Nothing new was sent.
 {{- else if eq .Code "final_unknown"}}The outcome of the verdict on {{.Reference}} ({{.Host}}) can no longer be asked. Read the item's record on {{.Host}}.
