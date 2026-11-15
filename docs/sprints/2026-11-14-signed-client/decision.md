@@ -229,8 +229,8 @@ scratch daemon on mac-studio, 2026-11-15, against this branch at `ae98f02`:
 | A verdict while a `changes` wait is open | answered after 30 seconds: G21 |
 
 On the chunk-2 commit that runs signed calls at once (rwcii/koinon `59e6478`, branch
-`feat/693-signed-chunk2`, G21), with this branch at `71043af`, every check above gave the same
-result, and a call made while a `changes` wait was open answered in under a millisecond; a
+`feat/693-signed-chunk2`, G21), with this branch at `71043af`, the other checks above gave the same
+results, and a call made while a `changes` wait was open answered in under a millisecond; a
 verdict through the dashboard's path answered without waiting for the open wait.
 
 The forward to paired computers (the rest of chunk 2) and chunk 3 (the Serve route) are
