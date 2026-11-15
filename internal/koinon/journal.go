@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,11 +59,11 @@ func (j Journal) Load() (map[string]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := map[string]Entry{}
+	var m map[string]Entry
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
-	if err := dec.Decode(&m); err != nil {
-		return nil, fmt.Errorf("the pending writes file %s is not readable", j.Path)
+	if err := dec.Decode(&m); err != nil || m == nil || dec.Decode(&struct{}{}) != io.EOF {
+		return nil, fmt.Errorf("the pending writes file %s is not one JSON object; it is kept for inspection", j.Path)
 	}
 	for k, e := range m {
 		e.Envelope.Args = intArgs(e.Envelope.Args)

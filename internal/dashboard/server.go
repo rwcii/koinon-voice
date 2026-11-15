@@ -48,6 +48,8 @@ type SignedSource interface {
 	States() []koinon.State
 	Verdict(ctx context.Context, req koinon.VerdictRequest) koinon.VerdictResult
 	Dismiss(request string) error
+	// NewIntent issues the token of one rendered verdict form.
+	NewIntent() string
 }
 
 // Server is the dashboard. Its zero value is not usable; make it with New.
@@ -84,7 +86,14 @@ func New(hosts []Host, addr string) (*Server, error) {
 	if err := CheckListen(addr); err != nil {
 		return nil, err
 	}
+	srv := &Server{}
 	tmpl, err := template.New("").Funcs(template.FuncMap{
+		"intent": func(source int) string {
+			if source < 0 || source >= len(srv.signed) {
+				return ""
+			}
+			return srv.signed[source].NewIntent()
+		},
 		"time":     func(ms int64) string { return time.UnixMilli(ms).Format("2006-01-02 15:04") },
 		"digest":   func(it koinon.Item) string { d, _ := koinon.SnapshotDigest(it); return d },
 		"verdicts": func(kind string) []string { return koinon.KindVerdicts[kind] },
@@ -96,11 +105,12 @@ func New(hosts []Host, addr string) (*Server, error) {
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
-	return &Server{
+	*srv = Server{
 		hosts: hosts, host: addr, tmpl: tmpl, now: time.Now,
 		links: map[string]time.Time{}, sessions: map[string]bool{}, csrfKey: key,
 		watchers: map[chan struct{}]bool{},
-	}, nil
+	}
+	return srv, nil
 }
 
 // SetSigned sets the signed rows; call it before Handler.
@@ -257,10 +267,10 @@ type signedView struct {
 	States []koinon.State
 }
 
-// notice is the result of the last verdict, from fixed texts.
+// notice is the result of the last verdict, from fixed texts, with the refusal's details.
 type notice struct {
-	Host, Reference, Code string
-	OK                    bool
+	Host, Reference, Code, Detail string
+	OK                            bool
 }
 
 func (s *Server) view(r *http.Request, session string) view {
@@ -273,7 +283,7 @@ func (s *Server) view(r *http.Request, session string) view {
 	}
 	q := r.URL.Query()
 	if code := q.Get("notice"); code != "" {
-		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, OK: code == "recorded"}
+		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, Detail: q.Get("detail"), OK: code == "recorded"}
 	}
 	return v
 }
@@ -380,19 +390,25 @@ func (s *Server) signedVerdict(w http.ResponseWriter, r *http.Request) {
 	ref := r.PostFormValue("reference")
 	revision, err := strconv.ParseInt(r.PostFormValue("revision"), 10, 64)
 	src, st, ok := s.signedSource(r)
-	code := "invalid_request"
+	code, detail := "invalid_request", ""
 	if ok && ref != "" && err == nil {
 		res := src.Verdict(r.Context(), koinon.VerdictRequest{Pin: st.Pin, Reference: ref, Revision: revision,
-			Digest: r.PostFormValue("digest"), Verdict: r.PostFormValue("verdict"), Note: r.PostFormValue("note")})
-		code = resultCode(res)
+			Digest: r.PostFormValue("digest"), Verdict: r.PostFormValue("verdict"), Note: r.PostFormValue("note"),
+			Intent: r.PostFormValue("intent")})
+		code, detail = resultCode(res), koinon.DetailText(res.Details)
 	}
 	q := url.Values{"notice": {code}, "host": {st.Host}, "ref": {ref}}
+	if detail != "" {
+		q.Set("detail", detail)
+	}
 	http.Redirect(w, r, "/?"+q.Encode(), http.StatusSeeOther)
 }
 
 // resultCode is the notice for a signed verdict's result.
 func resultCode(res koinon.VerdictResult) string {
 	switch {
+	case res.Repeat:
+		return "repeat"
 	case res.State == koinon.Recorded:
 		return "recorded"
 	case res.State == koinon.NotRun:

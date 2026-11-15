@@ -2,6 +2,8 @@ package koinon
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +38,9 @@ type VerdictRequest struct {
 	Digest    string
 	Verdict   string
 	Note      string
+	// Intent identifies the form that the page rendered for this item; the same form sent
+	// again is answered with the first sending's result and makes no new write.
+	Intent string
 }
 
 // VerdictResult is what became of a verdict.
@@ -52,6 +57,21 @@ type VerdictResult struct {
 	Reason string
 	// Pending: an earlier verdict on this item waits for its outcome; this one sent nothing.
 	Pending bool
+	// Repeat: this form was sent before; this is that sending's result and nothing was sent.
+	Repeat bool
+}
+
+// DetailText is a refusal's details as short text for the page, at most 200 bytes.
+func DetailText(d json.RawMessage) string {
+	var v any
+	if len(d) == 0 || json.Unmarshal(d, &v) != nil || v == nil {
+		return ""
+	}
+	b, _ := json.Marshal(v)
+	if len(b) > 200 {
+		return string(b[:200]) + "…"
+	}
+	return string(b)
 }
 
 // PendingWrite is a verdict whose outcome Voice does not know, as a State shows it. It holds
@@ -60,9 +80,14 @@ type PendingWrite struct {
 	Request   string
 	Reference string
 	Verdict   string
-	Final     bool
-	Code      string
-	Reason    string
+	// Done: the outcome is known (State, Code, Detail), learned after the answer was lost;
+	// it shows until the maintainer removes the notice.
+	Done   bool
+	State  WriteState
+	Final  bool
+	Code   string
+	Detail string
+	Reason string
 }
 
 // op is a verdict on (target, reference) that this process sent or recovered.
@@ -84,8 +109,21 @@ func (s *SignedSource) Verdict(ctx context.Context, req VerdictRequest) VerdictR
 	if s.opts.Journal.Path == "" {
 		return local("no_journal", "no pending writes file is set")
 	}
+	if req.Intent == "" {
+		return local("invalid_request", "the form has no intent token; read the page again")
+	}
 	key := opKey(req.Pin, req.Reference)
 	s.mu.Lock()
+	if request, ok := s.intents[req.Intent]; ok {
+		res := s.outcomes[request]
+		s.mu.Unlock()
+		res.Repeat = true
+		return res
+	}
+	if _, ok := s.issued[req.Intent]; !ok {
+		s.mu.Unlock()
+		return local("invalid_request", "the form was not issued by this Koinon Voice, or has expired; read the page again")
+	}
 	t, ok := s.targets[req.Pin]
 	if !ok || !t.paired {
 		s.mu.Unlock()
@@ -124,13 +162,20 @@ func (s *SignedSource) Verdict(ctx context.Context, req VerdictRequest) VerdictR
 		return local("sign_failed", err.Error())
 	}
 	o := &op{w: w, result: VerdictResult{State: Unknown, Reason: "waiting for the answer"}}
+	request := w.envelope.Request
 	s.ops[key] = o
+	delete(s.issued, req.Intent)
+	s.intents[req.Intent] = request
+	s.outcomes[request] = o.result
 	s.mu.Unlock()
 
 	entry := Entry{NodePin: s.opts.Host.NodePin, Node: s.opts.Host.Label, Envelope: w.Envelope(), FirstSent: time.Now().Unix()}
 	if existing, err := s.opts.Journal.Reserve(entry); err != nil {
 		s.mu.Lock()
 		delete(s.ops, key)
+		delete(s.intents, req.Intent)
+		delete(s.outcomes, request)
+		s.issued[req.Intent] = time.Now() // nothing was sent: the form can be sent again
 		s.mu.Unlock()
 		if errors.Is(err, ErrPending) {
 			return VerdictResult{State: Unknown, Pending: true, Final: existing.Final != "",
@@ -141,20 +186,122 @@ func (s *SignedSource) Verdict(ctx context.Context, req VerdictRequest) VerdictR
 	res := sig.Submit(ctx, w, nil)
 	switch res.State {
 	case Recorded, Refused, NotRun:
-		// A failed removal leaves an entry that the next start asks about: harmless.
-		s.opts.Journal.Remove(w.envelope.Request)
-		s.mu.Lock()
-		delete(s.ops, key)
-		s.mu.Unlock()
-		return resultOf(res.State, res.Refusal, res.Err)
+		return s.finish(sctx, key, req.Pin, entry, resultOf(res.State, res.Refusal, res.Err), false)
 	}
 	s.mu.Lock()
 	o.result = resultOf(Unknown, res.Refusal, res.Err)
+	s.outcomes[request] = o.result
 	s.trackLocked(req.Pin, entry, o.result)
+	out := o.result
 	s.mu.Unlock()
 	s.publish()
 	go s.reconcile(sctx, sig, key)
-	return o.result
+	return out
+}
+
+// finish records a write's known result: its journal entry is removed and the result kept for
+// a repeated form. When removal fails, the result stays shown with that reason, the item
+// stays reserved, and removal is tried again. inView shows the result on the target, for an
+// outcome learned after the answer was lost.
+func (s *SignedSource) finish(ctx context.Context, key, pin string, e Entry, res VerdictResult, inView bool) VerdictResult {
+	request := e.Request()
+	// The result is shown before its record leaves the journal.
+	s.update(func() {
+		s.outcomes[request] = res
+		if o, ok := s.ops[key]; ok {
+			o.result = res
+		}
+		if inView {
+			s.doneLocked(pin, e, res)
+		}
+	})
+	err := s.opts.Journal.Remove(request)
+	s.update(func() {
+		if err != nil {
+			res.Reason = joinReason(res.Reason, "the local pending record could not be removed yet ("+err.Error()+"); trying again")
+			s.outcomes[request] = res
+			if o, ok := s.ops[key]; ok {
+				o.result = res
+			}
+			s.doneLocked(pin, e, res)
+			return
+		}
+		delete(s.ops, key)
+	})
+	if err != nil && ctx != nil {
+		go s.retryRemove(ctx, key, pin, request)
+	}
+	return res
+}
+
+func joinReason(a, b string) string {
+	if a == "" {
+		return b
+	}
+	return a + "; " + b
+}
+
+// retryRemove removes a finished write's journal entry until it succeeds or the session
+// ends; the next start asks about a remaining entry and finds the same outcome.
+func (s *SignedSource) retryRemove(ctx context.Context, key, pin, request string) {
+	delay := s.opts.MinDelay
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		if s.opts.Journal.Remove(request) == nil {
+			s.update(func() {
+				delete(s.ops, key)
+				if t, ok := s.targets[pin]; ok && t.pending != nil {
+					if p, ok := t.pending[request]; ok {
+						p.Reason = s.outcomes[request].Reason
+						t.pending[request] = p
+						publishPending(t)
+					}
+				}
+			})
+			return
+		}
+		delay = min(2*delay, s.opts.MaxDelay)
+	}
+}
+
+// doneLocked shows a write's known outcome on its target; the caller holds mu.
+func (s *SignedSource) doneLocked(pin string, e Entry, res VerdictResult) {
+	t := s.target(pin)
+	if t.pending == nil {
+		t.pending = map[string]PendingWrite{}
+	}
+	verdict, _ := e.Envelope.Args["verdict"].(string)
+	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Reference: e.Reference(), Verdict: verdict, Done: true,
+		State: res.State, Code: res.Code, Detail: DetailText(res.Details), Reason: res.Reason}
+	publishPending(t)
+}
+
+// IntentLifetime is how long an issued form stays usable.
+const IntentLifetime = 24 * time.Hour
+
+// NewIntent issues a token for one rendered verdict form. A verdict is signed only for a token
+// that this source issued and that no earlier verdict used; a used token is answered with its
+// first result.
+func (s *SignedSource) NewIntent() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	token := hex.EncodeToString(b)
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for t, at := range s.issued {
+		if now.Sub(at) > IntentLifetime {
+			delete(s.issued, t)
+		}
+	}
+	s.issued[token] = now
+	return token
 }
 
 func allowed(kind, verdict string) bool {
@@ -176,6 +323,8 @@ func resultOf(state WriteState, r *Refusal, err error) VerdictResult {
 	return res
 }
 
+func entryOf(w Write) Entry { return Entry{Envelope: w.envelope} }
+
 // trackLocked shows a pending write on its target; the caller holds mu.
 func (s *SignedSource) trackLocked(pin string, e Entry, res VerdictResult) {
 	t := s.target(pin)
@@ -184,7 +333,7 @@ func (s *SignedSource) trackLocked(pin string, e Entry, res VerdictResult) {
 	}
 	verdict, _ := e.Envelope.Args["verdict"].(string)
 	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Reference: e.Reference(), Verdict: verdict,
-		Final: res.Final, Code: res.Code, Reason: res.Reason}
+		State: Unknown, Final: res.Final, Code: res.Code, Detail: DetailText(res.Details), Reason: res.Reason}
 	publishPending(t)
 }
 
@@ -224,38 +373,31 @@ func (s *SignedSource) reconcile(ctx context.Context, sig *Signed, key string) {
 		if ctx.Err() != nil {
 			return
 		}
-		if r.Final {
-			if r.State == Unknown {
-				reason := "the outcome can no longer be asked; read the record on that computer"
-				if r.Refusal != nil {
-					reason += " (" + r.Refusal.Code + ")"
-				}
-				s.opts.Journal.Update(request, func(e *Entry) { e.Final, e.Reason = "unknown", reason })
+		if r.Final && r.State == Unknown {
+			reason := "the outcome can no longer be asked; read the record on that computer"
+			code := ""
+			if r.Refusal != nil {
+				code = r.Refusal.Code
+				reason += " (" + code + ")"
+			}
+			if err := s.opts.Journal.Update(request, func(e *Entry) { e.Final, e.Reason = "unknown", reason }); err != nil {
+				// Not final until the journal says so: a restart would ask again.
 				s.update(func() {
-					o.result = VerdictResult{State: Unknown, Final: true, Reason: reason}
-					if r.Refusal != nil {
-						o.result.Code = r.Refusal.Code
-					}
-					if t, ok := s.targets[pin]; ok && t.pending != nil {
-						p := t.pending[request]
-						p.Final, p.Code, p.Reason = true, o.result.Code, reason
-						t.pending[request] = p
-						publishPending(t)
-					}
+					o.result = VerdictResult{State: Unknown, Code: code,
+						Reason: reason + "; the local pending record could not be marked (" + err.Error() + "); trying again"}
+					s.outcomes[request] = o.result
+					s.trackLocked(pin, entryOf(w), o.result)
+				})
+			} else {
+				s.update(func() {
+					o.result = VerdictResult{State: Unknown, Final: true, Code: code, Reason: reason}
+					s.outcomes[request] = o.result
+					s.trackLocked(pin, entryOf(w), o.result)
 				})
 				return
 			}
-			if err := s.opts.Journal.Remove(request); err != nil {
-				// Kept in the journal; the next start asks about it again.
-				return
-			}
-			s.update(func() {
-				delete(s.ops, key)
-				if t, ok := s.targets[pin]; ok && t.pending != nil {
-					delete(t.pending, request)
-					publishPending(t)
-				}
-			})
+		} else if r.Final {
+			s.finish(ctx, key, pin, entryOf(w), resultOf(r.State, r.Refusal, r.Err), true)
 			return
 		}
 		select {
@@ -303,6 +445,7 @@ func (s *SignedSource) recover(ctx context.Context, sig *Signed) {
 				res.Reason = "this computer is not paired with the node or not enrolled now; nothing was sent"
 			}
 			s.trackLocked(pin, e, res)
+			s.outcomes[e.Request()] = res
 			if !usable {
 				continue
 			}
@@ -323,27 +466,35 @@ func (s *SignedSource) targetPaired(pin string) bool {
 	return ok && t.paired
 }
 
-// Dismiss removes a pending write whose outcome can no longer be learned, or that cannot be
-// used, from the journal and the view. It sends nothing.
+// Dismiss removes a notice: a write's known outcome, or a write whose outcome can no longer
+// be learned or whose record cannot be used, which also leaves the journal. It sends
+// nothing, and a form already sent stays answered by its result.
 func (s *SignedSource) Dismiss(request string) error {
 	s.mu.Lock()
 	var found *target
+	var p PendingWrite
 	for _, t := range s.targets {
-		if p, ok := t.pending[request]; ok && p.Final {
-			found = t
+		if q, ok := t.pending[request]; ok && (q.Final || q.Done) {
+			found, p = t, q
 		}
 	}
 	s.mu.Unlock()
 	if found == nil {
-		return errors.New("no such record whose outcome can no longer be learned")
+		return errors.New("no such notice to remove")
 	}
-	if err := s.opts.Journal.Remove(request); err != nil {
-		return err
+	if p.Final {
+		if err := s.opts.Journal.Remove(request); err != nil {
+			return err
+		}
 	}
 	s.update(func() {
-		p := found.pending[request]
 		delete(found.pending, request)
-		delete(s.ops, opKey(found.state.Pin, p.Reference))
+		if p.Final {
+			delete(s.ops, opKey(found.state.Pin, p.Reference))
+			res := s.outcomes[request]
+			res.Reason = joinReason(res.Reason, "its local record was removed")
+			s.outcomes[request] = res
+		}
 		publishPending(found)
 	})
 	return nil

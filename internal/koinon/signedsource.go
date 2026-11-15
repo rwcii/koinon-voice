@@ -50,9 +50,14 @@ type SignedSource struct {
 	attempts int
 	// ops are the verdicts sent or recovered whose outcome is not known, by target and
 	// reference; sig and sctx are the current session, nil between sessions.
-	ops  map[string]*op
-	sig  *Signed
-	sctx context.Context
+	ops map[string]*op
+	// intents maps each form sent to its write's request; outcomes holds each write's
+	// latest result, for a form sent again.
+	intents  map[string]string
+	outcomes map[string]VerdictResult
+	issued   map[string]time.Time
+	sig      *Signed
+	sctx     context.Context
 }
 
 // target is what the source knows of one computer. Its slices are replaced, never changed
@@ -92,7 +97,8 @@ func NewSignedSource(opts SourceOptions) *SignedSource {
 	if opts.MaxDelay == 0 {
 		opts.MaxDelay = 60 * time.Second
 	}
-	s := &SignedSource{opts: opts, targets: map[string]*target{}, versions: map[string]map[string]string{}, ops: map[string]*op{}}
+	s := &SignedSource{opts: opts, targets: map[string]*target{}, versions: map[string]map[string]string{}, ops: map[string]*op{},
+		intents: map[string]string{}, outcomes: map[string]VerdictResult{}, issued: map[string]time.Time{}}
 	n := s.target(opts.Host.NodePin)
 	n.paired = true
 	n.state.Host = opts.Host.Label

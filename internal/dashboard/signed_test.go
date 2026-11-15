@@ -35,6 +35,7 @@ func (f *fakeSigned) Verdict(_ context.Context, r koinon.VerdictRequest) koinon.
 	f.verdicts = append(f.verdicts, r)
 	return f.result
 }
+func (f *fakeSigned) NewIntent() string { return "intent-1" }
 func (f *fakeSigned) Dismiss(request string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -90,7 +91,7 @@ func TestSignedPageShowsTheDigestAndKindVerdicts(t *testing.T) {
 	a, b := signedRows()
 	_, _, _, _, body := serveSigned(t, a, b)
 	d, _ := koinon.SnapshotDigest(signedItem)
-	for _, want := range []string{`name="digest" value="` + d + `"`, `name="pin" value="` + pinB + `"`,
+	for _, want := range []string{`name="digest" value="` + d + `"`, `name="intent" value="intent-1"`, `name="pin" value="` + pinB + `"`,
 		`value="completed"`, `value="feedback"`, "through studio", "Remove this local record", "nothing is sent"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %q", want)
@@ -106,12 +107,12 @@ func TestSignedVerdictRoutesByRowAndPin(t *testing.T) {
 	_, ts, c, csrf, _ := serveSigned(t, a, b)
 	d, _ := koinon.SnapshotDigest(signedItem)
 	form := url.Values{"csrf": {csrf}, "source": {"0"}, "pin": {pinB}, "reference": {"P-1"}, "revision": {"3"},
-		"digest": {d}, "verdict": {"completed"}, "note": {"done"}}
+		"digest": {d}, "verdict": {"completed"}, "note": {"done"}, "intent": {"intent-1"}}
 	resp := post(t, c, ts, "/verdict", form)
 	if !strings.Contains(resp.Header.Get("Location"), "notice=recorded") {
 		t.Errorf("verdict: %s", resp.Header.Get("Location"))
 	}
-	want := koinon.VerdictRequest{Pin: pinB, Reference: "P-1", Revision: 3, Digest: d, Verdict: "completed", Note: "done"}
+	want := koinon.VerdictRequest{Pin: pinB, Reference: "P-1", Revision: 3, Digest: d, Verdict: "completed", Note: "done", Intent: "intent-1"}
 	if len(a.verdicts) != 1 || a.verdicts[0] != want || len(b.verdicts) != 0 {
 		t.Errorf("a %+v b %+v", a.verdicts, b.verdicts)
 	}
@@ -141,7 +142,8 @@ func TestSignedVerdictNotices(t *testing.T) {
 		"pending":          {State: koinon.Unknown, Pending: true},
 		"final_unknown":    {State: koinon.Unknown, Final: true},
 		"snapshot_changed": {State: koinon.Refused, Code: "snapshot_changed", Local: true},
-		"stale_revision":   {State: koinon.Refused, Code: "stale_revision"},
+		"stale_revision":   {State: koinon.Refused, Code: "stale_revision", Details: []byte(`{"current_revision":987654321}`)},
+		"repeat":           {State: koinon.Recorded, Repeat: true},
 	} {
 		a, _ := signedRows()
 		a.result = res
@@ -157,6 +159,9 @@ func TestSignedVerdictNotices(t *testing.T) {
 		if strings.Contains(page, "Koinon did not record the verdict") && want != "stale_revision" {
 			t.Errorf("%s has no text of its own", want)
 		}
+		if want == "stale_revision" && !strings.Contains(page, "987654321") {
+			t.Error("the refusal's details are not shown")
+		}
 	}
 }
 
@@ -169,5 +174,17 @@ func TestSignedDismissSendsNoVerdict(t *testing.T) {
 	resp := post(t, c, ts, "/dismiss", url.Values{"csrf": {csrf}, "source": {"0"}, "pin": {pinB}, "request": {"req-final"}})
 	if !strings.Contains(resp.Header.Get("Location"), "notice=dismissed") || len(a.dismissed) != 1 || len(a.verdicts) != 0 {
 		t.Errorf("dismiss: %s %v %v", resp.Header.Get("Location"), a.dismissed, a.verdicts)
+	}
+}
+
+func TestSignedPageShowsALearnedOutcome(t *testing.T) {
+	a, _ := signedRows()
+	a.states[1].Pending = append(a.states[1].Pending, koinon.PendingWrite{Request: "req-done", Reference: "P-2", Verdict: "completed",
+		Done: true, State: koinon.Refused, Code: "stale_revision", Detail: `{"current_revision":9}`})
+	_, _, _, _, body := serveSigned(t, a)
+	for _, want := range []string{"refused (<code>stale_revision</code>), learned after its answer was lost", "current_revision", "Remove this notice"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
 	}
 }

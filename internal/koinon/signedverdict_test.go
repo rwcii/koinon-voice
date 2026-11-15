@@ -1,7 +1,9 @@
 package koinon
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,7 +24,7 @@ func shownRequest(t *testing.T, src *SignedSource, verdict string) VerdictReques
 	if err != nil {
 		t.Fatal(err)
 	}
-	return VerdictRequest{Pin: otherPin, Reference: it.Reference, Revision: it.Revision, Digest: d, Verdict: verdict}
+	return VerdictRequest{Pin: otherPin, Reference: it.Reference, Revision: it.Revision, Digest: d, Verdict: verdict, Intent: src.NewIntent()}
 }
 
 // verdictRequests counts the distinct request IDs of the verdicts that reached the node.
@@ -121,7 +123,7 @@ func TestVerdictLostAnswerIsAskedAndRecordedOnce(t *testing.T) {
 	if res.State != Unknown {
 		t.Fatalf("lost answer: %+v", res)
 	}
-	waitStates(t, r.src, "reconciled", func(m map[string]State) bool { return len(m[otherPin].Pending) == 0 })
+	waitStates(t, r.src, "reconciled", recordedNotice)
 	if recorded(r.node) != 1 || len(verdictRequests(r.node)) != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("%d recorded, requests %v", recorded(r.node), verdictRequests(r.node))
 	}
@@ -151,10 +153,15 @@ func TestVerdictConcurrentClicksMakeOneWrite(t *testing.T) {
 	results := make([]VerdictResult, 8)
 	for i := range results {
 		wg.Add(1)
-		go func() { defer wg.Done(); results[i] = r.src.Verdict(ctx(t), req) }()
+		go func() {
+			defer wg.Done()
+			q := req
+			q.Intent = r.src.NewIntent() // separate forms for one item
+			results[i] = r.src.Verdict(ctx(t), q)
+		}()
 	}
 	wg.Wait()
-	waitStates(t, r.src, "reconciled", func(m map[string]State) bool { return len(m[otherPin].Pending) == 0 })
+	waitStates(t, r.src, "reconciled", recordedNotice)
 	if n := len(verdictRequests(r.node)); n != 1 || recorded(r.node) != 1 {
 		t.Errorf("%d request IDs, %d recorded: %+v", n, recorded(r.node), results)
 	}
@@ -190,9 +197,7 @@ func TestVerdictRecoveredAfterARestartBeforeSending(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	waitStates(t, r.src, "recovered", func(m map[string]State) bool {
-		return m[otherPin].Status == Connected && len(m[otherPin].Pending) == 0
-	})
+	waitStates(t, r.src, "recovered", recordedNotice)
 	reqs := verdictRequests(r.node)
 	if recorded(r.node) != 1 || len(reqs) != 1 || reqs[e.Request()] != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("recovery sent %v, %d recorded", reqs, recorded(r.node))
@@ -220,9 +225,7 @@ func TestVerdictRecoveredAfterALostAnswer(t *testing.T) {
 		}
 		old.Close()
 	})
-	waitStates(t, r.src, "recovered", func(m map[string]State) bool {
-		return len(m[otherPin].Pending) == 0 && m[otherPin].Status == Connected
-	})
+	waitStates(t, r.src, "recovered", recordedNotice)
 	if recorded(r.node) != 1 || len(verdictRequests(r.node)) != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("%d recorded, requests %v", recorded(r.node), verdictRequests(r.node))
 	}
@@ -363,4 +366,131 @@ func TestJournalKeepsOtherEntries(t *testing.T) {
 	if won != 1 {
 		t.Errorf("%d reservations of one operation", won)
 	}
+}
+
+func TestVerdictSameFormIsAnsweredOnce(t *testing.T) {
+	r := newSourceRig(t, bothAuths(), nil)
+	waitStates(t, r.src, "settled", settled)
+	req := shownRequest(t, r.src, "approved")
+	first := r.src.Verdict(ctx(t), req)
+	again := r.src.Verdict(ctx(t), req)
+	if first.State != Recorded || again.State != Recorded || !again.Repeat || len(verdictRequests(r.node)) != 1 {
+		t.Errorf("first %+v again %+v", first, again)
+	}
+	for _, intent := range []string{"", "made-up-by-the-client"} {
+		req.Intent = intent
+		if res := r.src.Verdict(ctx(t), req); res.Code != "invalid_request" || !res.Local {
+			t.Errorf("intent %q: %+v", intent, res)
+		}
+	}
+	if len(verdictRequests(r.node)) != 1 {
+		t.Error("an unissued form was sent")
+	}
+}
+
+func TestVerdictReconciledRefusalIsShownWithDetails(t *testing.T) {
+	var e Entry
+	var states []State
+	var smu sync.Mutex
+	r := newSourceRig(t, bothAuths(), nil, func(r *sourceRig) {
+		e = signedEntry(t, r, nodePin, "studio", time.Now().Unix())
+		r.journal.Reserve(e)
+		// The item moved on before the write arrived: the target refuses it.
+		r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Items["P-1"]["revision"] = int64(9) })
+		r.src.opts.OnChange = func(s []State) { smu.Lock(); states = s; smu.Unlock() }
+	})
+	m := waitStates(t, r.src, "refused", func(m map[string]State) bool {
+		p := m[otherPin].Pending
+		return len(p) == 1 && p[0].Done
+	})
+	p := m[otherPin].Pending[0]
+	for deadline := time.Now().Add(2 * time.Second); journalLen(t, r.journal) != 0 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if p.State != Refused || p.Code != "stale_revision" || !strings.Contains(p.Detail, "9") || journalLen(t, r.journal) != 0 {
+		t.Errorf("reconciled refusal %+v", p)
+	}
+	if err := r.src.Dismiss(e.Request()); err != nil || len(otherState(r.src).Pending) != 0 {
+		t.Errorf("removing the notice: %v", err)
+	}
+	_ = states
+}
+
+func TestVerdictFinalUnknownWaitsForTheJournal(t *testing.T) {
+	var e Entry
+	r := newSourceRig(t, bothAuths(), nil, func(r *sourceRig) {
+		e = signedEntry(t, r, nodePin, "studio", time.Now().Unix())
+		r.journal.Reserve(e)
+		r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Auth = strings.Repeat("9", 64) })
+		// Every later write of the journal fails.
+		os.Mkdir(r.journal.Path+".tmp"+fmt.Sprint(os.Getpid()), 0o700)
+	})
+	m := waitStates(t, r.src, "not final", func(m map[string]State) bool {
+		p := m[otherPin].Pending
+		return len(p) == 1 && strings.Contains(p[0].Reason, "could not be marked")
+	})
+	if m[otherPin].Pending[0].Final {
+		t.Error("shown final before the journal was marked")
+	}
+	if err := r.src.Dismiss(e.Request()); err == nil {
+		t.Error("a record not marked final was dismissed")
+	}
+	os.Remove(r.journal.Path + ".tmp" + fmt.Sprint(os.Getpid()))
+	waitStates(t, r.src, "final", func(m map[string]State) bool {
+		p := m[otherPin].Pending
+		return len(p) == 1 && p[0].Final
+	})
+	j, _ := r.journal.Load()
+	if j[e.Request()].Final != "unknown" {
+		t.Errorf("journal %+v", j[e.Request()])
+	}
+}
+
+func TestVerdictDismissedFormStaysAnswered(t *testing.T) {
+	r := newSourceRig(t, bothAuths(), nil)
+	waitStates(t, r.src, "settled", settled)
+	req := shownRequest(t, r.src, "approved")
+	// Its answer is lost, and the key is enrolled again before the outcome is asked.
+	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.DropNext = true })
+	r.src.mu.Lock()
+	r.src.opts.Access.Auths = bothAuths()
+	r.src.mu.Unlock()
+	res := r.src.Verdict(ctx(t), req)
+	if res.State != Unknown {
+		t.Fatalf("lost answer: %+v", res)
+	}
+	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Auth = strings.Repeat("9", 64); tg.Verdicts = nil })
+	m := waitStates(t, r.src, "final", func(m map[string]State) bool {
+		p := m[otherPin].Pending
+		return len(p) == 1 && p[0].Final
+	})
+	if err := r.src.Dismiss(m[otherPin].Pending[0].Request); err != nil {
+		t.Fatal(err)
+	}
+	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Auth = strings.Repeat("2", 64) })
+	sent := len(verdictRequests(r.node))
+	again := r.src.Verdict(ctx(t), req)
+	if !again.Repeat || len(verdictRequests(r.node)) != sent {
+		t.Errorf("the dismissed form was sent again: %+v", again)
+	}
+}
+
+func TestJournalRefusesWhatIsNotAnObject(t *testing.T) {
+	for _, body := range []string{"null", "[]", "{}{}", "{} x", "7"} {
+		j := Journal{Path: filepath.Join(t.TempDir(), "pending.json")}
+		os.WriteFile(j.Path, []byte(body), 0o600)
+		if _, err := j.Reserve(Entry{Envelope: signed.Envelope{Request: "req-aaaaaaaaaaaaaaaa"}}); err == nil {
+			t.Errorf("%s: reserved", body)
+		}
+		if b, _ := os.ReadFile(j.Path); string(b) != body {
+			t.Errorf("%s: the file changed to %s", body, b)
+		}
+	}
+	var _ json.RawMessage
+}
+
+// recordedNotice: the other computer shows one write whose outcome was learned: recorded.
+func recordedNotice(m map[string]State) bool {
+	p := m[otherPin].Pending
+	return m[otherPin].Status == Connected && len(p) == 1 && p[0].Done && p[0].State == Recorded
 }
