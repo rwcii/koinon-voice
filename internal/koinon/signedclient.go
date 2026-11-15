@@ -42,9 +42,36 @@ type SignedOptions struct {
 
 // Signed is one signed MCP session with a node.
 type Signed struct {
-	opts   SignedOptions
+	opts SignedOptions
+	t    transport
+}
+
+// transport carries one signed envelope to the node and its answer back: the local MCP form
+// (D5.1, D5.3) or the Serve route (D5.2). A refusal is a *Refusal with its code and details.
+type transport interface {
+	Call(ctx context.Context, e signed.Envelope, out any) error
+	// Done is closed when the transport has ended.
+	Done() <-chan struct{}
+	// Close ends the transport and every call in flight.
+	Close()
+}
+
+// mcpTransport is the local form: the tool signed of one `koinon mcp --maintainer --signed`.
+type mcpTransport struct {
 	client *Client
 	stop   func()
+}
+
+func (m *mcpTransport) Call(ctx context.Context, e signed.Envelope, out any) error {
+	return m.client.Tool(ctx, "signed", map[string]any{"envelope": e}, out)
+}
+
+func (m *mcpTransport) Done() <-chan struct{} { return m.client.Done() }
+
+func (m *mcpTransport) Close() {
+	if m.stop != nil {
+		m.stop()
+	}
 }
 
 // StartSigned runs `koinon mcp --maintainer --signed` as a child process, writes a signed
@@ -95,7 +122,7 @@ func StartSigned(ctx context.Context, opts SignedOptions) (*Signed, error) {
 		}
 		return nil, err
 	}
-	s.stop = stop
+	s.t.(*mcpTransport).stop = stop
 	return s, nil
 }
 
@@ -117,22 +144,21 @@ func OpenSigned(ctx context.Context, opts SignedOptions, r io.Reader, w io.Write
 	if _, err := w.Write(append(line, '\n')); err != nil {
 		return nil, fmt.Errorf("%w: session: %v", ErrClosed, err)
 	}
-	s.client = NewClient(r, w)
-	if err := s.client.Initialize(ctx, opts.Version); err != nil {
+	client := NewClient(r, w)
+	if err := client.Initialize(ctx, opts.Version); err != nil {
 		return nil, err
 	}
+	s.t = &mcpTransport{client: client}
 	return s, nil
 }
 
 // Close ends the session and its process.
 func (s *Signed) Close() {
-	if s.stop != nil {
-		s.stop()
-	}
+	s.t.Close()
 }
 
 // Done is closed when the session's stream ends.
-func (s *Signed) Done() <-chan struct{} { return s.client.Done() }
+func (s *Signed) Done() <-chan struct{} { return s.t.Done() }
 
 // envelope signs a new operation with a new request ID, created from the clock, and the
 // target's authorization; auth overrides it for an outcome of an earlier write.
@@ -158,7 +184,7 @@ func (s *Signed) envelope(op, target string, args map[string]any, auth string) (
 // Send sends one signed envelope through the tool `signed` and decodes the target's result
 // into out. A refusal is a *Refusal with its code and details.
 func (s *Signed) Send(ctx context.Context, e signed.Envelope, out any) error {
-	return s.client.Tool(ctx, "signed", map[string]any{"envelope": e}, out)
+	return s.t.Call(ctx, e, out)
 }
 
 // Read signs and sends a new read.
@@ -302,6 +328,9 @@ func (s *Signed) Submit(ctx context.Context, w Write, out any) WriteResult {
 		}
 		return WriteResult{State: Refused, Refusal: r}
 	}
+	if errors.Is(err, ErrNotDispatched) {
+		return WriteResult{State: NotRun, Err: err}
+	}
 	return WriteResult{State: Unknown, Err: err}
 }
 
@@ -412,6 +441,10 @@ func (s *Signed) Reconcile(ctx context.Context, w Write, out any) Reconciled {
 			// The key was enrolled again after the outcome read: the first sending may have
 			// committed under the earlier authorization, which the new one cannot read.
 			return Reconciled{State: Unknown, Final: true, Refusal: r.Refusal}
+		}
+		if r.State == NotRun {
+			// Nothing was sent this time; the first sending may still have run.
+			return Reconciled{State: Unknown, Refusal: r.Refusal, Err: r.Err}
 		}
 		return Reconciled{State: r.State, Final: r.State == Recorded || r.State == Refused, Refusal: r.Refusal, Err: r.Err}
 	}

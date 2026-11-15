@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -408,4 +409,87 @@ func WriteSigned(path, dir string, c SignedConfig) string {
 	script := fmt.Sprintf("#!/bin/sh\nexec env %s=%q %q \"$@\"\n", SignedEnv, dir, os.Args[0])
 	os.WriteFile(path, []byte(script), 0o700)
 	return path
+}
+
+// Route is the fake node's Serve route (Koinon contract dfb2ed7, D5.2 and Answer shapes):
+// POST /v1/maintainer/signed/session takes a signed session envelope and answers a flat
+// token; POST /v1/maintainer/signed takes a bearer token and one envelope. Every refusal is
+// HTTP 409; an unknown token is maintainer_token_expired, before the envelope is read.
+type Route struct {
+	Node *SignedNode
+
+	mu       sync.Mutex
+	tokens   map[string]bool
+	next     int
+	Sessions int // session requests answered
+	// RefuseSessions makes the session route refuse with signature_refused.
+	RefuseSessions bool
+	// Hook, when set, may answer a request itself (for redirects, junk or echoed tokens).
+	Hook func(w http.ResponseWriter, r *http.Request) bool
+}
+
+// ExpireTokens ends every token, as a node restart does.
+func (rt *Route) ExpireTokens() {
+	rt.mu.Lock()
+	rt.tokens = map[string]bool{}
+	rt.mu.Unlock()
+}
+
+func (rt *Route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if rt.Hook != nil && rt.Hook(w, r) {
+		return
+	}
+	reply := func(status int, text string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		io.WriteString(w, text)
+	}
+	if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+		reply(400, `{"ok":false,"code":"invalid_request","error":"invalid request"}`)
+		return
+	}
+	switch r.URL.Path {
+	case "/v1/maintainer/signed/session":
+		var e signed.Envelope
+		if json.NewDecoder(io.LimitReader(r.Body, 512<<10)).Decode(&e) != nil {
+			reply(400, `{"ok":false,"code":"invalid_request","error":"invalid request"}`)
+			return
+		}
+		rt.mu.Lock()
+		rt.Sessions++
+		refuse := rt.RefuseSessions
+		rt.mu.Unlock()
+		if code := rt.Node.check(e); refuse || code != "" || e.Op != "session" || e.Target != rt.Node.Pin {
+			reply(409, `{"ok":false,"code":"signature_refused","error":"the session was refused","details":{"reason":"signature"}}`)
+			return
+		}
+		rt.mu.Lock()
+		if rt.tokens == nil {
+			rt.tokens = map[string]bool{}
+		}
+		rt.next++
+		token := fmt.Sprintf("tok-%d-secretvalue", rt.next)
+		rt.tokens[token] = true
+		rt.mu.Unlock()
+		reply(200, fmt.Sprintf(`{"ok":true,"token":%q,"client":"key:koinon-voice","idle_seconds":86400,"absolute_seconds":604800}`, token))
+	case "/v1/maintainer/signed":
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		rt.mu.Lock()
+		ok := rt.tokens[token]
+		rt.mu.Unlock()
+		if !ok {
+			reply(409, `{"ok":false,"code":"maintainer_token_expired","error":"the session ended"}`)
+			return
+		}
+		b, _ := io.ReadAll(io.LimitReader(r.Body, 512<<10))
+		params, _ := json.Marshal(map[string]any{"name": "signed", "arguments": map[string]json.RawMessage{"envelope": b}})
+		text, isError := rt.Node.call(params)
+		status := 200
+		if isError {
+			status = 409
+		}
+		reply(status, text)
+	default:
+		http.NotFound(w, r)
+	}
 }
