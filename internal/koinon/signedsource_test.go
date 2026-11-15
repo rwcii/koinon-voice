@@ -471,3 +471,65 @@ func TestSourceShowsARoomOnlyWhenReadInFull(t *testing.T) {
 		return len(rs) == 1 && rs[0].Name == "renamed" && len(rs[0].Posts) == 2
 	})
 }
+
+func TestSourceDropsAChangeQueuedBeforeUnpairing(t *testing.T) {
+	var reads atomic.Int64
+	src, sig, w := unitSource(t, func(e signed.Envelope, out any) error {
+		if e.Op == "computers" {
+			return json.Unmarshal([]byte(computersAnswer("")), out)
+		}
+		reads.Add(1)
+		return &Refusal{Code: "internal"}
+	})
+	queued := src.gen(otherPin)
+	if err := src.readComputers(w.ctx, sig, w); err != nil {
+		t.Fatal(err)
+	}
+	c := Change{Pin: otherPin, Topics: map[string]string{"decisions": "00000000000000000002"}}
+	if src.applyGen(w.ctx, sig, w, c, queued) || src.apply(w.ctx, sig, w, c) || reads.Load() != 0 {
+		t.Errorf("a change queued before the unpairing read %d times", reads.Load())
+	}
+	// Paired again, the old change still belongs to the earlier generation.
+	src.mu.Lock()
+	src.targets[otherPin].paired = true
+	src.mu.Unlock()
+	if src.applyGen(w.ctx, sig, w, c, queued) || reads.Load() != 0 {
+		t.Errorf("an old change ran under a new generation: %d reads", reads.Load())
+	}
+}
+
+func TestSourceKeepsAReturnSeenDuringAnOfflineRead(t *testing.T) {
+	held, release := make(chan struct{}), make(chan struct{})
+	var boardReads atomic.Int64
+	src, sig, w := unitSource(t, func(e signed.Envelope, out any) error {
+		switch e.Op {
+		case "computers":
+			return json.Unmarshal([]byte(computersAnswer(`{"pin":"`+otherPin+`","name":"lab-1","state":"connected"}`)), out)
+		case "board_list":
+			if boardReads.Add(1) == 1 {
+				close(held)
+				<-release
+				return &Refusal{Code: "computer_offline"}
+			}
+			return json.Unmarshal([]byte(`{"counts":{},"items":[],"more":false}`), out)
+		}
+		return &Refusal{Code: "unknown_operation"}
+	})
+	done := make(chan bool, 1)
+	go func() {
+		done <- src.apply(w.ctx, sig, w, Change{Pin: otherPin, Topics: map[string]string{"decisions": "00000000000000000002"}})
+	}()
+	<-held
+	if err := src.readComputers(w.ctx, sig, w); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	select {
+	case ok := <-done:
+		if !ok || boardReads.Load() != 2 {
+			t.Errorf("done %v after %d reads", ok, boardReads.Load())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a return seen while the offline answer was on its way was lost")
+	}
+}

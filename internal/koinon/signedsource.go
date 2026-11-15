@@ -58,10 +58,13 @@ type target struct {
 	offline   bool
 	// gen moves when the computer is unpaired; work is its readers' context, which the
 	// unpairing cancels; resume wakes a change paused by computer_offline.
-	gen        int
-	work       context.Context
-	cancel     context.CancelFunc
-	resume     chan struct{}
+	gen    int
+	work   context.Context
+	cancel context.CancelFunc
+	resume chan struct{}
+	// seen counts the computers answers that listed the computer connected, so a read
+	// that answers computer_offline can tell whether a return was seen after it was sent.
+	seen       int
 	items      map[string]Item
 	inboxAfter int64
 	inbox      []Message
@@ -249,10 +252,11 @@ func (s *SignedSource) session(ctx context.Context) bool {
 			default:
 				// The watcher sends a target's next change only after Done, so one apply
 				// runs per target at a time.
+				gen := s.gen(c.Pin)
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					if s.apply(sctx, sig, w, c) {
+					if s.applyGen(sctx, sig, w, c, gen) {
 						answered.Store(true)
 					}
 				}()
@@ -278,20 +282,23 @@ func (s *SignedSource) disconnectAll(code, reason string) {
 	})
 }
 
-// work returns the target's work context under its parent and its generation. Unpairing
-// cancels the context and moves the generation, so no earlier worker reads, shows or
-// releases anything for the target after that.
-func (s *SignedSource) work(parent context.Context, pin string) (context.Context, int, chan struct{}) {
+// work returns the target's work context under its parent, when the target is still paired
+// at gen. Unpairing cancels the context and moves the generation, so no worker of an earlier
+// generation reads, shows or releases anything for the target after that.
+func (s *SignedSource) work(parent context.Context, pin string, gen int) (context.Context, chan struct{}, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	t := s.target(pin)
+	if !s.current(pin, gen) {
+		return nil, nil, false
+	}
+	t := s.targets[pin]
 	if t.work == nil || t.work.Err() != nil {
 		t.work, t.cancel = context.WithCancel(parent)
 	}
 	if t.resume == nil {
 		t.resume = make(chan struct{}, 1)
 	}
-	return t.work, t.gen, t.resume
+	return t.work, t.resume, true
 }
 
 // current reports whether gen is still the target's generation; the caller holds mu.
@@ -304,9 +311,28 @@ func (s *SignedSource) current(pin string, gen int) bool {
 // and shown (Watcher.Done). A failure keeps the shown data and the change, and tries again
 // after a delay; computer_offline pauses the change until computers shows the target back.
 func (s *SignedSource) apply(ctx context.Context, sig *Signed, w *Watcher, c Change) bool {
-	ctx, gen, resume := s.work(ctx, c.Pin)
+	return s.applyGen(ctx, sig, w, c, s.gen(c.Pin))
+}
+
+// gen is the target's current generation.
+func (s *SignedSource) gen(pin string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.target(pin).gen
+}
+
+// applyGen is apply for a change received while the target was at gen; it reads nothing when
+// the target was unpaired since.
+func (s *SignedSource) applyGen(ctx context.Context, sig *Signed, w *Watcher, c Change, gen int) bool {
+	ctx, resume, ok := s.work(ctx, c.Pin, gen)
+	if !ok {
+		return false
+	}
 	delay := s.opts.MinDelay
 	for {
+		s.mu.Lock()
+		seen := s.targets[c.Pin].seen
+		s.mu.Unlock()
 		err := s.readGen(ctx, sig, w, c, gen)
 		if ctx.Err() != nil {
 			return false
@@ -329,13 +355,23 @@ func (s *SignedSource) apply(ctx context.Context, sig *Signed, w *Watcher, c Cha
 			return done
 		}
 		if refusalCode(err, "") == "computer_offline" {
+			returned := false
 			s.update(func() {
-				if s.current(c.Pin, gen) {
-					t := s.targets[c.Pin]
-					t.offline = true
-					setStatus(t, Disconnected, "computer_offline", "the node has no link to this computer")
+				if !s.current(c.Pin, gen) {
+					return
 				}
+				t := s.targets[c.Pin]
+				if t.seen != seen {
+					// The node listed it connected after this read was sent: read again.
+					returned = true
+					return
+				}
+				t.offline = true
+				setStatus(t, Disconnected, "computer_offline", "the node has no link to this computer")
 			})
+			if returned {
+				continue
+			}
 			select {
 			case <-ctx.Done():
 				return false
@@ -505,6 +541,7 @@ func (s *SignedSource) readComputers(ctx context.Context, sig *Signed, w *Watche
 				add = append(add, cpt.Pin)
 				continue
 			}
+			t.seen++
 			if t.offline {
 				t.offline = false
 				resume = append(resume, cpt.Pin)
