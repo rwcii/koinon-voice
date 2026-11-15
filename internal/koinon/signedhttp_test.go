@@ -247,16 +247,18 @@ func TestServeStrictAnswers(t *testing.T) {
 		status int
 		body   string
 	}{
-		"empty object":   {200, `{}`},
-		"null":           {200, `null`},
-		"ok false bare":  {409, `{"ok":false}`},
-		"ok true bare":   {200, `{"ok":true}`},
-		"ok true null":   {200, `{"ok":true,"result":null}`},
-		"refusal on 200": {200, `{"ok":false,"code":"refused","error":"x"}`},
-		"ok on 409":      {409, `{"ok":true,"result":{}}`},
-		"two objects":    {200, `{"ok":true,"result":{}}{}`},
-		"503 expired":    {503, `{"ok":false,"code":"maintainer_token_expired","error":"temporary failure"}`},
-		"401 expired":    {401, `{"ok":false,"code":"maintainer_token_expired","error":"x"}`},
+		"empty object":     {200, `{}`},
+		"null":             {200, `null`},
+		"ok false bare":    {409, `{"ok":false}`},
+		"ok true bare":     {200, `{"ok":true}`},
+		"ok true null":     {200, `{"ok":true,"result":null}`},
+		"refusal on 200":   {200, `{"ok":false,"code":"refused","error":"x"}`},
+		"ok on 409":        {409, `{"ok":true,"result":{}}`},
+		"two objects":      {200, `{"ok":true,"result":{}}{}`},
+		"trailing brace":   {200, `{"ok":true,"result":{}}}`},
+		"trailing bracket": {200, `{"ok":true,"result":{}}]`},
+		"503 expired":      {503, `{"ok":false,"code":"maintainer_token_expired","error":"temporary failure"}`},
+		"401 expired":      {401, `{"ok":false,"code":"maintainer_token_expired","error":"x"}`},
 	}
 	for name, a := range answers {
 		a := a
@@ -278,6 +280,27 @@ func TestServeStrictAnswers(t *testing.T) {
 		if r.route.Sessions != before {
 			t.Errorf("%s: the session was renewed", name)
 		}
+	}
+}
+
+func TestServeExpiredRefusalIsRedacted(t *testing.T) {
+	r := newHTTPRig(t)
+	r.route.Hook = func(w http.ResponseWriter, req *http.Request) bool {
+		if req.URL.Path != "/v1/maintainer/signed" {
+			return false
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		io.WriteString(w, `{"ok":false,"code":"maintainer_token_expired","error":"expired `+req.Header.Get("Authorization")+`"}`)
+		return true
+	}
+	_, err := r.s.DecisionGet(ctx(t), otherPin, "P-1")
+	var ref *Refusal
+	if !errors.Is(err, errTokenExpired) || !errors.As(err, &ref) {
+		t.Fatalf("expired refusal lost its marks: %v", err)
+	}
+	if strings.Contains(err.Error(), "secretvalue") {
+		t.Errorf("the error shows the token: %s", err)
 	}
 }
 

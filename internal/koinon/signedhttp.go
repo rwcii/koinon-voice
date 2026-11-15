@@ -282,6 +282,13 @@ type flat struct{ v any }
 // reads the envelope (Koinon contract dfb2ed7, Answer shapes): the only answer that renews.
 var errTokenExpired = errors.New("maintainer_token_expired")
 
+// expiredError marks a refusal as errTokenExpired. It renders from the refusal on each call,
+// so the redaction that post applies to the refusal also holds for this error's text.
+type expiredError struct{ r *Refusal }
+
+func (e *expiredError) Error() string   { return errTokenExpired.Error() + ": " + e.r.Error() }
+func (e *expiredError) Unwrap() []error { return []error{errTokenExpired, e.r} }
+
 // decodeHTTP reads an answer of the Serve route strictly: one object with a boolean ok; on
 // HTTP 200, ok true with a result (or, for the session, its flat fields); on HTTP 409 or
 // 400, ok false with a code and an error. Any other status or shape is a protocol error,
@@ -295,7 +302,7 @@ func decodeHTTP(what string, status int, b []byte, out any) error {
 		Details json.RawMessage `json:"details"`
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
-	if err := dec.Decode(&a); err != nil || a.OK == nil || dec.More() {
+	if err := dec.Decode(&a); err != nil || a.OK == nil || dec.Decode(&struct{}{}) != io.EOF {
 		return fmt.Errorf("%w: %s answered HTTP %d without a Koinon answer object", ErrProtocol, what, status)
 	}
 	if !*a.OK {
@@ -304,7 +311,7 @@ func decodeHTTP(what string, status int, b []byte, out any) error {
 		}
 		r := &Refusal{Code: a.Code, Message: a.Error, Details: a.Details}
 		if a.Code == "maintainer_token_expired" && status == http.StatusConflict {
-			return fmt.Errorf("%w: %w", errTokenExpired, r)
+			return &expiredError{r}
 		}
 		return r
 	}
