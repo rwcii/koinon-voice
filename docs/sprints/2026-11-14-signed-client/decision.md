@@ -145,7 +145,8 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 Koinon contract: rwcii/koinon branch `docs/693-signed-maintainer`, frozen commit `4e324d5`,
 `docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions); on the
-Koinon board as card LINK-693-SIGNED (revision 9) for the maintainer's approval. Gaps G1 to G19
+Koinon board as card LINK-693-SIGNED, which the maintainer approved at revision 10 on
+2026-11-15 (Koinon PDR 011, Decision 6; rwcii/koinon PR #698). Gaps G1 to G19
 went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed. G20, the
 Serve route's wire details, is closed at `dfb2ed7`, a commit on `4e324d5`:
 
@@ -170,6 +171,7 @@ Serve route's wire details, is closed at `dfb2ed7`, a commit on `4e324d5`:
 | G18 a write's outcome after the key is enrolled again | D1.3, D1.7, D3.3, D4.3: each envelope carries `auth`, the hex SHA-256 of its enrollment statement's signed bytes, and runs only under that authorization; a statement is added once (`statement_used`). This replaced the clock floor of `d578d0e`, `072870b` and `fa95824` (G18b, G18c) | `05c531c`; outcome refused under a gone authorization at `4e324d5` |
 | G19 answer shapes of `outcome`, `changes` (20-digit string versions), `computers` and refusals | Answer shapes | `cbd8e21` |
 | G20 the Serve route's session answer (flat, with `idle_seconds` and `absolute_seconds`), `maintainer_token_expired` with HTTP 409 before the envelope is read, `invalid_request` with 400, and the sizes: 512 KiB a request, 1 MiB an answer and a link frame | Answer shapes, D5.2 | `dfb2ed7`, on `4e324d5`; Voice's Serve form (`internal/koinon/signedhttp.go`) |
+| G21 the MCP form answered one `tools/call` at a time, so an open `changes` wait held every other call of the session for up to 30 seconds (found in the live checks below). Koinon runs up to 128 calls at once; a call past them is answered at once with `too_many_calls` (`details.limit` 128) and is not sent to the daemon, which Voice treats as not run | D5.3, D6.2; claude-koinon, 2026-11-15 | Koinon #693 chunk 2 |
 
 | ID | Koinon contract section | Status |
 | --- | --- | --- |
@@ -202,6 +204,29 @@ over Koinon messages:
 | claude-koinon@blackhole (Koinon driver) | agreed with `d33ca6e` against `15ec0ff`, with one finding fixed in `eb178a7`; it drove the changes to `4e324d5` with the Voice pair |
 | codex-koinon@blackhole (Koinon observer) | agrees with the contract at `4e324d56e938904c4f4be838603cc35433c75dcd`, vectors verified independently |
 
-The Koinon contract waits for the maintainer's approval on the Koinon board as card
-LINK-693-SIGNED (revision 9). A change to the contract is mapped here before the Voice side
+The maintainer approved the Koinon contract on the Koinon board as card LINK-693-SIGNED
+(revision 10) on 2026-11-15. A change to the contract is mapped here before the Voice side
 builds on it.
+
+## Live checks
+
+Koinon #693 chunk 1 (rwcii/koinon `88d3870`, PR #699: actions on the node's own pin), a
+scratch daemon on mac-studio, 2026-11-15, against this branch at `ae98f02`:
+
+| Check | Result |
+| --- | --- |
+| `koinon-voice key enroll`, then `koinon maintainer key add` and `key list`; the same statement again | authorized; `statement_used` |
+| Session; `board_list`, `decision_get`, `inbox`, `room_list`, `peers`, `computers`, `changes` without versions | answered in the contract's shapes |
+| `koinon-voice board` on a signed row | connected, the node's items and inbox, `ok` true |
+| `decision_verdict` with the digest from `decision_get` | recorded, `via` `key:koinon-voice`, `signer` with user, client and key ID; in `decision_history` |
+| The same envelope again; `outcome`; `outcome` of a request never sent | the identical answer; `recorded` with it; `unknown_request` with `now` |
+| A verdict on text the node no longer shows | `snapshot_changed` |
+| Reconciling a write that was never sent | `unknown_request` in the window, the same envelope sent once, recorded |
+| `changes` with held versions, a message sent during the wait | `changed` `["inbox"]` |
+| `ack`, `send` to a peer; `room_post` to an unknown room | recorded; `invalid_request` |
+| A verdict through the dashboard's path (`SignedSource.Verdict`, pending-verdicts file) and the same form again | recorded; a repeat with nothing sent; the file empty |
+| `koinon maintainer key remove` | the next call `maintainer_token_expired` and the process exits; a new session `signature_refused` (the authorization was removed); `board` not ok |
+| A verdict while a `changes` wait is open | answered after 30 seconds: G21 |
+
+Chunk 2 (forwarding to paired computers, G21) and chunk 3 (the Serve route) are checked when
+Koinon sends them.

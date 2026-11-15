@@ -317,8 +317,9 @@ func (s *Signed) Submit(ctx context.Context, w Write, out any) WriteResult {
 	var r *Refusal
 	if errors.As(err, &r) {
 		switch r.Code {
-		case "computer_offline", "maintainer_token_expired":
-			// Both are answered by the node before it dispatches anything.
+		case "computer_offline", "maintainer_token_expired", "too_many_calls":
+			// Each is answered by the node before it dispatches anything; too_many_calls is
+			// the signed MCP form's limit of calls in flight (Koinon #693 chunk 2).
 			return WriteResult{State: NotRun, Refusal: r}
 		case "outcome_unknown":
 			return WriteResult{State: Unknown, Refusal: r}

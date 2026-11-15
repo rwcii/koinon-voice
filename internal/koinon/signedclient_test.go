@@ -170,6 +170,11 @@ func TestSignedOfflineAndUnknownRequest(t *testing.T) {
 		t.Errorf("offline: %+v", res)
 	}
 	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Offline = false })
+	// Past the node's calls in flight: answered at once, nothing run.
+	r.node.SetBusy(1)
+	if res := r.s.Submit(ctx(t), w, nil); res.State != NotRun || res.Refusal.Code != "too_many_calls" {
+		t.Errorf("too many calls: %+v", res)
+	}
 	// Within the window an unknown request is sent again, once, with the same envelope.
 	rec := r.s.Reconcile(ctx(t), w, nil)
 	if rec.State != Recorded || !rec.Final {

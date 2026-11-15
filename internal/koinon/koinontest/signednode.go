@@ -26,6 +26,8 @@ type SignedNode struct {
 	Key  ed25519.PublicKey
 	Now  func() time.Time
 	Wait time.Duration // the longest changes wait; 0 is the envelope's wait_seconds
+	// busy answers the next calls too_many_calls (SetBusy).
+	busy int
 
 	mu      sync.Mutex
 	targets map[string]*Target
@@ -82,6 +84,14 @@ func (n *SignedNode) AddTarget(pin string) *Target {
 		Posts: map[string][]map[string]any{}, Fail: map[string]int{}, Reads: map[string]int{}}
 	n.targets[pin] = t
 	return t
+}
+
+// SetBusy answers the next count calls too_many_calls, as the signed MCP form does past its
+// calls in flight; nothing is checked or run for them.
+func (n *SignedNode) SetBusy(count int) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.busy = count
 }
 
 // Change runs f on a target under the node's lock and wakes its changes waits.
@@ -196,6 +206,11 @@ func (n *SignedNode) call(params json.RawMessage) (string, bool) {
 	e := p.Arguments.Envelope
 	e.Args = normalize(e.Args)
 	n.mu.Lock()
+	if n.busy > 0 {
+		n.busy--
+		n.mu.Unlock()
+		return refuse("too_many_calls", map[string]int{"limit": 128})
+	}
 	n.Seen = append(n.Seen, e)
 	n.mu.Unlock()
 	if code := n.check(e); code != "" {
