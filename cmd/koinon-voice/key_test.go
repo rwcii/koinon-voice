@@ -48,10 +48,11 @@ func (m *memoryStore) Add(_ context.Context, service, account string, data []byt
 func useStore(t *testing.T) *memoryStore {
 	t.Helper()
 	m := &memoryStore{items: map[string]string{}}
-	oldStore, oldClock := keyStore, keyClock
+	oldStore, oldEnrollments, oldNow := keyStore, keyEnrollments, keyNow
 	keyStore = m
-	keyClock = signed.Clock{Path: filepath.Join(t.TempDir(), "clock.json"), Now: func() time.Time { return time.Unix(1794699000, 0) }}
-	t.Cleanup(func() { keyStore, keyClock = oldStore, oldClock })
+	keyEnrollments = signed.Enrollments{Path: filepath.Join(t.TempDir(), "enrollments.json")}
+	keyNow = func() time.Time { return time.Unix(1794699000, 0) }
+	t.Cleanup(func() { keyStore, keyEnrollments, keyNow = oldStore, oldEnrollments, oldNow })
 	return m
 }
 
@@ -122,9 +123,11 @@ func TestKeyCreateShowEnroll(t *testing.T) {
 	if err := json.Unmarshal(b, &second); err != nil || signed.Verify(ed25519.PublicKey(pub), second) != nil {
 		t.Fatalf("file %s: %v", b, err)
 	}
-	// A second enrollment in the same second is signed strictly later (Koinon contract D1.7).
-	if second.Created != e.Created+1 {
-		t.Errorf("second enrollment created %d, first %d", second.Created, e.Created)
+	// The latest statement for a computer is the recorded enrollment, with its authorization.
+	enrolled, err := keyEnrollments.Load()
+	auth, _ := signed.AuthID(second)
+	if err != nil || enrolled[testPin].Auth != auth || enrolled[testPin].User != "robert" {
+		t.Errorf("enrollments %+v %v", enrolled, err)
 	}
 	if info, _ := os.Stat(out); info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", info.Mode())

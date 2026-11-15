@@ -20,8 +20,9 @@ const (
 	vecSnap2      = "b6c12882582116eae7810fd6cb251045973eea8411b8d800c2c7e0b780d2b5ba"
 	vecEnroll     = `{"args":{"client":"koinon-voice","public_key":"ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=","user":"maintainer"},"created":1794699000,"key":"SHA256:ZbYGc9btiEvwHCwiLYKtoHQPKawzVdapJcgfF/R6J7g","op":"enroll","target":"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf","v":"koinon-maintainer-1"}`
 	vecEnrollSig  = "3mzi0yvfgymYoV3Wp6xVOwjOKuUQTP/9+hXAd23WytD8ykv/4vTF1Tpu3t4H8ZBkr7OtLJfr9NoNvVkhTKOqBQ=="
-	vecVerdict    = `{"args":{"note":"ok <&> \"quoted\"","reference":"VEC-1","revision":3,"snapshot":"350f1e8dd2e447f6bf2594e780e0fc16544c0114cdfdf9cccbb1346a4a9860dc","verdict":"approved"},"created":1794699000,"key":"SHA256:ZbYGc9btiEvwHCwiLYKtoHQPKawzVdapJcgfF/R6J7g","op":"decision_verdict","request":"vec-request-000001","target":"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf","v":"koinon-maintainer-1"}`
-	vecVerdictSig = "5RIpFZ7G+PMlGqvRQizOOmOaPK637OhJX9dCifNKOjIOXjvG4drxmGRLZVaViYYundattt/zTlJOHDiq6zeKCQ=="
+	vecVerdict    = `{"args":{"note":"ok <&> \"quoted\"","reference":"VEC-1","revision":3,"snapshot":"350f1e8dd2e447f6bf2594e780e0fc16544c0114cdfdf9cccbb1346a4a9860dc","verdict":"approved"},"auth":"60f6757e18de87bfa4918aa9b764b50b36cbddf982d9e4bebe226ffc51836f6e","created":1794699000,"key":"SHA256:ZbYGc9btiEvwHCwiLYKtoHQPKawzVdapJcgfF/R6J7g","op":"decision_verdict","request":"vec-request-000001","target":"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf","v":"koinon-maintainer-1"}`
+	vecAuth       = "60f6757e18de87bfa4918aa9b764b50b36cbddf982d9e4bebe226ffc51836f6e"
+	vecVerdictSig = "IOGwy1JLMXL0Lizmp1LZe7skwiVP7FO1wkuATry177ta1FFcfdFZDXAdl1LqiPGneV/AmKPrgFUHk/rl1AKmDQ=="
 )
 
 func vecKey(t *testing.T) ed25519.PrivateKey {
@@ -62,8 +63,12 @@ func TestKoinonVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkVector(t, k, enroll, vecEnroll, vecEnrollSig)
+	enroll.Key = vecKeyID
+	if id, err := AuthID(enroll); err != nil || id != vecAuth {
+		t.Errorf("authorization ID %s %v", id, err)
+	}
 
-	verdict := Envelope{V: Version, Target: vecTarget, Op: "decision_verdict", Request: "vec-request-000001", Created: 1794699000,
+	verdict := Envelope{V: Version, Target: vecTarget, Op: "decision_verdict", Request: "vec-request-000001", Auth: vecAuth, Created: 1794699000,
 		Args: map[string]any{"note": `ok <&> "quoted"`, "reference": "VEC-1", "revision": 3, "snapshot": vecSnapshot, "verdict": "approved"}}
 	checkVector(t, k, verdict, vecVerdict, vecVerdictSig)
 }
@@ -140,7 +145,7 @@ func TestCanonicalValues(t *testing.T) {
 func TestTamperIsRefused(t *testing.T) {
 	k := vecKey(t)
 	pub := k.Public().(ed25519.PublicKey)
-	base := Envelope{V: Version, Target: vecTarget, Op: "decision_verdict", Request: "vec-request-000001", Created: 1794699000,
+	base := Envelope{V: Version, Target: vecTarget, Op: "decision_verdict", Request: "vec-request-000001", Auth: vecAuth, Created: 1794699000,
 		Args: map[string]any{"reference": "VEC-1", "revision": 3, "snapshot": vecSnapshot, "verdict": "approved", "note": ""}}
 	s, err := Sign(k, base)
 	if err != nil {
@@ -155,6 +160,7 @@ func TestTamperIsRefused(t *testing.T) {
 		"verdict":  func(e *Envelope) { e.Args = copyArgs(e.Args, "verdict", "declined") },
 		"note":     func(e *Envelope) { e.Args = copyArgs(e.Args, "note", "x") },
 		"extra":    func(e *Envelope) { e.Args = copyArgs(e.Args, "extra", "x") },
+		"auth":     func(e *Envelope) { e.Auth = strings.Repeat("0", 64) },
 		"sig":      func(e *Envelope) { e.Sig = base64.StdEncoding.EncodeToString(make([]byte, 64)) },
 		"no sig":   func(e *Envelope) { e.Sig = "" },
 	}

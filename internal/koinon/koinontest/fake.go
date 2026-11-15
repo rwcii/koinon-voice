@@ -22,6 +22,7 @@ import (
 const (
 	KoinonEnv = "KOINON_VOICE_FAKE_KOINON"
 	SSHEnv    = "KOINON_VOICE_FAKE_SSH"
+	SignedEnv = "KOINON_VOICE_FAKE_SIGNED"
 )
 
 // Main runs a fake when its environment variable is set, and reports whether it did. A
@@ -32,6 +33,9 @@ func Main() bool {
 	}
 	if dir := os.Getenv(KoinonEnv); dir != "" {
 		os.Exit(fakeKoinon(dir))
+	}
+	if dir := os.Getenv(SignedEnv); dir != "" {
+		os.Exit(fakeSigned(dir))
 	}
 	return false
 }

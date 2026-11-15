@@ -24,8 +24,11 @@ type Envelope struct {
 	Op      string         `json:"op"`
 	Args    map[string]any `json:"args"`
 	Request string         `json:"request,omitempty"`
-	Created int64          `json:"created"`
-	Sig     string         `json:"sig,omitempty"`
+	// Auth is the authorization ID of the target's enrollment, on every envelope but an
+	// enrollment statement (Koinon contract 05c531c, Decision 1.7).
+	Auth    string `json:"auth,omitempty"`
+	Created int64  `json:"created"`
+	Sig     string `json:"sig,omitempty"`
 }
 
 var requestPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,128}$`)
@@ -49,6 +52,9 @@ func SignedBytes(e Envelope) ([]byte, error) {
 	}
 	if e.Request != "" {
 		m["request"] = e.Request
+	}
+	if e.Auth != "" {
+		m["auth"] = e.Auth
 	}
 	c, err := Canonical(m)
 	if err != nil {
@@ -82,7 +88,7 @@ func Verify(pub ed25519.PublicKey, e Envelope) error {
 	if err != nil || len(sig) != ed25519.SignatureSize {
 		return errors.New("the signature is not standard base64 of 64 bytes")
 	}
-	b, err := SignedBytes(Envelope{V: e.V, Key: e.Key, Target: e.Target, Op: e.Op, Args: e.Args, Request: e.Request, Created: e.Created})
+	b, err := SignedBytes(Envelope{V: e.V, Key: e.Key, Target: e.Target, Op: e.Op, Args: e.Args, Request: e.Request, Auth: e.Auth, Created: e.Created})
 	if err != nil {
 		return err
 	}
@@ -90,6 +96,20 @@ func Verify(pub ed25519.PublicKey, e Envelope) error {
 		return errors.New("the signature does not verify")
 	}
 	return nil
+}
+
+// AuthID is the authorization ID that an enrollment statement makes on its target: the hex
+// SHA-256 of the statement's signed bytes (Koinon contract 05c531c, Decision 1.3).
+func AuthID(statement Envelope) (string, error) {
+	if statement.Op != "enroll" {
+		return "", errors.New("an authorization ID comes from an enrollment statement")
+	}
+	b, err := SignedBytes(statement)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:]), nil
 }
 
 // KeyID is "SHA256:" and the standard base64, without padding, of the SHA-256 of the raw

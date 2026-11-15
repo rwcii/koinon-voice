@@ -16,8 +16,9 @@ import (
 
 // The key's store and clock; tests replace them.
 var (
-	keyStore signed.Store = keychain.Keychain{}
-	keyClock              = signed.Clock{Path: signed.DefaultClockPath(), Now: time.Now}
+	keyStore       signed.Store = keychain.Keychain{}
+	keyEnrollments              = signed.Enrollments{Path: signed.DefaultEnrollmentsPath()}
+	keyNow                      = time.Now
 )
 
 // runKey creates, shows or enrolls this install's maintainer key (ADR 004; rwcii/koinon#693).
@@ -41,9 +42,6 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return commandError(stderr, err.Error())
 		}
-		if err := keyClock.Init(k.ID()); err != nil {
-			return commandError(stderr, "the key was made, but its signing history was not: "+err.Error()+"; run koinon-voice key clock --restore")
-		}
 		printKey(stdout, k)
 		return 0
 	case "show":
@@ -57,23 +55,6 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		}
 		printKey(stdout, k)
 		return 0
-	case "clock":
-		// A key whose signing history was lost gets one RestoreMargin ahead of the clock.
-		fs := flags("key clock")
-		restore := fs.Bool("restore", false, "make a new signing history after a loss")
-		if fs.Parse(args[1:]) != nil || fs.NArg() != 0 || !*restore {
-			return badOptions(stderr)
-		}
-		k, err := signed.Load(ctx, keyStore)
-		if err != nil {
-			return commandError(stderr, err.Error())
-		}
-		v, err := keyClock.Restore(k.ID())
-		if err != nil {
-			return commandError(stderr, err.Error())
-		}
-		fmt.Fprintf(stdout, "The signing history of %s now starts at %d. Enroll the key again on each computer; the outcome of a write sent before is unknown.\n", k.ID(), v)
-		return 0
 	case "enroll":
 		fs := flags("key enroll")
 		target := fs.String("target", "", "the target's pin, from koinon link status on the target")
@@ -86,18 +67,17 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return commandError(stderr, err.Error())
 		}
-		// An enrollment is signed strictly after every envelope this key signed before.
-		created, err := keyClock.Next(k.ID(), true)
-		if err != nil {
-			return commandError(stderr, err.Error())
-		}
-		e, err := signed.Enrollment(k.Public(), *target, k.User, *client, created)
+		e, err := signed.Enrollment(k.Public(), *target, k.User, *client, keyNow().Unix())
 		if err != nil {
 			return commandError(stderr, err.Error())
 		}
 		e, err = signed.Sign(k.Private, e)
 		if err != nil {
 			return commandError(stderr, err.Error())
+		}
+		// Every envelope to this computer carries the authorization that this statement makes.
+		if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
+			return commandError(stderr, "the statement was not recorded: "+err.Error())
 		}
 		b, _ := json.Marshal(e)
 		b = append(b, '\n')

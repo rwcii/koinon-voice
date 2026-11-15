@@ -29,9 +29,11 @@ type SignedOptions struct {
 	Client string
 	// Key signs every envelope; only signed envelopes reach the process.
 	Key signed.Key
-	// Clock gives every envelope's created from the key's durable high-water (Koinon contract
-	// 072870b, Decision 1.7); it is required.
-	Clock signed.Clock
+	// Auths holds the authorization ID of each enrolled computer, by pin (Koinon contract
+	// 05c531c, Decision 1.7); Voice acts only on these pins (D5.5).
+	Auths map[string]string
+	// Now is the clock for created; nil is time.Now.
+	Now func() time.Time
 	// Version is Koinon Voice's version for MCP initialize.
 	Version string
 	// Grace is how long a stopping process may take before it is killed.
@@ -104,7 +106,7 @@ func OpenSigned(ctx context.Context, opts SignedOptions, r io.Reader, w io.Write
 	if err := signed.CheckPin(opts.NodePin); err != nil {
 		return nil, err
 	}
-	session, err := s.envelope("session", opts.NodePin, map[string]any{"client": opts.Client}, true)
+	session, err := s.envelope("session", opts.NodePin, map[string]any{"client": opts.Client}, "")
 	if err != nil {
 		return nil, err
 	}
@@ -132,21 +134,24 @@ func (s *Signed) Close() {
 // Done is closed when the session's stream ends.
 func (s *Signed) Done() <-chan struct{} { return s.client.Done() }
 
-// envelope signs a new operation: a new request ID when request is true, and created from
-// the clock.
-func (s *Signed) envelope(op, target string, args map[string]any, request bool) (signed.Envelope, error) {
-	created, err := s.opts.Clock.Next(s.opts.Key.ID(), false)
+// envelope signs a new operation with a new request ID, created from the clock, and the
+// target's authorization; auth overrides it for an outcome of an earlier write.
+func (s *Signed) envelope(op, target string, args map[string]any, auth string) (signed.Envelope, error) {
+	if auth == "" {
+		auth = s.opts.Auths[target]
+	}
+	if auth == "" {
+		return signed.Envelope{}, fmt.Errorf("this install has no enrollment for the computer %s; run koinon-voice key enroll --target %s", target, target)
+	}
+	now := time.Now
+	if s.opts.Now != nil {
+		now = s.opts.Now
+	}
+	id, err := signed.NewRequestID()
 	if err != nil {
 		return signed.Envelope{}, err
 	}
-	e := signed.Envelope{V: signed.Version, Target: target, Op: op, Args: args, Created: created}
-	if request {
-		id, err := signed.NewRequestID()
-		if err != nil {
-			return signed.Envelope{}, err
-		}
-		e.Request = id
-	}
+	e := signed.Envelope{V: signed.Version, Target: target, Op: op, Args: args, Request: id, Auth: auth, Created: now().Unix()}
 	return signed.Sign(s.opts.Key.Private, e)
 }
 
@@ -161,7 +166,7 @@ func (s *Signed) Read(ctx context.Context, target, op string, args map[string]an
 	if args == nil {
 		args = map[string]any{}
 	}
-	e, err := s.envelope(op, target, args, true)
+	e, err := s.envelope(op, target, args, "")
 	if err != nil {
 		return err
 	}
@@ -213,7 +218,7 @@ func (w Write) Envelope() signed.Envelope { return w.envelope }
 
 // NewWrite signs a new write.
 func (s *Signed) NewWrite(target, op string, args map[string]any) (Write, error) {
-	e, err := s.envelope(op, target, args, true)
+	e, err := s.envelope(op, target, args, "")
 	return Write{envelope: e}, err
 }
 
@@ -283,14 +288,18 @@ type Outcome struct {
 	Now    int64           `json:"now"`
 }
 
-// AskOutcome signs a new outcome read for the write's request and created (D4.3). It reports
-// the target's answer; deciding whether an absent receipt is final waits for the contract's
-// G18b.
+// AskOutcome signs a new outcome read for the write's request and created, under the write's
+// own authorization (D4.3): a target enrolled again since then refuses it (signature_refused,
+// reason authorization_changed).
 func (s *Signed) AskOutcome(ctx context.Context, w Write) (Outcome, error) {
 	var o Outcome
-	err := s.Read(ctx, w.envelope.Target, "outcome", map[string]any{
+	e, err := s.envelope("outcome", w.envelope.Target, map[string]any{
 		"request": w.envelope.Request, "created": w.envelope.Created,
-	}, &o)
+	}, w.envelope.Auth)
+	if err != nil {
+		return o, err
+	}
+	err = s.Send(ctx, e, &o)
 	return o, err
 }
 
@@ -313,4 +322,66 @@ func stderrRefusal(text string) *Refusal {
 		}
 	}
 	return nil
+}
+
+// ReceiptDays is how long a target keeps a write's receipt (Koinon contract D4.1).
+const ReceiptDays = 7
+
+// WindowSeconds is how long an envelope is valid against a target's clock (D3.3).
+const WindowSeconds = 5 * 60
+
+// Reconciled is what reconciliation found for a write whose answer was lost.
+type Reconciled struct {
+	State WriteState
+	// Final is true when the state cannot change: recorded, refused, or not run because
+	// the target's clock is past the write's window with no receipt.
+	Final   bool
+	Refusal *Refusal
+	Err     error
+}
+
+// Reconcile finds the outcome of a write whose answer was lost (Koinon contract 4e324d5,
+// D4.3, D1.7):
+//
+//   - recorded or refused: final;
+//   - refused with signature_refused, reason authorization_changed (the key was enrolled
+//     again since the write): unknown, and not sent again; the maintainer reads the target's
+//     record;
+//   - unknown_request with the target's now past created+5 minutes: final, did not run;
+//   - unknown_request within the window: the same envelope is sent once more; if that answer
+//     is lost too, the caller reconciles again after the window;
+//   - past the receipts' 7 days: unknown.
+//
+// It never signs the write again under a new request ID.
+func (s *Signed) Reconcile(ctx context.Context, w Write, out any) Reconciled {
+	created := w.envelope.Created
+	o, err := s.AskOutcome(ctx, w)
+	if err != nil {
+		var r *Refusal
+		if errors.As(err, &r) && r.Code == "signature_refused" && r.Reason() == "authorization_changed" {
+			return Reconciled{State: Unknown, Final: true, Refusal: r}
+		}
+		return Reconciled{State: Unknown, Err: err}
+	}
+	switch o.State {
+	case "recorded":
+		if out != nil && len(o.Result) > 0 {
+			if err := json.Unmarshal(o.Result, out); err != nil {
+				return Reconciled{State: Recorded, Final: true, Err: err}
+			}
+		}
+		return Reconciled{State: Recorded, Final: true}
+	case "refused":
+		return Reconciled{State: Refused, Final: true, Refusal: &Refusal{Code: o.Code}}
+	case "unknown_request":
+		if o.Now > created+ReceiptDays*24*60*60 {
+			return Reconciled{State: Unknown, Final: true}
+		}
+		if o.Now > created+WindowSeconds {
+			return Reconciled{State: NotRun, Final: true}
+		}
+		r := s.Submit(ctx, w, out)
+		return Reconciled{State: r.State, Final: r.State == Recorded || r.State == Refused, Refusal: r.Refusal, Err: r.Err}
+	}
+	return Reconciled{State: Unknown, Err: fmt.Errorf("%w: outcome state %q", ErrProtocol, o.State)}
 }
