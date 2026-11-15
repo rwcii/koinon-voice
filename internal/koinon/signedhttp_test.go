@@ -239,3 +239,86 @@ func TestServeCloseEndsAChangesWait(t *testing.T) {
 		t.Error("Done is open after Close")
 	}
 }
+
+func TestServeStrictAnswers(t *testing.T) {
+	r := newHTTPRig(t)
+	shown, _ := r.s.DecisionGet(ctx(t), otherPin, "P-1")
+	answers := map[string]struct {
+		status int
+		body   string
+	}{
+		"empty object":   {200, `{}`},
+		"null":           {200, `null`},
+		"ok false bare":  {409, `{"ok":false}`},
+		"ok true bare":   {200, `{"ok":true}`},
+		"ok true null":   {200, `{"ok":true,"result":null}`},
+		"refusal on 200": {200, `{"ok":false,"code":"refused","error":"x"}`},
+		"ok on 409":      {409, `{"ok":true,"result":{}}`},
+		"two objects":    {200, `{"ok":true,"result":{}}{}`},
+		"503 expired":    {503, `{"ok":false,"code":"maintainer_token_expired","error":"temporary failure"}`},
+		"401 expired":    {401, `{"ok":false,"code":"maintainer_token_expired","error":"x"}`},
+	}
+	for name, a := range answers {
+		a := a
+		r.route.Hook = func(w http.ResponseWriter, req *http.Request) bool {
+			if req.URL.Path != "/v1/maintainer/signed" {
+				return false
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(a.status)
+			io.WriteString(w, a.body)
+			return true
+		}
+		before := r.route.Sessions
+		w, _ := r.s.NewVerdict(otherPin, shown, "approved", "")
+		res := r.s.Submit(ctx(t), w, nil)
+		if res.State != Unknown || !errors.Is(res.Err, ErrProtocol) {
+			t.Errorf("%s: %+v", name, res)
+		}
+		if r.route.Sessions != before {
+			t.Errorf("%s: the session was renewed", name)
+		}
+	}
+}
+
+func TestServeRenewalWaitHonorsContext(t *testing.T) {
+	r := newHTTPRig(t)
+	release := make(chan struct{})
+	r.route.Hook = func(w http.ResponseWriter, req *http.Request) bool {
+		if req.URL.Path == "/v1/maintainer/signed/session" {
+			<-release
+		}
+		return false
+	}
+	defer close(release)
+	r.route.ExpireTokens()
+	go r.s.DecisionGet(context.Background(), otherPin, "P-1") // holds the renewal open
+	time.Sleep(100 * time.Millisecond)
+	c, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := r.s.DecisionGet(c, otherPin, "P-1"); err == nil {
+		t.Error("a waiting caller got an answer")
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("a waiting caller blocked %v past its deadline", d)
+	}
+}
+
+func TestServeFirstSessionHasDeadline(t *testing.T) {
+	var deadline bool
+	key := signed.Key{Private: ed25519.NewKeyFromSeed(bytes.Repeat([]byte{3}, 32))}
+	client := &http.Client{Transport: roundTrip(func(req *http.Request) (*http.Response, error) {
+		_, deadline = req.Context().Deadline()
+		return nil, errors.New("stop")
+	})}
+	opts := SignedOptions{NodePin: nodePin, Client: "koinon-voice", Key: key, Auths: map[string]string{nodePin: strings.Repeat("1", 64)}}
+	OpenSignedHTTP(context.Background(), opts, "https://node.example", client)
+	if !deadline {
+		t.Error("the first session request had no deadline")
+	}
+}
+
+type roundTrip func(*http.Request) (*http.Response, error)
+
+func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

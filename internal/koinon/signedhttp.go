@@ -57,7 +57,9 @@ func OpenSignedHTTP(ctx context.Context, opts SignedOptions, base string, client
 		return s.envelope("session", opts.NodePin, map[string]any{"client": opts.Client}, "")
 	}
 	s.t = h
-	if err := h.renew(ctx, ""); err != nil {
+	sctx, cancel := context.WithTimeout(ctx, CallTimeout)
+	defer cancel()
+	if err := h.renew(sctx, -1); err != nil {
 		h.Close()
 		return nil, err
 	}
@@ -92,10 +94,16 @@ type httpTransport struct {
 	done    chan struct{}
 	once    sync.Once
 
-	mu    sync.Mutex // guards token; renewMu serializes renewals
-	token string
-	gen   int
-	renMu sync.Mutex
+	mu       sync.Mutex // guards token, gen and inflight
+	token    string
+	gen      int
+	inflight *renewal
+}
+
+// renewal is one session renewal that concurrent callers share.
+type renewal struct {
+	done chan struct{}
+	err  error
 }
 
 func (h *httpTransport) Done() <-chan struct{} { return h.done }
@@ -117,11 +125,10 @@ func (h *httpTransport) Call(ctx context.Context, e signed.Envelope, out any) er
 	token, gen := h.token, h.gen
 	h.mu.Unlock()
 	err := h.post(ctx, "/v1/maintainer/signed", token, e, out)
-	var r *Refusal
-	if !errors.As(err, &r) || r.Code != "maintainer_token_expired" {
+	if !errors.Is(err, errTokenExpired) {
 		return err
 	}
-	if err := h.renew(ctx, "", gen); err != nil {
+	if err := h.renew(ctx, gen); err != nil {
 		return err
 	}
 	h.mu.Lock()
@@ -147,35 +154,59 @@ func (h *httpTransport) callContext(ctx context.Context, e signed.Envelope) (con
 	return ctx, func() { stop(); cancel() }
 }
 
-// renew signs a new session and stores its token. Callers that saw generation gen renew it
-// once together: a renewal that already happened since then is used as it is.
-func (h *httpTransport) renew(ctx context.Context, _ string, seen ...int) error {
-	h.renMu.Lock()
-	defer h.renMu.Unlock()
+// renew signs a new session and stores its token. Callers that saw generation seen share
+// one renewal: one that already happened since then is used as it is, and one in flight is
+// waited for, within each caller's own context. seen -1 is the first session.
+func (h *httpTransport) renew(ctx context.Context, seen int) error {
 	h.mu.Lock()
-	if len(seen) == 1 && h.gen != seen[0] {
+	if seen >= 0 && h.gen != seen {
 		h.mu.Unlock()
 		return nil
 	}
+	if f := h.inflight; f != nil {
+		h.mu.Unlock()
+		select {
+		case <-f.done:
+			return f.err
+		case <-ctx.Done():
+			return fmt.Errorf("%w: waiting for the session: %v", ErrClosed, ctx.Err())
+		}
+	}
+	f := &renewal{done: make(chan struct{})}
+	h.inflight = f
 	h.mu.Unlock()
+
+	token, err := h.newSession(ctx)
+	h.mu.Lock()
+	if err == nil {
+		h.token, h.gen = token, h.gen+1
+	}
+	h.inflight = nil
+	f.err = err
+	h.mu.Unlock()
+	close(f.done)
+	return err
+}
+
+func (h *httpTransport) newSession(ctx context.Context) (string, error) {
 	e, err := h.session()
 	if err != nil {
-		return err
+		return "", err
 	}
 	// The session answer is flat, as /v1/maintainer/session is: {"ok": true, "token", ...}.
 	var answer struct {
 		Token string `json:"token"`
 	}
 	if err := h.post(ctx, "/v1/maintainer/signed/session", "", e, &flat{&answer}); err != nil {
-		return err
+		if errors.Is(err, errTokenExpired) {
+			return "", fmt.Errorf("%w: the session route answered maintainer_token_expired", ErrProtocol)
+		}
+		return "", err
 	}
 	if answer.Token == "" {
-		return fmt.Errorf("%w: the session answer has no token", ErrProtocol)
+		return "", fmt.Errorf("%w: the session answer has no token", ErrProtocol)
 	}
-	h.mu.Lock()
-	h.token, h.gen = answer.Token, h.gen+1
-	h.mu.Unlock()
-	return nil
+	return answer.Token, nil
 }
 
 // post sends one envelope as JSON and reads Koinon's answer. The token appears in no error.
@@ -228,11 +259,7 @@ func (h *httpTransport) post(ctx context.Context, path, token string, e signed.E
 	if mt, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		return fmt.Errorf("%w: the node answered HTTP %d without JSON", ErrProtocol, resp.StatusCode)
 	}
-	if f, ok := out.(*flat); ok {
-		err = decodeFlat(path, b, resp.StatusCode >= 400, f.v)
-	} else {
-		err = decodeAnswer(path, string(b), resp.StatusCode >= 400, out)
-	}
+	err = decodeHTTP(path, resp.StatusCode, b, out)
 	var r *Refusal
 	if errors.As(err, &r) && token != "" {
 		r.Message = redactToken(r.Message, token)
@@ -251,18 +278,53 @@ func redactToken(s, token string) string {
 // flat marks an answer whose fields sit beside "ok" instead of in "result".
 type flat struct{ v any }
 
-func decodeFlat(what string, b []byte, isError bool, out any) error {
-	var ok struct {
-		OK bool `json:"ok"`
+// errTokenExpired is the node's HTTP 409 maintainer_token_expired, which it answers before it
+// reads the envelope (Koinon contract dfb2ed7, Answer shapes): the only answer that renews.
+var errTokenExpired = errors.New("maintainer_token_expired")
+
+// decodeHTTP reads an answer of the Serve route strictly: one object with a boolean ok; on
+// HTTP 200, ok true with a result (or, for the session, its flat fields); on HTTP 409 or
+// 400, ok false with a code and an error. Any other status or shape is a protocol error,
+// never a recorded or refused write.
+func decodeHTTP(what string, status int, b []byte, out any) error {
+	var a struct {
+		OK      *bool           `json:"ok"`
+		Result  json.RawMessage `json:"result"`
+		Code    string          `json:"code"`
+		Error   string          `json:"error"`
+		Details json.RawMessage `json:"details"`
 	}
-	if err := json.Unmarshal(b, &ok); err != nil {
-		return fmt.Errorf("%w: %s answered text that is not JSON", ErrProtocol, what)
+	dec := json.NewDecoder(bytes.NewReader(b))
+	if err := dec.Decode(&a); err != nil || a.OK == nil || dec.More() {
+		return fmt.Errorf("%w: %s answered HTTP %d without a Koinon answer object", ErrProtocol, what, status)
 	}
-	if isError || !ok.OK {
-		return decodeAnswer(what, string(b), true, nil)
+	if !*a.OK {
+		if (status != http.StatusConflict && status != http.StatusBadRequest) || a.Code == "" || a.Error == "" {
+			return fmt.Errorf("%w: %s answered a refusal with HTTP %d", ErrProtocol, what, status)
+		}
+		r := &Refusal{Code: a.Code, Message: a.Error, Details: a.Details}
+		if a.Code == "maintainer_token_expired" && status == http.StatusConflict {
+			return fmt.Errorf("%w: %w", errTokenExpired, r)
+		}
+		return r
 	}
-	if err := json.Unmarshal(b, out); err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrProtocol, what, err)
+	if status != http.StatusOK {
+		return fmt.Errorf("%w: %s answered ok with HTTP %d", ErrProtocol, what, status)
+	}
+	if f, ok := out.(*flat); ok {
+		if err := json.Unmarshal(b, f.v); err != nil {
+			return fmt.Errorf("%w: %s: %v", ErrProtocol, what, err)
+		}
+		return nil
+	}
+	if len(a.Result) == 0 || string(a.Result) == "null" {
+		return fmt.Errorf("%w: %s answered ok without a result", ErrProtocol, what)
+	}
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(a.Result, out); err != nil {
+		return fmt.Errorf("%w: %s result: %v", ErrProtocol, what, err)
 	}
 	return nil
 }
