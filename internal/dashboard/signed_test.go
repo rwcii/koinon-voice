@@ -190,10 +190,10 @@ func TestSignedPageShowsALearnedOutcome(t *testing.T) {
 
 func TestSignedRepeatShowsItsResult(t *testing.T) {
 	for want, res := range map[string]koinon.VerdictResult{
-		"Verdict recorded on P-1": {State: koinon.Recorded, Repeat: true},
-		"can no longer be asked":  {State: koinon.Unknown, Final: true, Repeat: true},
-		"stale_revision":          {State: koinon.Refused, Code: "stale_revision", Repeat: true},
-		"answer did not arrive":   {State: koinon.Unknown, Repeat: true},
+		"Verdict recorded on P-1":          {State: koinon.Recorded, Repeat: true},
+		"can no longer be asked":           {State: koinon.Unknown, Final: true, Repeat: true},
+		"changed after the page showed it": {State: koinon.Refused, Code: "stale_revision", Repeat: true},
+		"answer did not arrive":            {State: koinon.Unknown, Repeat: true},
 	} {
 		a, _ := signedRows()
 		a.result = res
