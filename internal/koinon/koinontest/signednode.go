@@ -295,7 +295,14 @@ func (n *SignedNode) changes(t *Target, e signed.Envelope) (string, bool) {
 		for topic, v := range t.Versions {
 			cur[topic] = fmt.Sprintf("%020d", v)
 			h, _ := have[topic].(string)
-			if cur[topic] > h || len(h) != 20 {
+			if cur[topic] != h {
+				changed = true
+				list = append(list, topic)
+			}
+		}
+		// A topic the client has and the target no longer has is changed too.
+		for topic := range have {
+			if _, ok := t.Versions[topic]; !ok {
 				changed = true
 				list = append(list, topic)
 			}

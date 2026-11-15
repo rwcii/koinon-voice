@@ -13,6 +13,9 @@ type Change struct {
 	// Topics changed, with their new versions (20-digit strings, Koinon contract cbd8e21,
 	// Answer shapes); the consumer reads them, then calls Done.
 	Topics map[string]string
+	// Removed topics are gone on the target, such as a deleted room; the consumer drops
+	// them, then calls Done with them.
+	Removed []string
 	// Offline: the target answered computer_offline; its wait pauses until Resume, which
 	// the consumer calls when the node's computers topic shows it back (D6.4).
 	Offline bool
@@ -102,10 +105,10 @@ func (w *Watcher) Remove(pin string) {
 	}
 }
 
-// Done stores the versions that the consumer has read for a target, and lets its next wait
-// start.
-func (w *Watcher) Done(pin string, read map[string]string) {
-	w.store(pin, read)
+// Done stores the versions that the consumer has read for a target and drops the removed
+// topics, and lets its next wait start.
+func (w *Watcher) Done(pin string, read map[string]string, removed []string) {
+	w.store(pin, read, removed)
 	w.mu.Lock()
 	t := w.targets[pin]
 	w.mu.Unlock()
@@ -147,7 +150,7 @@ func (w *Watcher) Stop() {
 	w.wg.Wait()
 }
 
-func (w *Watcher) store(pin string, read map[string]string) {
+func (w *Watcher) store(pin string, read map[string]string, removed []string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	v := w.versions[pin]
@@ -159,6 +162,9 @@ func (w *Watcher) store(pin string, read map[string]string) {
 		if newer(n, v[topic]) {
 			v[topic] = n
 		}
+	}
+	for _, topic := range removed {
+		delete(v, topic)
 	}
 }
 
@@ -181,16 +187,25 @@ func (w *Watcher) run(ctx context.Context, pin string, t *watchTarget) {
 		switch {
 		case err == nil:
 			attempt = 0
-			changed := map[string]string{}
+			// The target's changed set names every topic that differs, including one that
+			// is gone (present only in the versions sent); a newer version is a change too.
+			changed, removed := map[string]string{}, []string{}
+			for _, topic := range answer.Changed {
+				if n, ok := answer.Versions[topic]; ok {
+					changed[topic] = n
+				} else if _, had := have[topic]; had {
+					removed = append(removed, topic)
+				}
+			}
 			for topic, n := range answer.Versions {
 				if newer(n, have[topic]) {
 					changed[topic] = n
 				}
 			}
-			if len(changed) == 0 {
+			if len(changed) == 0 && len(removed) == 0 {
 				continue
 			}
-			if !w.emit(ctx, Change{Pin: pin, Topics: changed}) {
+			if !w.emit(ctx, Change{Pin: pin, Topics: changed, Removed: removed}) {
 				return
 			}
 			select {

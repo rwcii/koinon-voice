@@ -132,8 +132,17 @@ func TestKeyCreateShowEnroll(t *testing.T) {
 	if info, _ := os.Stat(out); info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", info.Mode())
 	}
+	before, _ := keyEnrollments.Load()
+	keyNow = func() time.Time { return time.Unix(1794699100, 0) }
 	if code, _, stderr := runOut("key", "enroll", "--target", testPin, "--out", out); code != 1 || !strings.Contains(stderr, "not written") {
 		t.Errorf("enroll over a file: %d %s", code, stderr)
+	}
+	if code, _, _ := runOut("key", "enroll", "--target", testPin, "--out", filepath.Join(t.TempDir(), "missing", "s.json")); code != 1 {
+		t.Error("enroll into a missing directory worked")
+	}
+	// A statement that was not written leaves the computer's earlier authorization.
+	if after, _ := keyEnrollments.Load(); after[testPin] != before[testPin] {
+		t.Errorf("a failed export changed the enrollment: %+v -> %+v", before[testPin], after[testPin])
 	}
 }
 

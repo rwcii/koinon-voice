@@ -75,13 +75,15 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return commandError(stderr, err.Error())
 		}
-		// Every envelope to this computer carries the authorization that this statement makes.
-		if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
-			return commandError(stderr, "the statement was not recorded: "+err.Error())
-		}
 		b, _ := json.Marshal(e)
 		b = append(b, '\n')
+		// Every envelope to this computer carries the authorization that this statement
+		// makes. It is recorded only once the statement is out, so a statement that was not
+		// written never replaces the computer's earlier authorization.
 		if *out == "" {
+			if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
+				return commandError(stderr, "the statement was not recorded: "+err.Error())
+			}
 			stdout.Write(b)
 			return 0
 		}
@@ -89,12 +91,17 @@ func runKey(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return commandError(stderr, fmt.Sprintf("the statement was not written: %s exists or cannot be created", *out))
 		}
-		if _, err := f.Write(b); err != nil {
-			f.Close()
-			return commandError(stderr, "the statement was not written: "+err.Error())
+		_, werr := f.Write(b)
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
 		}
-		if err := f.Close(); err != nil {
-			return commandError(stderr, "the statement was not written: "+err.Error())
+		if werr != nil {
+			os.Remove(*out)
+			return commandError(stderr, "the statement was not written: "+werr.Error())
+		}
+		if _, err := keyEnrollments.Record(e, k.User, *client); err != nil {
+			os.Remove(*out)
+			return commandError(stderr, "the statement was not recorded, and its file was removed: "+err.Error())
 		}
 		fmt.Fprintf(stdout, "Wrote %s. Within 10 minutes, on the target: koinon maintainer key add --statement %s\n", *out, *out)
 		return 0

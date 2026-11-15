@@ -1,6 +1,7 @@
 package koinon
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -227,11 +228,11 @@ func TestSignedWatch(t *testing.T) {
 	}
 	// A change while the consumer reads is not lost: the next wait answers at once.
 	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Versions["decisions"] = 2 })
-	w.Done(otherPin, c.Topics)
+	w.Done(otherPin, c.Topics, c.Removed)
 	if c := recv(t, out); c.Topics["decisions"] != "00000000000000000002" {
 		t.Fatalf("second change %+v", c)
 	}
-	w.Done(otherPin, map[string]string{"decisions": "00000000000000000002"})
+	w.Done(otherPin, map[string]string{"decisions": "00000000000000000002"}, nil)
 	if v := w.Versions()[otherPin]["decisions"]; v != "00000000000000000002" {
 		t.Errorf("stored %s", v)
 	}
@@ -250,9 +251,30 @@ func TestSignedWatch(t *testing.T) {
 	if c := recv(t, out); c.Topics["decisions"] != "00000000000000000003" {
 		t.Errorf("after resume %+v", c)
 	}
+	// A deleted topic is reported as removed and dropped once the consumer is done.
+	w.Done(otherPin, map[string]string{"decisions": "00000000000000000003"}, nil)
+	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Versions["room-1"] = 1 })
+	if c := recv(t, out); c.Topics["room-1"] != "00000000000000000001" {
+		t.Fatalf("new room %+v", c)
+	}
+	w.Done(otherPin, map[string]string{"room-1": "00000000000000000001"}, nil)
+	r.node.Change(otherPin, func(tg *koinontest.Target) { delete(tg.Versions, "room-1") })
+	c = recv(t, out)
+	if len(c.Removed) != 1 || c.Removed[0] != "room-1" || len(c.Topics) != 0 {
+		t.Fatalf("deleted room %+v", c)
+	}
+	w.Done(otherPin, nil, c.Removed)
+	if _, ok := w.Versions()[otherPin]["room-1"]; ok {
+		t.Error("a removed topic kept its version")
+	}
+	select {
+	case c := <-out:
+		t.Fatalf("a handled removal came again: %+v", c)
+	case <-time.After(1500 * time.Millisecond):
+	}
 	// Remove stops the target's wait and keeps its versions.
 	w.Remove(otherPin)
-	if v := w.Versions()[otherPin]["decisions"]; v != "00000000000000000002" {
+	if v := w.Versions()[otherPin]["decisions"]; v != "00000000000000000003" {
 		t.Errorf("versions after remove %s", v)
 	}
 }
@@ -303,5 +325,85 @@ func TestStartSignedProcess(t *testing.T) {
 	var r *Refusal
 	if !errors.As(err, &r) || r.Code != "signature_refused" || strings.Contains(err.Error(), seed) {
 		t.Errorf("refused session: %v", err)
+	}
+}
+
+func TestSignedWriteIsImmutable(t *testing.T) {
+	r := newRig(t)
+	args := map[string]any{"reference": "P-1", "nested": map[string]any{"a": "b"}}
+	w, err := r.s.NewWrite(otherPin, "ack", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args["reference"] = "changed"
+	args["nested"].(map[string]any)["a"] = "changed"
+	view := w.Envelope()
+	view.Args["reference"] = "changed too"
+	if err := signed.Verify(r.key.Public(), w.Envelope()); err != nil || w.Envelope().Args["reference"] != "P-1" {
+		t.Errorf("the write changed: %v %+v", err, w.Envelope().Args)
+	}
+}
+
+// fixedNode answers each signed call with the next fixed text, to act out answers that the
+// fake node does not make by itself.
+func fixedNode(t *testing.T, answers ...string) *Signed {
+	t.Helper()
+	cr, cw := io.Pipe()
+	nr, nw := io.Pipe()
+	go func() {
+		defer nw.Close()
+		br := bufio.NewReader(cr)
+		br.ReadBytes('\n') // the session line
+		next := 0
+		for {
+			line, err := br.ReadBytes('\n')
+			if err != nil {
+				return
+			}
+			var m struct {
+				ID     json.RawMessage `json:"id"`
+				Method string          `json:"method"`
+			}
+			json.Unmarshal(line, &m)
+			var result any = map[string]any{"protocolVersion": "2025-06-18"}
+			if m.Method == "tools/call" {
+				text := answers[next]
+				next++
+				result = map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": strings.Contains(text, `"ok":false`)}
+			} else if m.ID == nil {
+				continue
+			}
+			b, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": result})
+			nw.Write(append(b, '\n'))
+		}
+	}()
+	t.Cleanup(func() { cw.Close() })
+	key := signed.Key{User: "robert", Private: ed25519.NewKeyFromSeed(bytes.Repeat([]byte{5}, 32))}
+	s, err := OpenSigned(ctx(t), SignedOptions{NodePin: nodePin, Client: "koinon-voice", Key: key,
+		Auths: map[string]string{nodePin: strings.Repeat("1", 64), otherPin: strings.Repeat("2", 64)}, Version: "test"}, nr, cw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestSignedOutcomeKeepsRefusalDetails(t *testing.T) {
+	s := fixedNode(t, `{"ok":true,"result":{"state":"refused","code":"stale_revision","error":"stale","details":{"current_revision":4}}}`)
+	w, _ := s.NewWrite(otherPin, "decision_verdict", map[string]any{"reference": "P-1", "revision": 3})
+	rec := s.Reconcile(ctx(t), w, nil)
+	if cur, ok := rec.Refusal.CurrentRevision(); rec.State != Refused || !rec.Final || !ok || cur != 4 || rec.Refusal.Message != "stale" {
+		t.Errorf("refused receipt %+v %+v", rec, rec.Refusal)
+	}
+}
+
+func TestSignedReenrolledDuringReconcileIsUnknown(t *testing.T) {
+	s := fixedNode(t,
+		`{"ok":true,"result":{"state":"unknown_request","now":1}}`,
+		`{"ok":false,"code":"signature_refused","error":"refused","details":{"reason":"authorization_changed"}}`)
+	w, _ := s.NewWrite(otherPin, "decision_verdict", map[string]any{"reference": "P-1"})
+	w.envelope.Created = 1
+	rec := s.Reconcile(ctx(t), w, nil)
+	if rec.State != Unknown || !rec.Final {
+		t.Errorf("re-enrolled between outcome and resend: %+v", rec)
 	}
 }

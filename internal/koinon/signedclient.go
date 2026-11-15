@@ -213,13 +213,38 @@ type Write struct {
 	envelope signed.Envelope
 }
 
-// Envelope returns the write's signed envelope.
-func (w Write) Envelope() signed.Envelope { return w.envelope }
+// Envelope returns a copy of the write's signed envelope; changing it does not change the
+// write.
+func (w Write) Envelope() signed.Envelope {
+	e := w.envelope
+	e.Args = cloneArgs(e.Args)
+	return e
+}
 
-// NewWrite signs a new write.
+// NewWrite signs a new write over its own copy of args, so the caller's map can change
+// afterwards without changing the signed write.
 func (s *Signed) NewWrite(target, op string, args map[string]any) (Write, error) {
-	e, err := s.envelope(op, target, args, "")
+	e, err := s.envelope(op, target, cloneArgs(args), "")
 	return Write{envelope: e}, err
+}
+
+// cloneArgs copies v1 arguments, with their nested objects.
+func cloneArgs(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	c := make(map[string]any, len(m))
+	for k, v := range m {
+		switch x := v.(type) {
+		case map[string]any:
+			c[k] = cloneArgs(x)
+		case []string:
+			c[k] = append([]string(nil), x...)
+		default:
+			c[k] = v
+		}
+	}
+	return c
 }
 
 // NewVerdict signs a verdict on the item as the maintainer was shown it: the snapshot
@@ -263,7 +288,7 @@ type WriteResult struct {
 
 // Submit sends the write's envelope and classifies the answer (Koinon contract D4.5).
 func (s *Signed) Submit(ctx context.Context, w Write, out any) WriteResult {
-	err := s.Send(ctx, w.envelope, out)
+	err := s.Send(ctx, w.Envelope(), out)
 	if err == nil {
 		return WriteResult{State: Recorded}
 	}
@@ -282,10 +307,12 @@ func (s *Signed) Submit(ctx context.Context, w Write, out any) WriteResult {
 
 // Outcome is the target's answer to outcome for one write.
 type Outcome struct {
-	State  string          `json:"state"`
-	Result json.RawMessage `json:"result"`
-	Code   string          `json:"code"`
-	Now    int64           `json:"now"`
+	State   string          `json:"state"`
+	Result  json.RawMessage `json:"result"`
+	Code    string          `json:"code"`
+	Error   string          `json:"error"`
+	Details json.RawMessage `json:"details"`
+	Now     int64           `json:"now"`
 }
 
 // AskOutcome signs a new outcome read for the write's request and created, under the write's
@@ -358,7 +385,7 @@ func (s *Signed) Reconcile(ctx context.Context, w Write, out any) Reconciled {
 	o, err := s.AskOutcome(ctx, w)
 	if err != nil {
 		var r *Refusal
-		if errors.As(err, &r) && r.Code == "signature_refused" && r.Reason() == "authorization_changed" {
+		if errors.As(err, &r) && authorizationChanged(r) {
 			return Reconciled{State: Unknown, Final: true, Refusal: r}
 		}
 		return Reconciled{State: Unknown, Err: err}
@@ -372,7 +399,7 @@ func (s *Signed) Reconcile(ctx context.Context, w Write, out any) Reconciled {
 		}
 		return Reconciled{State: Recorded, Final: true}
 	case "refused":
-		return Reconciled{State: Refused, Final: true, Refusal: &Refusal{Code: o.Code}}
+		return Reconciled{State: Refused, Final: true, Refusal: &Refusal{Code: o.Code, Message: o.Error, Details: o.Details}}
 	case "unknown_request":
 		if o.Now > created+ReceiptDays*24*60*60 {
 			return Reconciled{State: Unknown, Final: true}
@@ -381,7 +408,17 @@ func (s *Signed) Reconcile(ctx context.Context, w Write, out any) Reconciled {
 			return Reconciled{State: NotRun, Final: true}
 		}
 		r := s.Submit(ctx, w, out)
+		if r.Refusal != nil && authorizationChanged(r.Refusal) {
+			// The key was enrolled again after the outcome read: the first sending may have
+			// committed under the earlier authorization, which the new one cannot read.
+			return Reconciled{State: Unknown, Final: true, Refusal: r.Refusal}
+		}
 		return Reconciled{State: r.State, Final: r.State == Recorded || r.State == Refused, Refusal: r.Refusal, Err: r.Err}
 	}
 	return Reconciled{State: Unknown, Err: fmt.Errorf("%w: outcome state %q", ErrProtocol, o.State)}
+}
+
+// authorizationChanged is a refusal because the write's authorization is no longer current.
+func authorizationChanged(r *Refusal) bool {
+	return r.Code == "signature_refused" && r.Reason() == "authorization_changed"
 }
