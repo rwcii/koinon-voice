@@ -83,4 +83,12 @@
 </section>
 {{end}}
 {{end}}
+{{if .JournalError}}<p class="reason"><code>pending writes</code> {{.JournalError}}</p>{{end}}
+{{if .Unrouted}}
+<section class="host unrouted">
+<h2>Pending verdicts through nodes not in hosts.toml</h2>
+{{range .Unrouted}}<p class="pending">Verdict <code>{{.Verdict}}</code> on <code>{{.Reference}}</code> of computer <code>{{.Target}}</code>, through node {{.Node}} (<code>{{.NodePin}}</code>): {{if .Final}}outcome unknown, and it can no longer be asked. {{end}}{{.Reason}}</p>
+{{end}}
+</section>
+{{end}}
 {{if and (not .Hosts) (not .Signed)}}<p>No hosts.</p>{{end}}

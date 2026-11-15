@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"syscall"
 
@@ -218,4 +219,39 @@ func checkEntry(e Entry, key signed.Key) string {
 		return "the entry's signature does not verify"
 	}
 	return ""
+}
+
+// Unrouted is a journal entry that no configured signed row serves: its node pin names no
+// row. It keeps its original route; nothing is sent for it.
+type Unrouted struct {
+	NodePin   string `json:"node_pin"`
+	Node      string `json:"node"`
+	Target    string `json:"target"`
+	Reference string `json:"reference"`
+	Verdict   string `json:"verdict"`
+	Request   string `json:"request"`
+	Final     bool   `json:"final"`
+	Reason    string `json:"reason"`
+}
+
+// UnroutedEntries lists the entries whose node pin is none of nodePins, by request.
+func UnroutedEntries(entries map[string]Entry, nodePins map[string]bool, path string) []Unrouted {
+	var out []Unrouted
+	for _, e := range entries {
+		if nodePins[e.NodePin] {
+			continue
+		}
+		verdict, _ := e.Envelope.Args["verdict"].(string)
+		u := Unrouted{NodePin: e.NodePin, Node: e.Node, Target: e.Envelope.Target, Reference: e.Reference(),
+			Verdict: verdict, Request: e.Request(), Final: e.Final != ""}
+		if u.Final {
+			u.Reason = e.Reason
+		} else {
+			u.Reason = fmt.Sprintf("no signed row in hosts.toml has node_pin %s; add it to ask for the outcome. Nothing was sent", e.NodePin)
+		}
+		u.Reason += ". The record is in " + path
+		out = append(out, u)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Request < out[j].Request })
+	return out
 }

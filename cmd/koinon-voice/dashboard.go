@@ -55,19 +55,20 @@ func runDashboard(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	conns := make([]*koinon.Connector, len(hosts))
-	views := make([]dashboard.Host, len(hosts))
 	var srv *dashboard.Server
-	opts := connectorOptions
-	opts.Secrets, opts.Version = hostSecrets, version
-	opts.OnChange = func(koinon.State) {
+	src := newSources(hosts, func() {
 		if srv != nil {
 			srv.Changed()
 		}
-	}
-	for i, h := range hosts {
-		conns[i] = koinon.New(h, opts)
-		views[i] = conns[i]
+	})
+	var views []dashboard.Host
+	var signed []dashboard.SignedSource
+	for _, r := range src.rows {
+		if r.conn != nil {
+			views = append(views, r.conn)
+		} else {
+			signed = append(signed, r.signed)
+		}
 	}
 	srv, err = dashboard.New(views, ln.Addr().String())
 	if err != nil {
@@ -75,17 +76,13 @@ func runDashboard(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
+	srv.SetSigned(signed)
+	srv.SetUnresolved(src.unrouted, src.journalErr)
 
 	ctx, cancel := watchContext()
 	defer cancel()
 	var wg sync.WaitGroup
-	for _, c := range conns {
-		wg.Add(1)
-		go func(c *koinon.Connector) {
-			defer wg.Done()
-			c.Run(ctx)
-		}(c)
-	}
+	src.run(ctx, &wg)
 	// Requests take the run's context, so open event streams end when the dashboard stops.
 	httpSrv := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
 		BaseContext: func(net.Listener) context.Context { return ctx }}

@@ -8,9 +8,17 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
   "https://HOST"` (R24). A row with `node_pin` or `serve`, even empty, is checked as a signed
   node: a valid pin, no `ssh` or `secret`, a Serve address checked as the Serve client checks
   it, and no local fields beside `serve`; two rows with one pin are refused. Voice uses an
-  enrollment only when its key ID, user and client match this install's key. `board` and
-  `dashboard` show signed rows as disconnected (`signed_node`) and start nothing for them
-  until the signed source is wired in (#36).
+  enrollment only when its key ID, user and client match this install's key (#36).
+- `board` and `dashboard` connect to signed rows beside the secret rows: each signed row shows
+  its node and every computer paired with it, keyed by pin and named by the node, read once and
+  then only for the topics that each computer's signed `changes` wait names. A missing key or
+  enrollment shows on the signed rows only, and sends nothing. The dashboard signs a verdict
+  only for the item as the page showed it, offers the verdicts of the item's kind, answers a
+  form sent again with its first result, and writes each verdict to
+  `~/.local/share/koinon-voice/pending.json` before sending it. A verdict whose answer was lost
+  is asked about under its original request until its outcome is known, also after a restart;
+  one whose outcome can no longer be asked stays shown until its local record is removed.
+  `board` lists pending verdicts through nodes that no row names under `unresolved` (#36).
 - `koinon-voice key create --user NAME`, `key show` and `key enroll --target PIN` make this
   install's Ed25519 maintainer key, keep it in the Keychain item `koinon-voice-maintainer-key`
   (written through `security` on standard input, never replaced), print its key ID, public key

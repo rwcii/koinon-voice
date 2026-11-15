@@ -116,7 +116,7 @@ line of the process's standard input and appears in no argument, log or output.
 Koinon is moving maintainer actions to signatures: one key pair per user and install signs
 each action, and each Koinon computer accepts only keys enrolled on it
 ([ADR 004](docs/architecture/adr/004-signed-client-of-koinon-nodes.md), rwcii/koinon#693).
-The connections above do not use the key yet.
+Secret rows of `hosts.toml` do not use the key; signed rows, below, sign every action with it.
 
 ```sh
 koinon-voice key create --user NAME   # one Ed25519 key for this install, in the Keychain
@@ -153,8 +153,25 @@ serve = "https://blackhole.example.ts.net"
 
 Two rows with the same `node_pin` are refused. Voice tries a signed node only when
 `enrollments.json` holds an enrollment for its pin made with this install's key, user and
-client; only the node's answer confirms it. `board` and `dashboard` read signed rows but do not
-connect to them yet: each shows as disconnected with the code `signed_node` (#36).
+client; only the node's answer confirms it. Without the key, or without an enrollment for the
+node, the row shows why and nothing is sent; secret rows keep working.
+
+`board` and `dashboard` show a signed row as its node and each computer paired with it, by
+name, with its pin. They read each computer's board, inbox and rooms once, then only what its
+signed `changes` wait names. A computer that goes offline or is unpaired stays shown,
+disconnected, with what was last read.
+
+On the dashboard, a verdict on a signed computer's item is signed only for the item as the page
+showed it: when the item changed since, nothing is sent and the page shows it as it is now. Each
+item offers the verdicts of its kind (decision: approved, declined, feedback; task: completed,
+declined, feedback; fyi: acknowledged). The same form sent again sends nothing and shows its
+first result. A verdict is written to `~/.local/share/koinon-voice/pending.json` before it is
+sent and removed when its outcome is known. When an answer is lost, the computer shows the
+verdict as waiting for its outcome, and Koinon Voice asks the computer for it under the
+original signed request, also after a restart; it never signs the verdict again. An outcome that
+can no longer be asked, such as after the key was enrolled again there, stays shown until you
+remove its local record; read the item's record on that computer. A pending verdict through a
+node that no row names is listed with its node and computer pins, and nothing is sent for it.
 
 ## Dashboard
 

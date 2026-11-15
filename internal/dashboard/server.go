@@ -54,11 +54,13 @@ type SignedSource interface {
 
 // Server is the dashboard. Its zero value is not usable; make it with New.
 type Server struct {
-	hosts  []Host
-	signed []SignedSource
-	host   string // the Host header every request must carry
-	tmpl   *template.Template
-	now    func() time.Time
+	hosts      []Host
+	signed     []SignedSource
+	unrouted   []koinon.Unrouted
+	journalErr string
+	host       string // the Host header every request must carry
+	tmpl       *template.Template
+	now        func() time.Time
 
 	mu       sync.Mutex
 	links    map[string]time.Time // one-time login tokens and their ends
@@ -115,6 +117,15 @@ func New(hosts []Host, addr string) (*Server, error) {
 
 // SetSigned sets the signed rows; call it before Handler.
 func (s *Server) SetSigned(sources []SignedSource) { s.signed = sources }
+
+// SetUnresolved sets the pending verdicts through nodes that no row names, and why the
+// pending verdicts file could not be read, if it could not; call it before Handler.
+func (s *Server) SetUnresolved(u []koinon.Unrouted, journalErr error) {
+	s.unrouted = u
+	if journalErr != nil {
+		s.journalErr = journalErr.Error()
+	}
+}
 
 // LoginLink returns a new login link, which works once within LinkLifetime.
 func (s *Server) LoginLink() string {
@@ -255,10 +266,12 @@ func (s *Server) render(w http.ResponseWriter, status int, name string, data any
 
 // view is what the board template shows.
 type view struct {
-	CSRF   string
-	Notice *notice
-	Hosts  []koinon.State
-	Signed []signedView
+	CSRF         string
+	Notice       *notice
+	Hosts        []koinon.State
+	Signed       []signedView
+	Unrouted     []koinon.Unrouted
+	JournalError string
 }
 
 // signedView is one signed row's states; Source is its index, which forms carry.
@@ -274,7 +287,7 @@ type notice struct {
 }
 
 func (s *Server) view(r *http.Request, session string) view {
-	v := view{CSRF: s.csrf(session)}
+	v := view{CSRF: s.csrf(session), Unrouted: s.unrouted, JournalError: s.journalErr}
 	for _, h := range s.hosts {
 		v.Hosts = append(v.Hosts, h.State())
 	}
