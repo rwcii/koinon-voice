@@ -43,6 +43,20 @@ type Target struct {
 	Auth string
 	// DropNext drops the answer of the next write after it is recorded (outcome_unknown).
 	DropNext bool
+	// Name is the computer's name in computers; State and Reason its link state there
+	// (connected unless Offline).
+	Name   string
+	Reason string
+	// Inbox holds the maintainer's messages, by ascending seq; AckedThrough the cursor.
+	Inbox        []map[string]any
+	AckedThrough int64
+	// Rooms lists the rooms; Posts holds each room's posts, by ascending seq.
+	Rooms []map[string]any
+	Posts map[string][]map[string]any
+	// Fail makes the next reads of an operation fail with code internal, a count per op.
+	Fail map[string]int
+	// Reads counts the reads of each operation the target answered or refused.
+	Reads    map[string]int
 	receipts map[string]receipt
 	bump     chan struct{}
 }
@@ -64,7 +78,8 @@ func NewSignedNode(pin string, key ed25519.PublicKey, now func() time.Time) *Sig
 func (n *SignedNode) AddTarget(pin string) *Target {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	t := &Target{Items: map[string]map[string]any{}, Versions: map[string]int64{}, receipts: map[string]receipt{}, bump: make(chan struct{})}
+	t := &Target{Items: map[string]map[string]any{}, Versions: map[string]int64{}, receipts: map[string]receipt{}, bump: make(chan struct{}),
+		Posts: map[string][]map[string]any{}, Fail: map[string]int{}, Reads: map[string]int{}}
 	n.targets[pin] = t
 	return t
 }
@@ -206,6 +221,7 @@ func (n *SignedNode) call(params json.RawMessage) (string, bool) {
 	switch e.Op {
 	case "decision_get":
 		n.mu.Lock()
+		t.Reads[e.Op]++
 		it, ok := t.Items[fmt.Sprint(e.Args["reference"])]
 		n.mu.Unlock()
 		if !ok {
@@ -227,10 +243,8 @@ func (n *SignedNode) call(params json.RawMessage) (string, bool) {
 		}
 	case "changes":
 		return n.changes(t, e)
-	case "computers":
-		return answer(map[string]any{"node": map[string]string{"pin": n.Pin}})
 	}
-	return refuse("unknown_operation", nil)
+	return n.read(e.Target, t, e)
 }
 
 func (n *SignedNode) write(t *Target, e signed.Envelope, now int64) (string, bool) {

@@ -31,7 +31,12 @@ const (
 // State is what a connector knows of its host. A connector replaces its slices and never
 // changes them in place, so a State is safe to keep and read.
 type State struct {
-	Host   string
+	Host string
+	// Pin is a signed source's stable key for the computer (R12); Host shows its name, which
+	// can change and need not be unique. Node is the hosts.toml label of the row that reaches
+	// it. Both are empty for a secret connection.
+	Pin    string
+	Node   string
 	Status Status
 	// Code and Reason say why the host is disconnected; Code is Koinon's code when there
 	// is one. Neither ever holds the secret.
