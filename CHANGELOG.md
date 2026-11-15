@@ -19,8 +19,9 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
   is asked about under its original request until its outcome is known, also after a restart;
   one whose outcome can no longer be asked stays shown until its local record is removed.
   `board` lists pending verdicts through nodes that no row names under `unresolved`. A write
-  that the node answers `too_many_calls` (past the calls its session runs at once) is shown as
-  not run, as `computer_offline` is (#36).
+  that the node answers `too_many_calls` (past the calls its session runs at once), through
+  `koinon mcp` or as HTTP 429 on the Remote route, is shown as not run, as `computer_offline`
+  is (#36).
 - `koinon-voice key create --user NAME`, `key show` and `key enroll --target PIN` make this
   install's Ed25519 maintainer key, keep it in the Keychain item `koinon-voice-maintainer-key`
   (written through `security` on standard input, never replaced), print its key ID, public key

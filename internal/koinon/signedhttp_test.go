@@ -259,6 +259,8 @@ func TestServeStrictAnswers(t *testing.T) {
 		"trailing bracket": {200, `{"ok":true,"result":{}}]`},
 		"503 expired":      {503, `{"ok":false,"code":"maintainer_token_expired","error":"temporary failure"}`},
 		"401 expired":      {401, `{"ok":false,"code":"maintainer_token_expired","error":"x"}`},
+		"429 other code":   {429, `{"ok":false,"code":"maintainer_secret_backoff","error":"x"}`},
+		"429 busy no text": {429, `{"ok":false,"code":"too_many_calls"}`},
 	}
 	for name, a := range answers {
 		a := a
@@ -280,6 +282,25 @@ func TestServeStrictAnswers(t *testing.T) {
 		if r.route.Sessions != before {
 			t.Errorf("%s: the session was renewed", name)
 		}
+	}
+}
+
+func TestServeTooManyCallsIsNotRun(t *testing.T) {
+	r := newHTTPRig(t)
+	shown, _ := r.s.DecisionGet(ctx(t), otherPin, "P-1")
+	r.route.Hook = func(w http.ResponseWriter, req *http.Request) bool {
+		if req.URL.Path != "/v1/maintainer/signed" {
+			return false
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		io.WriteString(w, `{"ok":false,"code":"too_many_calls","error":"too many calls of this session are in flight","details":{"limit":128}}`)
+		return true
+	}
+	w, _ := r.s.NewVerdict(otherPin, shown, "approved", "")
+	res := r.s.Submit(ctx(t), w, nil)
+	if res.State != NotRun || res.Refusal == nil || res.Refusal.Code != "too_many_calls" || string(res.Refusal.Details) != `{"limit":128}` {
+		t.Errorf("429 too_many_calls: %+v", res)
 	}
 }
 

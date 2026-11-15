@@ -293,8 +293,9 @@ func (e *expiredError) Unwrap() []error { return []error{errTokenExpired, e.r} }
 
 // decodeHTTP reads an answer of the Serve route strictly: one object with a boolean ok; on
 // HTTP 200, ok true with a result (or, for the session, its flat fields); on HTTP 409 or
-// 400, ok false with a code and an error. Any other status or shape is a protocol error,
-// never a recorded or refused write.
+// 400, ok false with a code and an error; on HTTP 429, ok false with too_many_calls, the
+// session's limit of actions in flight, refused before the envelope is read (Koinon #693
+// chunk 3). Any other status or shape is a protocol error, never a recorded or refused write.
 func decodeHTTP(what string, status int, b []byte, out any) error {
 	var a struct {
 		OK      *bool           `json:"ok"`
@@ -308,7 +309,8 @@ func decodeHTTP(what string, status int, b []byte, out any) error {
 		return fmt.Errorf("%w: %s answered HTTP %d without a Koinon answer object", ErrProtocol, what, status)
 	}
 	if !*a.OK {
-		if (status != http.StatusConflict && status != http.StatusBadRequest) || a.Code == "" || a.Error == "" {
+		busy := status == http.StatusTooManyRequests && a.Code == "too_many_calls"
+		if (status != http.StatusConflict && status != http.StatusBadRequest && !busy) || a.Code == "" || a.Error == "" {
 			return fmt.Errorf("%w: %s answered a refusal with HTTP %d", ErrProtocol, what, status)
 		}
 		r := &Refusal{Code: a.Code, Message: a.Error, Details: a.Details}
