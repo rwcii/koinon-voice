@@ -29,8 +29,10 @@ const (
 	MaxAnswer  = 1 << 20
 )
 
-// CallTimeout bounds an ordinary call; a changes call waits its wait_seconds more.
-const CallTimeout = 30 * time.Second
+// CallTimeout bounds an ordinary call; a changes call waits its wait_seconds more. A node
+// takes up to 15 seconds to connect to a paired computer and 15 more for its answer (Koinon
+// #693 chunk 2, PROTOCOL.md "Other computers"), so the bound is above those 30 seconds.
+const CallTimeout = 45 * time.Second
 
 // OpenSignedHTTP opens a signed session with a node's Serve route (Koinon contract 4e324d5,
 // D5.2), for a computer where no Koinon node runs. base is the node's Remote address, an

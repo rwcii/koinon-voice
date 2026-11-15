@@ -172,6 +172,7 @@ Serve route's wire details, is closed at `dfb2ed7`, a commit on `4e324d5`:
 | G19 answer shapes of `outcome`, `changes` (20-digit string versions), `computers` and refusals | Answer shapes | `cbd8e21` |
 | G20 the Serve route's session answer (flat, with `idle_seconds` and `absolute_seconds`), `maintainer_token_expired` with HTTP 409 before the envelope is read, `invalid_request` with 400, and the sizes: 512 KiB a request, 1 MiB an answer and a link frame | Answer shapes, D5.2 | `dfb2ed7`, on `4e324d5`; Voice's Serve form (`internal/koinon/signedhttp.go`) |
 | G21 the MCP form answered one `tools/call` at a time, so an open `changes` wait held every other call of the session for up to 30 seconds (found in the live checks below). Koinon runs up to 128 calls at once; a call past them is answered at once with `too_many_calls` (`details.limit` 128) and is not sent to the daemon, which Voice treats as not run | D5.3, D6.2; claude-koinon, 2026-11-15 | Koinon #693 chunk 2 |
+| G22 forwarding to a paired computer: an unknown or unpaired pin is `signature_refused` with reason `target`; `session` and `computers` signed for a paired pin are `invalid_request`; `computer_offline` (`target`, `last_seen`, `reason`) means nothing was sent; `outcome_unknown` (`target`, `request`) means it may have run; a forwarded `changes` has no `computers` topic; the node takes up to 15 seconds to connect and 15 more for the answer (plus the wait for `changes`), so Voice's reads and Serve calls wait 45 seconds | D4.5, D5.4, D6.2, D6.3; PROTOCOL.md "Other computers" | Koinon `46fd778` (PR #700) |
 
 | ID | Koinon contract section | Status |
 | --- | --- | --- |
@@ -233,5 +234,7 @@ On the chunk-2 commit that runs signed calls at once (rwcii/koinon `59e6478`, br
 results, and a call made while a `changes` wait was open answered in under a millisecond; a
 verdict through the dashboard's path answered without waiting for the open wait.
 
-The forward to paired computers (the rest of chunk 2) and chunk 3 (the Serve route) are
-checked when Koinon sends them.
+On merged chunk 2 (rwcii/koinon `46fd778`, PR #700, forwarding to paired computers, G22), on
+the node's own pin, the same checks gave the same results as on `59e6478`. Forwarding to
+another computer and chunk 3 (the Serve route) are checked together when Koinon sends chunk 3,
+as the contract scopes the cross-computer checks.

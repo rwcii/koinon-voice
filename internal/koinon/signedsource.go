@@ -25,7 +25,8 @@ type SourceOptions struct {
 	Open func(ctx context.Context, opts SignedOptions) (*Signed, error)
 	// Version is Koinon Voice's version for MCP initialize.
 	Version string
-	// RequestTimeout bounds each read (10 s).
+	// RequestTimeout bounds each read (CallTimeout, 45 s): a read of a paired computer goes
+	// through the node, which may take 30 seconds to answer it.
 	RequestTimeout time.Duration
 	// MinDelay and MaxDelay bound the wait before a new session, and between tries of a
 	// failed read (1 s to 60 s). The wait doubles after each failure.
@@ -96,7 +97,7 @@ type target struct {
 // NewSignedSource returns a source for a signed row. Run starts it.
 func NewSignedSource(opts SourceOptions) *SignedSource {
 	if opts.RequestTimeout == 0 {
-		opts.RequestTimeout = 10 * time.Second
+		opts.RequestTimeout = CallTimeout
 	}
 	if opts.MinDelay == 0 {
 		opts.MinDelay = time.Second
