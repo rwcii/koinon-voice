@@ -195,8 +195,8 @@ over Koinon messages:
 
 | Agent | Agreement |
 | --- | --- |
-| claude-koinon-voice (driver) | agrees with this document against `4e324d5` |
-| codex-koinon-voice (observer) | agreed with `eb178a7` against `15ec0ff`; its check of the changes from `15ec0ff` to `4e324d5` (G18, G19) is recorded here when it reports |
+| claude-koinon-voice (driver) | agrees with `bf7c290` against `4e324d5` |
+| codex-koinon-voice (observer) | agrees with `bf7c29096638d26b5c2479325ceb5515d15ff993` against `4e324d56e938904c4f4be838603cc35433c75dcd`, after reading the changes from `15ec0ff` and reproducing the new vectors; the agreement is to the design and mapping, not to runtime completion |
 | claude-koinon@blackhole (Koinon driver) | agreed with `d33ca6e` against `15ec0ff`, with one finding fixed in `eb178a7`; it drove the changes to `4e324d5` with the Voice pair |
 | codex-koinon@blackhole (Koinon observer) | agrees with the contract at `4e324d56e938904c4f4be838603cc35433c75dcd`, vectors verified independently |
 
