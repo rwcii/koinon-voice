@@ -143,10 +143,10 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 
 ## Mapping to the Koinon draft
 
-Koinon contract: rwcii/koinon branch `docs/693-signed-maintainer`, frozen commit `15ec0ff`,
+Koinon contract: rwcii/koinon branch `docs/693-signed-maintainer`, frozen commit `4e324d5`,
 `docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions); on the
-Koinon board as card LINK-693-SIGNED for the maintainer's approval. Gaps G1 to G17 went to the
-Koinon pair on 2026-11-14 from both Voice agents, and each is closed at that commit:
+Koinon board as card LINK-693-SIGNED (revision 9) for the maintainer's approval. Gaps G1 to G19
+went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed:
 
 | Gap | Closed by | Head |
 | --- | --- | --- |
@@ -166,6 +166,8 @@ Koinon pair on 2026-11-14 from both Voice agents, and each is closed at that com
 | G14 outcome's finality, serialized with writes | D3.3, D4.3, Acceptance 3 | `15ec0ff` |
 | G15 `commands` as an array in the snapshot only | D2.2 | `ea8b97a` |
 | G17 computer state for the Serve route | D6.3, D6.4 | `086b9f5` |
+| G18 a write's outcome after the key is enrolled again | D1.3, D1.7, D3.3, D4.3: each envelope carries `auth`, the hex SHA-256 of its enrollment statement's signed bytes, and runs only under that authorization; a statement is added once (`statement_used`). This replaced the clock floor of `d578d0e`, `072870b` and `fa95824` (G18b, G18c) | `05c531c`; outcome refused under a gone authorization at `4e324d5` |
+| G19 answer shapes of `outcome`, `changes` (20-digit string versions), `computers` and refusals | Answer shapes | `cbd8e21` |
 
 | ID | Koinon contract section | Status |
 | --- | --- | --- |
@@ -176,28 +178,28 @@ Koinon pair on 2026-11-14 from both Voice agents, and each is closed at that com
 | R9, R10 | D1; D3.3 refusals | covered |
 | R11 | D3 (envelope `koinon-maintainer-1`, RFC 8785, Ed25519; vectors) | covered; Voice's encoder passes the vectors (`internal/signed`) |
 | R12 | D3 `target` is the pin; D1.4; D2.4 | covered |
-| R13, R14, R15 | D4 (receipts per authorization, `request_conflict`, `outcome` with `now`, `computer_offline` against `outcome_unknown`) | covered |
+| R13, R14, R15 | D4 (receipts per authorization, `request_conflict`, `outcome` with `now` under the write's own `auth`, `computer_offline` against `outcome_unknown`) | covered; Voice's `Reconcile` (`internal/koinon/signedclient.go`) |
 | R16 | D4.5, settled point 1; rwcii/koinon#695 | settled |
-| R17, R18, R19, R21 | D6 (client-signed `changes` waits; `computers` topic) | covered |
+| R17, R18, R19, R21 | D6 (client-signed `changes` waits; `computers` topic; versions are strings) | covered; Voice's `Watcher` (`internal/koinon/signedwatch.go`) |
 | R22, R23 | D5 | covered |
 | R24 | D5.2, settled point 2 | covered |
 | R25 | D5.1 | covered |
-| R26 | D1.4, D1.5, D3.5 | covered |
+| R26 | D1.4, D1.5, D1.7, D3.5 | covered; `koinon-voice key enroll` records each computer's authorization |
 | Records | Records | covered |
 
 ## Agreement
 
-The Voice spec at `eb178a7` (this document, mapping R1 to R26) matches the Koinon contract at
-`15ec0ff` (rwcii/koinon, `docs/sprints/2026-11-14-signed-maintainer/decision.md`). Agreement,
-2026-11-14, over Koinon messages:
+The Voice spec (this document, mapping R1 to R26) matches the Koinon contract at `4e324d5`
+(rwcii/koinon, `docs/sprints/2026-11-14-signed-maintainer/decision.md`). Agreement, 2026-11-14,
+over Koinon messages:
 
 | Agent | Agreement |
 | --- | --- |
-| claude-koinon-voice (driver) | agrees |
-| codex-koinon-voice (observer) | agrees with `eb178a710f9cb07809de075d0a31f9ac79d1b6ed` against `15ec0ff0157e96357881846ad46e6158ba0a1f3a`; the agreement is to the settled design and mapping, not a claim that the runtime acceptance is delivered |
-| claude-koinon@blackhole (Koinon driver) | agrees with `d33ca6e` against `15ec0ff`, with one finding: R24 to R26 still called G6, G3 and G7 open; fixed in `eb178a7` |
-| codex-koinon@blackhole (Koinon observer) | not yet: it reviews `15ec0ff` after rwcii/koinon PR #694 merges; recorded here when it reports |
+| claude-koinon-voice (driver) | agrees with this document against `4e324d5` |
+| codex-koinon-voice (observer) | agreed with `eb178a7` against `15ec0ff`; its check of the changes from `15ec0ff` to `4e324d5` (G18, G19) is recorded here when it reports |
+| claude-koinon@blackhole (Koinon driver) | agreed with `d33ca6e` against `15ec0ff`, with one finding fixed in `eb178a7`; it drove the changes to `4e324d5` with the Voice pair |
+| codex-koinon@blackhole (Koinon observer) | agrees with the contract at `4e324d56e938904c4f4be838603cc35433c75dcd`, vectors verified independently |
 
 The Koinon contract waits for the maintainer's approval on the Koinon board as card
-LINK-693-SIGNED. Until then, and after it, a change to the contract is mapped here before the
-Voice side builds on it.
+LINK-693-SIGNED (revision 9). A change to the contract is mapped here before the Voice side
+builds on it.

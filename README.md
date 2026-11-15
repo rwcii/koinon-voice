@@ -128,7 +128,10 @@ koinon-voice key enroll --target PIN  # a signed enrollment statement for one co
 kept in the Keychain item `koinon-voice-maintainer-key`, written through `security` on
 standard input, and is printed nowhere. For `key enroll`, read the target's pin on the target
 itself: `koinon link status` prints it as `Fingerprint`. `--client` sets the client label
-(default `koinon-voice`) and `--out FILE` writes the statement to a new file. On the target,
+(default `koinon-voice`) and `--out FILE` writes the statement to a new file. Each statement
+makes one authorization on its computer; `key enroll` records it for that pin in
+`~/.local/share/koinon-voice/enrollments.json`, and every signed action to the computer carries
+it. To enroll again after a key is removed there, sign a new statement. On the target,
 within 10 minutes, run `koinon maintainer key add --statement FILE` (a Koinon release with
 #693).
 
