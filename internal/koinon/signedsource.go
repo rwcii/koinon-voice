@@ -33,6 +33,8 @@ type SourceOptions struct {
 	Watch WatchOptions
 	// OnChange receives each new list of states, in order.
 	OnChange func([]State)
+	// Journal holds the verdicts whose outcome is not known (R15); verdicts need it.
+	Journal Journal
 }
 
 // SignedSource holds one signed node's session and shows the node and each computer paired
@@ -46,6 +48,11 @@ type SignedSource struct {
 	targets  map[string]*target
 	versions map[string]map[string]string
 	attempts int
+	// ops are the verdicts sent or recovered whose outcome is not known, by target and
+	// reference; sig and sctx are the current session, nil between sessions.
+	ops  map[string]*op
+	sig  *Signed
+	sctx context.Context
 }
 
 // target is what the source knows of one computer. Its slices are replaced, never changed
@@ -64,7 +71,9 @@ type target struct {
 	resume chan struct{}
 	// seen counts the computers answers that listed the computer connected, so a read
 	// that answers computer_offline can tell whether a return was seen after it was sent.
-	seen       int
+	seen int
+	// pending are the verdicts on this computer whose outcome is not known, by request.
+	pending    map[string]PendingWrite
 	items      map[string]Item
 	inboxAfter int64
 	inbox      []Message
@@ -83,7 +92,7 @@ func NewSignedSource(opts SourceOptions) *SignedSource {
 	if opts.MaxDelay == 0 {
 		opts.MaxDelay = 60 * time.Second
 	}
-	s := &SignedSource{opts: opts, targets: map[string]*target{}, versions: map[string]map[string]string{}}
+	s := &SignedSource{opts: opts, targets: map[string]*target{}, versions: map[string]map[string]string{}, ops: map[string]*op{}}
 	n := s.target(opts.Host.NodePin)
 	n.paired = true
 	n.state.Host = opts.Host.Label
@@ -227,6 +236,15 @@ func (s *SignedSource) session(ctx context.Context) bool {
 		return false
 	}
 	w.Add(s.opts.Host.NodePin)
+	s.mu.Lock()
+	s.sig, s.sctx = sig, sctx
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.sig, s.sctx = nil, nil
+		s.mu.Unlock()
+	}()
+	s.recover(sctx, sig)
 	var answered atomic.Bool
 	answered.Store(true)
 	for {

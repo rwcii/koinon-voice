@@ -31,5 +31,52 @@
 <ul class="inbox">{{range .Inbox}}<li><span class="meta">{{.SenderName}} · {{time .CreatedAt}}</span><div class="text">{{.Body}}</div></li>{{end}}</ul>
 {{end}}
 </section>
-{{else}}<p>No hosts.</p>
 {{end}}
+{{range .Signed}}{{$source := .Source}}
+{{range .States}}{{$pin := .Pin}}
+<section class="host signed" data-pin="{{.Pin}}">
+<h2>{{.Host}} <span class="status {{.Status}}">{{.Status}}</span></h2>
+<p class="meta">through {{.Node}} · pin <code>{{.Pin}}</code></p>
+{{if eq (print .Status) "connected"}}
+<p class="counts">{{.Counts.Waiting}} waiting · {{.Counts.OpenFYI}} open fyi · {{.Counts.InProgress}} in progress</p>
+{{else if .Reason}}
+<p class="reason">{{if .Code}}<code>{{.Code}}</code> {{end}}{{.Reason}}</p>
+{{end}}
+{{range .Pending}}
+<p class="pending">Verdict <code>{{.Verdict}}</code> on <code>{{.Reference}}</code>: {{if .Final}}outcome unknown, and it can no longer be asked. {{.Reason}}{{else}}waiting for its outcome. {{.Reason}}{{end}}</p>
+{{if .Final}}<form method="post" action="/dismiss">
+<input type="hidden" name="csrf" value="{{$csrf}}">
+<input type="hidden" name="source" value="{{$source}}">
+<input type="hidden" name="pin" value="{{$pin}}">
+<input type="hidden" name="request" value="{{.Request}}">
+<button>Remove this local record</button> <span class="meta">The outcome stays unknown; nothing is sent.</span>
+</form>{{end}}
+{{end}}
+{{range .Items}}
+<article class="item {{.Kind}}">
+<h3>{{.Title}}</h3>
+<p class="meta"><code>{{.Reference}}</code> · {{.Kind}} · revision {{.Revision}} · from {{.AuthorName}}{{if .Where}} · {{.Where}}{{end}}</p>
+{{if .Context}}<div class="text">{{.Context}}</div>{{end}}
+{{if .Recommendation}}<h4>Recommendation</h4><div class="text">{{.Recommendation}}</div>{{end}}
+{{if .AgentText}}<h4>For the agent</h4><div class="text">{{.AgentText}}</div>{{end}}
+{{if .Commands}}<h4>Commands</h4>{{range .Commands}}<pre>{{.}}</pre>{{end}}{{end}}
+<form method="post" action="/verdict">
+<input type="hidden" name="csrf" value="{{$csrf}}">
+<input type="hidden" name="source" value="{{$source}}">
+<input type="hidden" name="pin" value="{{$pin}}">
+<input type="hidden" name="reference" value="{{.Reference}}">
+<input type="hidden" name="revision" value="{{.Revision}}">
+<input type="hidden" name="digest" value="{{digest .}}">
+<label>Note <textarea name="note" rows="2" data-key="{{$pin}}/{{.Reference}}"></textarea></label>
+{{range verdicts .Kind}}<button name="verdict" value="{{.}}">{{.}}</button> {{end}}
+</form>
+</article>
+{{end}}
+{{if .Inbox}}
+<h3>Inbox</h3>
+<ul class="inbox">{{range .Inbox}}<li><span class="meta">{{.SenderName}} · {{time .CreatedAt}}</span><div class="text">{{.Body}}</div></li>{{end}}</ul>
+{{end}}
+</section>
+{{end}}
+{{end}}
+{{if and (not .Hosts) (not .Signed)}}<p>No hosts.</p>{{end}}

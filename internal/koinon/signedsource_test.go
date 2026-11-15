@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,17 +18,19 @@ import (
 )
 
 type sourceRig struct {
-	node   *koinontest.SignedNode
-	src    *SignedSource
-	cancel context.CancelFunc
-	done   chan struct{}
+	node    *koinontest.SignedNode
+	src     *SignedSource
+	key     signed.Key
+	journal Journal
+	cancel  context.CancelFunc
+	done    chan struct{}
 
 	mu    sync.Mutex
 	opens int
 	ends  []io.Closer // the node's side of each session, to end it
 }
 
-func newSourceRig(t *testing.T, auths map[string]string, accessErr error) *sourceRig {
+func newSourceRig(t *testing.T, auths map[string]string, accessErr error, prep ...func(*sourceRig)) *sourceRig {
 	t.Helper()
 	key := signed.Key{User: "robert", Private: ed25519.NewKeyFromSeed(bytes.Repeat([]byte{5}, 32))}
 	node := koinontest.NewSignedNode(nodePin, key.Public(), time.Now)
@@ -46,7 +49,8 @@ func newSourceRig(t *testing.T, auths map[string]string, accessErr error) *sourc
 		tg.Posts["R1"] = []map[string]any{{"seq": int64(1), "body": "first"}}
 		tg.Versions["decisions"], tg.Versions["inbox"], tg.Versions["R1"] = 1, 1, 1
 	})
-	r := &sourceRig{node: node, done: make(chan struct{})}
+	r := &sourceRig{node: node, done: make(chan struct{}), key: key,
+		journal: Journal{Path: filepath.Join(t.TempDir(), "pending.json")}}
 	open := func(ctx context.Context, opts SignedOptions) (*Signed, error) {
 		cr, cw := io.Pipe()
 		nr, nw := io.Pipe()
@@ -68,7 +72,11 @@ func newSourceRig(t *testing.T, auths map[string]string, accessErr error) *sourc
 		MinDelay:  10 * time.Millisecond,
 		MaxDelay:  50 * time.Millisecond,
 		Watch:     WatchOptions{Delay: func(int) time.Duration { return 10 * time.Millisecond }},
+		Journal:   r.journal,
 	})
+	for _, f := range prep {
+		f(r)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
 	go func() { r.src.Run(ctx); close(r.done) }()

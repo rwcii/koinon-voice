@@ -52,6 +52,8 @@ type State struct {
 	// Inbox holds the maintainer's messages that are not acknowledged.
 	Inbox []Message
 	Rooms []RoomState
+	// Pending are a signed source's verdicts whose outcome is not known yet.
+	Pending []PendingWrite
 }
 
 // RoomState is a room with every post that Koinon retains.

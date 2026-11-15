@@ -276,11 +276,7 @@ func cloneArgs(m map[string]any) map[string]any {
 // NewVerdict signs a verdict on the item as the maintainer was shown it: the snapshot
 // digest is computed from shown, never copied from an answer.
 func (s *Signed) NewVerdict(target string, shown Item, verdict, note string) (Write, error) {
-	digest, err := signed.Snapshot{
-		Reference: shown.Reference, Revision: shown.Revision, Kind: shown.Kind, Title: shown.Title,
-		Where: shown.Where, Context: shown.Context, Recommendation: shown.Recommendation,
-		AgentText: shown.AgentText, Commands: shown.Commands,
-	}.Digest()
+	digest, err := SnapshotDigest(shown)
 	if err != nil {
 		return Write{}, err
 	}

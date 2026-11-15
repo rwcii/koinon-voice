@@ -231,6 +231,7 @@ func (n *SignedNode) call(params json.RawMessage) (string, bool) {
 	case "outcome":
 		req := fmt.Sprint(e.Args["request"])
 		n.mu.Lock()
+		t.Reads[e.Op]++
 		r, ok := t.receipts[req]
 		n.mu.Unlock()
 		switch {
