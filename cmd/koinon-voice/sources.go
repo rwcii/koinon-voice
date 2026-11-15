@@ -27,29 +27,33 @@ type sources struct {
 	journalErr error
 }
 
-// newSources makes each row's connection. The maintainer key and enrollments are read once,
-// only when a signed row is there; a failure there shows on the signed rows and leaves the
-// secret rows as they are.
+// newSources makes each row's connection; nothing here waits on the Keychain. The maintainer
+// key and enrollments are read once, only when a signed row starts; a failure there shows on
+// the signed rows and leaves the secret rows as they are.
 func newSources(hosts []koinon.Host, changed func()) sources {
 	var s sources
 	opts := connectorOptions
 	opts.Secrets, opts.Version = hostSecrets, version
 	opts.OnChange = func(koinon.State) { changed() }
+	// The key and enrollments are read once, by the first signed row to start, under its
+	// context: a Keychain that does not answer ends with the command.
+	var once sync.Once
 	var access koinon.Access
 	var accessErr error
-	loaded := false
+	load := func(ctx context.Context) (koinon.Access, error) {
+		once.Do(func() {
+			access, accessErr = koinon.SignedAccess{Store: keyStore, Enrollments: keyEnrollments, Client: koinon.ClientName}.Load(ctx)
+		})
+		return access, accessErr
+	}
 	pins := map[string]bool{}
 	for _, h := range hosts {
 		if !h.Signed() {
 			s.rows = append(s.rows, row{conn: koinon.New(h, opts)})
 			continue
 		}
-		if !loaded {
-			access, accessErr = koinon.SignedAccess{Store: keyStore, Enrollments: keyEnrollments, Client: koinon.ClientName}.Load(context.Background())
-			loaded = true
-		}
 		so := sourceOptions
-		so.Host, so.Access, so.AccessErr, so.Version, so.Journal = h, access, accessErr, version, signedJournal
+		so.Host, so.LoadAccess, so.Version, so.Journal = h, load, version, signedJournal
 		so.OnChange = func([]koinon.State) { changed() }
 		s.rows = append(s.rows, row{signed: koinon.NewSignedSource(so)})
 		pins[h.NodePin] = true

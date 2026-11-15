@@ -77,7 +77,10 @@ func DetailText(d json.RawMessage) string {
 // PendingWrite is a verdict whose outcome Voice does not know, as a State shows it. It holds
 // no authorization, signature or key.
 type PendingWrite struct {
-	Request   string
+	Request string
+	// Target is the computer the verdict is for; it differs from the State's pin while the
+	// record waits on the node before the session lists that computer.
+	Target    string
 	Reference string
 	Verdict   string
 	// Done: the outcome is known (State, Code, Detail), learned after the answer was lost;
@@ -275,7 +278,7 @@ func (s *SignedSource) doneLocked(pin string, e Entry, res VerdictResult) {
 		t.pending = map[string]PendingWrite{}
 	}
 	verdict, _ := e.Envelope.Args["verdict"].(string)
-	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Reference: e.Reference(), Verdict: verdict, Done: true,
+	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Target: e.Envelope.Target, Reference: e.Reference(), Verdict: verdict, Done: true,
 		State: res.State, Code: res.Code, Detail: DetailText(res.Details), Reason: res.Reason}
 	publishPending(t)
 }
@@ -332,7 +335,7 @@ func (s *SignedSource) trackLocked(pin string, e Entry, res VerdictResult) {
 		t.pending = map[string]PendingWrite{}
 	}
 	verdict, _ := e.Envelope.Args["verdict"].(string)
-	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Reference: e.Reference(), Verdict: verdict,
+	t.pending[e.Request()] = PendingWrite{Request: e.Request(), Target: e.Envelope.Target, Reference: e.Reference(), Verdict: verdict,
 		State: Unknown, Final: res.Final, Code: res.Code, Detail: DetailText(res.Details), Reason: res.Reason}
 	publishPending(t)
 }
@@ -409,6 +412,34 @@ func (s *SignedSource) reconcile(ctx context.Context, sig *Signed, key string) {
 	}
 }
 
+// showJournal shows this node's journal entries on the node, with reason, before they can be
+// asked about: the key, the enrollment or the session may be missing. It sends nothing and
+// checks nothing; recover moves each entry to its computer when the session is up.
+func (s *SignedSource) showJournal(reason string) {
+	if s.opts.Journal.Path == "" {
+		return
+	}
+	entries, err := s.opts.Journal.Load()
+	node := s.opts.Host.NodePin
+	s.update(func() {
+		n := s.targets[node]
+		if err != nil {
+			n.state.Code, n.state.Reason = "journal_unreadable", err.Error()
+			return
+		}
+		for _, e := range entries {
+			if e.NodePin != node {
+				continue
+			}
+			res := VerdictResult{State: Unknown, Reason: reason}
+			if e.Final != "" {
+				res = VerdictResult{State: Unknown, Final: true, Reason: e.Reason}
+			}
+			s.trackLocked(node, e, res)
+		}
+	})
+}
+
 // recover reads this node's entries in the journal at the start of a session: a usable
 // entry is asked about under its original envelope; one that cannot be used, or whose
 // outcome can no longer be learned, is shown with the reason and not sent.
@@ -423,9 +454,14 @@ func (s *SignedSource) recover(ctx context.Context, sig *Signed) {
 	}
 	var keys []string
 	s.update(func() {
+		node := s.targets[s.opts.Host.NodePin]
 		for _, e := range entries {
 			if e.NodePin != s.opts.Host.NodePin {
 				continue // another node's entry; board and dashboard show it
+			}
+			if e.Envelope.Target != s.opts.Host.NodePin && node.pending != nil {
+				delete(node.pending, e.Request()) // shown on its computer from now on
+				publishPending(node)
 			}
 			pin := e.Envelope.Target
 			if signed.CheckPin(pin) != nil {

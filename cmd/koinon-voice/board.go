@@ -95,10 +95,14 @@ func runBoard(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// settled reports whether every host has connected or failed its first start.
+// settled reports whether every host has connected or failed its first start, and every
+// computer of a signed row has been read in full once or shows why it was not.
 func settled(states []koinon.State) bool {
 	for _, s := range states {
 		if s.Status == koinon.Connecting {
+			return false
+		}
+		if s.Pin != "" && s.Status == koinon.Connected && !s.Loaded && s.Code == "" {
 			return false
 		}
 	}

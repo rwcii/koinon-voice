@@ -123,7 +123,7 @@ func TestVerdictLostAnswerIsAskedAndRecordedOnce(t *testing.T) {
 	if res.State != Unknown {
 		t.Fatalf("lost answer: %+v", res)
 	}
-	waitStates(t, r.src, "reconciled", recordedNotice)
+	waitRecorded(t, r)
 	if recorded(r.node) != 1 || len(verdictRequests(r.node)) != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("%d recorded, requests %v", recorded(r.node), verdictRequests(r.node))
 	}
@@ -161,7 +161,7 @@ func TestVerdictConcurrentClicksMakeOneWrite(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	waitStates(t, r.src, "reconciled", recordedNotice)
+	waitRecorded(t, r)
 	if n := len(verdictRequests(r.node)); n != 1 || recorded(r.node) != 1 {
 		t.Errorf("%d request IDs, %d recorded: %+v", n, recorded(r.node), results)
 	}
@@ -197,7 +197,7 @@ func TestVerdictRecoveredAfterARestartBeforeSending(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	waitStates(t, r.src, "recovered", recordedNotice)
+	waitRecorded(t, r)
 	reqs := verdictRequests(r.node)
 	if recorded(r.node) != 1 || len(reqs) != 1 || reqs[e.Request()] != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("recovery sent %v, %d recorded", reqs, recorded(r.node))
@@ -225,7 +225,7 @@ func TestVerdictRecoveredAfterALostAnswer(t *testing.T) {
 		}
 		old.Close()
 	})
-	waitStates(t, r.src, "recovered", recordedNotice)
+	waitRecorded(t, r)
 	if recorded(r.node) != 1 || len(verdictRequests(r.node)) != 1 || journalLen(t, r.journal) != 0 {
 		t.Errorf("%d recorded, requests %v", recorded(r.node), verdictRequests(r.node))
 	}
@@ -493,4 +493,14 @@ func TestJournalRefusesWhatIsNotAnObject(t *testing.T) {
 func recordedNotice(m map[string]State) bool {
 	p := m[otherPin].Pending
 	return m[otherPin].Status == Connected && len(p) == 1 && p[0].Done && p[0].State == Recorded
+}
+
+// waitRecorded waits for the recorded notice and for its record to leave the journal, which
+// happens just after the notice is shown.
+func waitRecorded(t *testing.T, r *sourceRig) {
+	t.Helper()
+	waitStates(t, r.src, "recorded", recordedNotice)
+	for deadline := time.Now().Add(2 * time.Second); journalLen(t, r.journal) != 0 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
 }

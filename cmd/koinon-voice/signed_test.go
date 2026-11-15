@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -232,5 +233,120 @@ func TestDashboardSignedVerdict(t *testing.T) {
 	case <-done:
 	case <-time.After(10 * time.Second):
 		t.Fatal("dashboard did not stop")
+	}
+}
+
+// boardJSON runs board on hosts and decodes its output.
+func boardJSON(t *testing.T, args ...string) (signedBoardFull, int) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := run(append([]string{"board"}, args...), nil, &stdout, &stderr)
+	var out signedBoardFull
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("%v: %q %q", err, stdout.String(), stderr.String())
+	}
+	return out, code
+}
+
+type signedBoardFull struct {
+	Hosts []struct {
+		Host, Status, Code, Reason, Pin string
+		Counts                          koinon.Counts
+		Items                           []koinon.Item
+		Pending                         []koinon.PendingWrite
+	}
+	Unresolved []koinon.Unrouted
+	OK         bool
+}
+
+// signedOnly writes a hosts file with the signed row alone.
+func signedOnly(t *testing.T, row string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "hosts.toml")
+	os.WriteFile(p, []byte(row), 0o600)
+	return p
+}
+
+func TestBoardWaitsForTheNodesOwnItems(t *testing.T) {
+	_, node := signedHosts(t, true)
+	node.RemoveTarget(cmdOtherPin)
+	node.Change(cmdNodePin, func(tg *koinontest.Target) {
+		tg.Items["N-1"] = map[string]any{"reference": "N-1", "revision": int64(1), "kind": "fyi", "title": "On the node",
+			"state": "active", "commands": []string{}}
+		tg.Versions["decisions"]++
+	})
+	hosts := signedOnly(t, fmt.Sprintf("[[host]]\nlabel = \"studio\"\nnode_pin = %q\n", cmdNodePin))
+	out, code := boardJSON(t, "--hosts", hosts, "--timeout", "20s")
+	if code != 0 || len(out.Hosts) != 1 || len(out.Hosts[0].Items) != 1 || out.Hosts[0].Counts.Waiting != 1 {
+		t.Errorf("exit %d, hosts %+v", code, out.Hosts)
+	}
+}
+
+func TestBoardShowsAPendingVerdictWithoutAKey(t *testing.T) {
+	hosts, _ := signedHosts(t, false)
+	e := koinon.Entry{NodePin: cmdNodePin, Node: "studio", FirstSent: 1, Envelope: signed.Envelope{V: signed.Version,
+		Target: cmdOtherPin, Op: "decision_verdict", Args: map[string]any{"reference": "S-1", "verdict": "approved"},
+		Request: "req-waiting-00000000", Created: 1}}
+	if _, err := signedJournal.Reserve(e); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := boardJSON(t, "--hosts", hosts, "--timeout", "20s")
+	var found *koinon.PendingWrite
+	for _, h := range out.Hosts {
+		if h.Host == "studio" {
+			for i := range h.Pending {
+				found = &h.Pending[i]
+			}
+		}
+	}
+	if found == nil || found.Request != e.Request() || found.Target != cmdOtherPin || !strings.Contains(found.Reason, "nothing was sent") {
+		t.Errorf("pending verdict on a node without a key: %+v", found)
+	}
+}
+
+// slowStore answers only when its context ends.
+type slowStore struct{}
+
+func (slowStore) Find(ctx context.Context, _, _ string) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+func (slowStore) Add(ctx context.Context, _, _ string, _ []byte) error { return ctx.Err() }
+
+func TestBoardTimeoutBoundsTheKeychain(t *testing.T) {
+	hosts, _ := signedHosts(t, true)
+	keyStore = slowStore{}
+	start := time.Now()
+	out, code := boardJSON(t, "--hosts", hosts, "--timeout", "2s")
+	if d := time.Since(start); d > 8*time.Second || code != 1 {
+		t.Errorf("board took %v, exit %d", d, code)
+	}
+	got := map[string]string{}
+	for _, h := range out.Hosts {
+		got[h.Host] = h.Status
+	}
+	if got["local"] != "connected" || got["studio"] != "connecting" {
+		t.Errorf("hosts %v", got)
+	}
+}
+
+func TestBoardServeRow(t *testing.T) {
+	_, node := signedHosts(t, true)
+	route := &koinontest.Route{Node: node}
+	srv := httptest.NewTLSServer(route)
+	t.Cleanup(srv.Close)
+	sourceOptions.Open = nil
+	sourceOptions.HTTPClient = srv.Client()
+	hosts := signedOnly(t, fmt.Sprintf("[[host]]\nlabel = \"remote\"\nnode_pin = %q\nserve = %q\n", cmdNodePin, srv.URL))
+	out, code := boardJSON(t, "--hosts", hosts, "--timeout", "20s")
+	got := map[string]string{}
+	for _, h := range out.Hosts {
+		got[h.Host] = h.Status
+		if h.Host == "lab-1" && (len(h.Items) != 1 || h.Items[0].Title != "Sign the release") {
+			t.Errorf("lab-1 through Serve: %+v", h.Items)
+		}
+	}
+	if code != 0 || got["desk"] != "connected" || got["lab-1"] != "connected" || route.Sessions == 0 {
+		t.Errorf("exit %d, hosts %v, sessions %d", code, got, route.Sessions)
 	}
 }

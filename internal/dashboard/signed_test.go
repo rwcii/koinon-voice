@@ -206,3 +206,16 @@ func TestSignedRepeatShowsItsResult(t *testing.T) {
 		}
 	}
 }
+
+func TestSignedPageShowsAVerdictWaitingOnTheNode(t *testing.T) {
+	a, _ := signedRows()
+	a.states[0].Status, a.states[0].Code, a.states[0].Reason = koinon.Disconnected, "key_unavailable", "no maintainer key"
+	a.states[0].Pending = []koinon.PendingWrite{{Request: "req-wait", Target: pinB, Reference: "S-1", Verdict: "approved",
+		State: koinon.Unknown, Reason: "not asked: the key is not available; nothing was sent"}}
+	_, _, _, _, body := serveSigned(t, a)
+	for _, want := range []string{"of computer <code>" + pinB + "</code>", "not asked: the key is not available; nothing was sent", "key_unavailable"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+}

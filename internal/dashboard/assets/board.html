@@ -43,7 +43,7 @@
 <p class="reason">{{if .Code}}<code>{{.Code}}</code> {{end}}{{.Reason}}</p>
 {{end}}
 {{range .Pending}}
-<p class="pending">Verdict <code>{{.Verdict}}</code> on <code>{{.Reference}}</code>:
+<p class="pending">Verdict <code>{{.Verdict}}</code> on <code>{{.Reference}}</code>{{if and .Target (ne .Target $pin)}} of computer <code>{{.Target}}</code>{{end}}:
 {{- if .Done}} {{if eq (print .State) "recorded"}}recorded, learned after its answer was lost.{{else if eq (print .State) "refused"}}refused{{if .Code}} (<code>{{.Code}}</code>){{end}}, learned after its answer was lost.{{else}}not run: nothing was recorded.{{end}}{{if .Detail}} Details: {{.Detail}}{{end}}{{if .Reason}} {{.Reason}}{{end}}
 {{- else if .Final}} outcome unknown, and it can no longer be asked. {{.Reason}}
 {{- else}} waiting for its outcome. {{.Reason}}{{end}}</p>

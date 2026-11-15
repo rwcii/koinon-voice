@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,11 @@ type SourceOptions struct {
 	OnChange func([]State)
 	// Journal holds the verdicts whose outcome is not known (R15); verdicts need it.
 	Journal Journal
+	// LoadAccess, when set, gives Access and AccessErr at the start of Run, under Run's
+	// context, so a slow Keychain does not hold up the caller.
+	LoadAccess func(ctx context.Context) (Access, error)
+	// HTTPClient is the Serve form's client; nil is the default.
+	HTTPClient *http.Client
 }
 
 // SignedSource holds one signed node's session and shows the node and each computer paired
@@ -67,6 +73,7 @@ type target struct {
 	paired bool
 	// confirmed: the target answered a signed read in this process.
 	confirmed bool
+	loaded    bool
 	offline   bool
 	// gen moves when the computer is unpaired; work is its readers' context, which the
 	// unpairing cancels; resume wakes a change paused by computer_offline.
@@ -171,7 +178,18 @@ func setStatus(t *target, status Status, code, reason string) {
 // Run holds the node's session until ctx ends, signing a new one after each end.
 func (s *SignedSource) Run(ctx context.Context) {
 	node := s.opts.Host.NodePin
+	s.showJournal("not asked yet: waiting for the maintainer key and the session with the node; nothing was sent")
+	if s.opts.LoadAccess != nil {
+		a, err := s.opts.LoadAccess(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		s.mu.Lock()
+		s.opts.Access, s.opts.AccessErr = a, err
+		s.mu.Unlock()
+	}
 	refuse := func(code, reason string) {
+		s.showJournal("not asked: " + reason + "; nothing was sent")
 		s.update(func() { setStatus(s.targets[node], Disconnected, code, reason) })
 		<-ctx.Done()
 	}
@@ -204,7 +222,7 @@ func (s *SignedSource) open(ctx context.Context) (*Signed, error) {
 		return s.opts.Open(ctx, opts)
 	}
 	if s.opts.Host.Serve != "" {
-		return OpenSignedHTTP(ctx, opts, s.opts.Host.Serve, nil)
+		return OpenSignedHTTP(ctx, opts, s.opts.Host.Serve, s.opts.HTTPClient)
 	}
 	opts.Koinon, opts.Args = s.opts.Host.SignedLocal()
 	return StartSigned(ctx, opts)
@@ -368,6 +386,8 @@ func (s *SignedSource) applyGen(ctx context.Context, sig *Signed, w *Watcher, c 
 					return
 				}
 				t := s.targets[c.Pin]
+				t.loaded = true
+				t.state.Loaded = true
 				if !t.offline {
 					t.confirmed = true
 					setStatus(t, Connected, "", "")

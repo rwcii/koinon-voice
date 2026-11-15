@@ -54,6 +54,9 @@ type State struct {
 	Rooms []RoomState
 	// Pending are a signed source's verdicts whose outcome is not known yet.
 	Pending []PendingWrite
+	// Loaded: a signed source has read this computer's topics in full once, so its items,
+	// inbox and rooms are complete.
+	Loaded bool
 }
 
 // RoomState is a room with every post that Koinon retains.
