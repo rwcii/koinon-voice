@@ -143,7 +143,6 @@ func TestSignedVerdictNotices(t *testing.T) {
 		"final_unknown":    {State: koinon.Unknown, Final: true},
 		"snapshot_changed": {State: koinon.Refused, Code: "snapshot_changed", Local: true},
 		"stale_revision":   {State: koinon.Refused, Code: "stale_revision", Details: []byte(`{"current_revision":987654321}`)},
-		"repeat":           {State: koinon.Recorded, Repeat: true},
 	} {
 		a, _ := signedRows()
 		a.result = res
@@ -185,6 +184,25 @@ func TestSignedPageShowsALearnedOutcome(t *testing.T) {
 	for _, want := range []string{"refused (<code>stale_revision</code>), learned after its answer was lost", "current_revision", "Remove this notice"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %q", want)
+		}
+	}
+}
+
+func TestSignedRepeatShowsItsResult(t *testing.T) {
+	for want, res := range map[string]koinon.VerdictResult{
+		"Verdict recorded on P-1": {State: koinon.Recorded, Repeat: true},
+		"can no longer be asked":  {State: koinon.Unknown, Final: true, Repeat: true},
+		"stale_revision":          {State: koinon.Refused, Code: "stale_revision", Repeat: true},
+		"answer did not arrive":   {State: koinon.Unknown, Repeat: true},
+	} {
+		a, _ := signedRows()
+		a.result = res
+		_, ts, c, csrf, _ := serveSigned(t, a)
+		resp := post(t, c, ts, "/verdict", url.Values{"csrf": {csrf}, "source": {"0"}, "pin": {pinB}, "reference": {"P-1"},
+			"revision": {"3"}, "digest": {"x"}, "verdict": {"completed"}, "intent": {"intent-1"}})
+		_, page := get(t, c, ts.URL+resp.Header.Get("Location"))
+		if !strings.Contains(page, "This form was already sent; nothing new was sent.") || !strings.Contains(page, want) {
+			t.Errorf("repeat of %+v does not show %q", res, want)
 		}
 	}
 }

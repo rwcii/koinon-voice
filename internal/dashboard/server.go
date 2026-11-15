@@ -270,7 +270,7 @@ type signedView struct {
 // notice is the result of the last verdict, from fixed texts, with the refusal's details.
 type notice struct {
 	Host, Reference, Code, Detail string
-	OK                            bool
+	OK, Repeat                    bool
 }
 
 func (s *Server) view(r *http.Request, session string) view {
@@ -283,7 +283,7 @@ func (s *Server) view(r *http.Request, session string) view {
 	}
 	q := r.URL.Query()
 	if code := q.Get("notice"); code != "" {
-		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, Detail: q.Get("detail"), OK: code == "recorded"}
+		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, Detail: q.Get("detail"), Repeat: q.Get("repeat") == "1", OK: code == "recorded"}
 	}
 	return v
 }
@@ -390,16 +390,19 @@ func (s *Server) signedVerdict(w http.ResponseWriter, r *http.Request) {
 	ref := r.PostFormValue("reference")
 	revision, err := strconv.ParseInt(r.PostFormValue("revision"), 10, 64)
 	src, st, ok := s.signedSource(r)
-	code, detail := "invalid_request", ""
+	code, detail, repeat := "invalid_request", "", false
 	if ok && ref != "" && err == nil {
 		res := src.Verdict(r.Context(), koinon.VerdictRequest{Pin: st.Pin, Reference: ref, Revision: revision,
 			Digest: r.PostFormValue("digest"), Verdict: r.PostFormValue("verdict"), Note: r.PostFormValue("note"),
 			Intent: r.PostFormValue("intent")})
-		code, detail = resultCode(res), koinon.DetailText(res.Details)
+		code, detail, repeat = resultCode(res), koinon.DetailText(res.Details), res.Repeat
 	}
 	q := url.Values{"notice": {code}, "host": {st.Host}, "ref": {ref}}
 	if detail != "" {
 		q.Set("detail", detail)
+	}
+	if repeat {
+		q.Set("repeat", "1")
 	}
 	http.Redirect(w, r, "/?"+q.Encode(), http.StatusSeeOther)
 }
@@ -407,8 +410,6 @@ func (s *Server) signedVerdict(w http.ResponseWriter, r *http.Request) {
 // resultCode is the notice for a signed verdict's result.
 func resultCode(res koinon.VerdictResult) string {
 	switch {
-	case res.Repeat:
-		return "repeat"
 	case res.State == koinon.Recorded:
 		return "recorded"
 	case res.State == koinon.NotRun:
