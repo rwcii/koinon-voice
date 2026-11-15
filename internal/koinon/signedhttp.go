@@ -171,7 +171,7 @@ func (h *httpTransport) renew(ctx context.Context, seen int) error {
 		case <-f.done:
 			return f.err
 		case <-ctx.Done():
-			return fmt.Errorf("%w: waiting for the session: %v", ErrClosed, ctx.Err())
+			return fmt.Errorf("%w: waiting for the session: %v", errConnectionLost, ctx.Err())
 		}
 	}
 	f := &renewal{done: make(chan struct{})}
@@ -245,7 +245,7 @@ func (h *httpTransport) post(ctx context.Context, path, token string, e signed.E
 		if !c && ctx.Err() == nil {
 			return fmt.Errorf("%w: %s", ErrNotDispatched, msg)
 		}
-		return fmt.Errorf("%w: %s", ErrClosed, msg)
+		return fmt.Errorf("%w: %s", errConnectionLost, msg)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
@@ -253,7 +253,7 @@ func (h *httpTransport) post(ctx context.Context, path, token string, e signed.E
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, MaxAnswer+1))
 	if err != nil {
-		return fmt.Errorf("%w: reading the answer: %s", ErrClosed, redactToken(err.Error(), token))
+		return fmt.Errorf("%w: reading the answer: %s", errConnectionLost, redactToken(err.Error(), token))
 	}
 	if len(b) > MaxAnswer {
 		return fmt.Errorf("%w: the answer is larger than %d bytes", ErrProtocol, MaxAnswer)
@@ -282,6 +282,17 @@ type flat struct{ v any }
 
 // errTokenExpired is the node's HTTP 409 maintainer_token_expired, which it answers before it
 // reads the envelope (Koinon contract dfb2ed7, Answer shapes): the only answer that renews.
+// errConnectionLost is ErrClosed for the Serve form, whose stream is an HTTP connection to
+// the node rather than the output of koinon mcp.
+var errConnectionLost error = connectionLost{}
+
+type connectionLost struct{}
+
+func (connectionLost) Error() string {
+	return "the connection to the node ended before its answer arrived"
+}
+func (connectionLost) Is(target error) bool { return target == ErrClosed }
+
 var errTokenExpired = errors.New("maintainer_token_expired")
 
 // expiredError marks a refusal as errTokenExpired. It renders from the refusal on each call,

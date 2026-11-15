@@ -285,6 +285,29 @@ func TestServeStrictAnswers(t *testing.T) {
 	}
 }
 
+func TestServeLostConnectionIsNamedForTheServeForm(t *testing.T) {
+	r := newHTTPRig(t)
+	shown, _ := r.s.DecisionGet(ctx(t), otherPin, "P-1")
+	r.route.Hook = func(w http.ResponseWriter, req *http.Request) bool {
+		if req.URL.Path != "/v1/maintainer/signed" {
+			return false
+		}
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err == nil {
+			conn.Close()
+		}
+		return true
+	}
+	w, _ := r.s.NewVerdict(otherPin, shown, "approved", "")
+	res := r.s.Submit(ctx(t), w, nil)
+	if res.State != Unknown || !errors.Is(res.Err, ErrClosed) {
+		t.Fatalf("a connection closed before the answer: %+v", res)
+	}
+	if strings.Contains(res.Err.Error(), "koinon mcp") {
+		t.Errorf("the Serve form names koinon mcp: %v", res.Err)
+	}
+}
+
 func TestServeTooManyCallsIsNotRun(t *testing.T) {
 	r := newHTTPRig(t)
 	shown, _ := r.s.DecisionGet(ctx(t), otherPin, "P-1")
