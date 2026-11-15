@@ -243,11 +243,15 @@ as the contract scopes the cross-computer checks (below).
 
 ### Across two computers
 
-Koinon #693 chunk 3 (rwcii/koinon `0500b45`, PR #701), LINK-693-LIVE (approved by the
-maintainer, 2026-11-15): a test node of that commit on each computer, with its own state and
+Koinon #693 chunk 3 (rwcii/koinon `0500b45`, PR #701), LINK-693-LIVE (revision 2, approved by
+the maintainer at 16:11 UTC on 2026-11-15 on the decision board of blackhole, relayed by
+claude-koinon@blackhole): a test node of that commit on each computer, with its own state and
 ports, nothing installed: `mac-studio-test` (macOS) and `blackhole-test` (Linux), paired over
 the link. Voice at `3e900d5`, with a key held in memory for the run, enrolled on both
-computers. 2026-11-15, 17:23 to 17:31 UTC. The numbers are Koinon's Acceptance items.
+computers. 2026-11-15, 17:23 to 17:31 UTC. The numbers are Koinon's Acceptance items. The
+table joins two runs of one harness: the first ran items 1 and 2 and the first item 3 row, then
+stopped when it could not resolve the Remote address's name; the second, with a new key held in
+memory and enrolled on both computers again, ran the rest and skipped what the first had run.
 
 | Item | Check | Result |
 | --- | --- | --- |
@@ -256,10 +260,10 @@ computers. 2026-11-15, 17:23 to 17:31 UTC. The numbers are Koinon's Acceptance i
 | 2 (extra) | A signed `send` to `claude` on `blackhole-test` | `peer_not_found`. The item itself (an agent that sends as the maintainer family) was run by the Koinon pair: `invalid_request`, nothing sent |
 | 3 | The same verdict envelope again; `outcome`; another payload under the same request ID | the identical answer; `recorded` with it; `request_conflict` |
 | 3 | Through `blackhole-test`'s Remote address: a verdict on VB-2 whose answer Voice drops unread; then `outcome`, the same envelope, `Reconcile`, another payload under its ID | unknown; `recorded` (verdict 2); the same answer; recorded and final; `request_conflict`; VB-2's history holds verdict 2 only |
-| 3 | `koinon maintainer key remove` on `mac-studio-test`; a new statement for the same key; the earlier statement file again; a committed envelope of the earlier authorization, replayed | the open session's next call `maintainer_token_expired`; authorized; `statement_used`; `signature_refused` (reason `authorization_changed`) |
+| 3 | `koinon maintainer key remove` on `mac-studio-test`; a new statement for the same key; the earlier statement file again; a committed `ack` on `mac-studio-test` whose answer arrived, signed under the earlier authorization, replayed | the open session's next call `maintainer_token_expired`; authorized; `statement_used`; `signature_refused` (reason `authorization_changed`) |
 | 5 | Voice's Serve form, no node on Voice's side, at each computer's Remote address: its own board, the other computer's through it, `computers`, `changes` | answered in the contract's shapes, in both directions |
 | 5 | `blackhole-test`'s Remote: `GET` of the two signed paths; `POST /v1/peers`; `GET /v1/status`; `POST /v1/maintainer/signed` without a token | 405; 405; 404; 404; 409 `maintainer_token_expired` |
-| 6 | `blackhole-test` stopped: a read and a verdict through `mac-studio-test` | `computer_offline`; the verdict not run. Each call answered after 15 seconds, not at once: the Linux computer's IPv6 Tailscale address left a connection to the closed port unanswered, while IPv4 refused it at once. The Koinon pair is fixing this (branch `fix/693-offline-at-once`) |
+| 6 | `blackhole-test` stopped: a read and a verdict through `mac-studio-test` | `computer_offline`; the verdict not run. Not met: each call answered after 15 seconds, not at once (see below) |
 | 6 | `blackhole-test` started again; a `changes` wait with held versions; a message to the maintainer during the wait | answered; woke with `changed` `["inbox"]` after 17.5 seconds; the message in its inbox |
 | 7 | Linux and macOS, Voice `3e900d5`, two Koinon nodes | as above |
 
@@ -267,6 +271,19 @@ The live run found two Voice changes: the Remote route answers `too_many_calls` 
 (G24, `3e900d5`), and the Serve form named a lost connection "koinon mcp output closed"
 (`2c4476b`). This Mac runs with Tailscale DNS off, so it does not resolve `*.ts.net` names; the
 run reached each Remote address at its Tailscale IP address with the same TLS host name.
+Acceptance 6's "at once" is not met at `0500b45`. A timed run through `mac-studio-test`
+(17:30 to 17:31 UTC) gave `computer_offline` after 15.0 seconds on each of three calls in a row.
+Probes from mac-studio while `blackhole-test` was off (17:32 to 17:34 UTC, `nc`, `openssl
+s_client` and `curl`): a connection to its link port at the IPv4 Tailscale address was refused
+within 40 ms; at the IPv6 Tailscale address it had no answer until the client's timeout (10 and
+75 seconds), while the IPv6 address answered `ping6` and the running daemon's port. The Koinon
+pair's fix bounds the node's connection to 3 seconds across addresses (rwcii/koinon `9a09aed`,
+branch `fix/693-offline-at-once`); item 6 is timed again on its merge.
+
+This run did not check these parts of Acceptance 3: a write that commits and loses its answer,
+whose key is then removed and enrolled again on that target (the lost answer above and the
+replay after enrolling again were separate writes on separate computers); and a receipt asked
+for or replayed after the target restarts (the restart above was used for item 6 only).
 Acceptance 3's lost reply on the target's side, the held transaction and Acceptance 4 need
 fault hooks that only Koinon's tests have; the Koinon pair names those tests as supplemental,
 synthetic evidence: `TestSignedForwardLostReply`, `TestSignedOutcomeWaitsForWrite`,
