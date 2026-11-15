@@ -263,7 +263,7 @@ memory and enrolled on both computers again, ran the rest and skipped what the f
 | 3 | `koinon maintainer key remove` on `mac-studio-test`; a new statement for the same key; the earlier statement file again; a committed `ack` on `mac-studio-test` whose answer arrived, signed under the earlier authorization, replayed | the open session's next call `maintainer_token_expired`; authorized; `statement_used`; `signature_refused` (reason `authorization_changed`) |
 | 5 | Voice's Serve form, no node on Voice's side, at each computer's Remote address: its own board, the other computer's through it, `computers`, `changes` | answered in the contract's shapes, in both directions |
 | 5 | `blackhole-test`'s Remote: `GET` of the two signed paths; `POST /v1/peers`; `GET /v1/status`; `POST /v1/maintainer/signed` without a token | 405; 405; 404; 404; 409 `maintainer_token_expired` |
-| 6 | `blackhole-test` stopped: a read and a verdict through `mac-studio-test` | `computer_offline`; the verdict not run. Not met: each call answered after 15 seconds, not at once (see below) |
+| 6 | `blackhole-test` stopped: a read and a verdict through `mac-studio-test` | `computer_offline`; the verdict not run. Not met at `0500b45`: each call answered after 15 seconds, not at once; 3 seconds on the fix (below) |
 | 6 | `blackhole-test` started again; a `changes` wait with held versions; a message to the maintainer during the wait | answered; woke with `changed` `["inbox"]` after 17.5 seconds; the message in its inbox |
 | 7 | Linux and macOS, Voice `3e900d5`, two Koinon nodes | as above |
 
@@ -278,12 +278,31 @@ s_client` and `curl`): a connection to its link port at the IPv4 Tailscale addre
 within 40 ms; at the IPv6 Tailscale address it had no answer until the client's timeout (10 and
 75 seconds), while the IPv6 address answered `ping6` and the running daemon's port. The Koinon
 pair's fix bounds the node's connection to 3 seconds across addresses (rwcii/koinon `9a09aed`,
-branch `fix/693-offline-at-once`); item 6 is timed again on its merge.
+branch `fix/693-offline-at-once`, merged as `b9a97a7`); item 6 is timed again below.
 
-This run did not check these parts of Acceptance 3: a write that commits and loses its answer,
+That run did not check these parts of Acceptance 3: a write that commits and loses its answer,
 whose key is then removed and enrolled again on that target (the lost answer above and the
 replay after enrolling again were separate writes on separate computers); and a receipt asked
-for or replayed after the target restarts (the restart above was used for item 6 only).
+for or replayed after the target restarts (the restart above was used for item 6 only). The
+run below checks both.
+
+### On Koinon's offline fix
+
+Both test nodes rebuilt from rwcii/koinon `b9a97a7` (the merge of PR #703, the offline fix), with
+the same state and ports; Voice at `90b2587`, a new key held in memory for each run and enrolled
+on both computers. 2026-11-15, 20:06 to 20:13 UTC. The Koinon pair stopped, mapped and started
+`blackhole-test` and removed and added keys there on Voice's word.
+
+| Item | Check | Result |
+| --- | --- | --- |
+| 6 | `blackhole-test` stopped, with no Serve port (form A): a read, a verdict, a read through `mac-studio-test`, then `computers` | `computer_offline` after 3.0 seconds each; the verdict not run; `blackhole-test` offline, reason `link_unreachable` |
+| 6 | `blackhole-test` stopped, its link port mapped by Serve to a closed local port (form B, the form of the 15-second answers): `computers`, the same three calls, `computers` | `computer_offline` after 3.0 seconds each; the verdict not run; offline in both `computers` answers |
+| 3 (b) | Through `blackhole-test`'s Remote address: a verdict on VB-3 whose answer Voice drops unread; `blackhole-test` stopped and started again (the two stops above); then `outcome`, the same envelope, `decision_history` | unknown; `recorded` (verdict 3); the same answer, the same `at`; VB-3's history holds verdict 3 only |
+| 3 (a) | Through `blackhole-test`'s Remote address: a verdict on VB-4 whose answer Voice drops unread; on `blackhole-test` the key removed, a new statement for it added, the earlier statement again; a session under the earlier authorization; under the new one: the write's envelope replayed, its `outcome`, `decision_history`, `board_list` | removed; authorized; `statement_used`; `signature_refused` ("the key was added again since this envelope's authorization"); the replay `signature_refused` (reason `authorization_changed`); the `outcome`, signed under the write's own authorization (D4.3), refused the same way; VB-4's history holds verdict 4, signed by the key; answered |
+
+For Acceptance 6, each call to the stopped computer answered `computer_offline` at the fix's
+3-second connection bound, in both forms (15.0 seconds at `0500b45`).
+
 Acceptance 3's lost reply on the target's side, the held transaction and Acceptance 4 need
 fault hooks that only Koinon's tests have; the Koinon pair names those tests as supplemental,
 synthetic evidence: `TestSignedForwardLostReply`, `TestSignedOutcomeWaitsForWrite`,
