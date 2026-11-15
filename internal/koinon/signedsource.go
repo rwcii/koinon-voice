@@ -54,8 +54,14 @@ type target struct {
 	state  State
 	paired bool
 	// confirmed: the target answered a signed read in this process.
-	confirmed  bool
-	offline    bool
+	confirmed bool
+	offline   bool
+	// gen moves when the computer is unpaired; work is its readers' context, which the
+	// unpairing cancels; resume wakes a change paused by computer_offline.
+	gen        int
+	work       context.Context
+	cancel     context.CancelFunc
+	resume     chan struct{}
 	items      map[string]Item
 	inboxAfter int64
 	inbox      []Message
@@ -272,27 +278,77 @@ func (s *SignedSource) disconnectAll(code, reason string) {
 	})
 }
 
-// apply reads a change's topics, tries again after a failure, and lets the next wait start
-// only when every topic was read (Watcher.Done).
+// work returns the target's work context under its parent and its generation. Unpairing
+// cancels the context and moves the generation, so no earlier worker reads, shows or
+// releases anything for the target after that.
+func (s *SignedSource) work(parent context.Context, pin string) (context.Context, int, chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t := s.target(pin)
+	if t.work == nil || t.work.Err() != nil {
+		t.work, t.cancel = context.WithCancel(parent)
+	}
+	if t.resume == nil {
+		t.resume = make(chan struct{}, 1)
+	}
+	return t.work, t.gen, t.resume
+}
+
+// current reports whether gen is still the target's generation; the caller holds mu.
+func (s *SignedSource) current(pin string, gen int) bool {
+	t, ok := s.targets[pin]
+	return ok && t.gen == gen && t.paired
+}
+
+// apply reads a change's topics and lets the next wait start only when every topic was read
+// and shown (Watcher.Done). A failure keeps the shown data and the change, and tries again
+// after a delay; computer_offline pauses the change until computers shows the target back.
 func (s *SignedSource) apply(ctx context.Context, sig *Signed, w *Watcher, c Change) bool {
+	ctx, gen, resume := s.work(ctx, c.Pin)
 	delay := s.opts.MinDelay
 	for {
-		err := s.read(ctx, sig, w, c)
+		err := s.readGen(ctx, sig, w, c, gen)
 		if ctx.Err() != nil {
 			return false
 		}
 		if err == nil {
+			done := false
 			s.update(func() {
-				t := s.target(c.Pin)
-				if !t.offline && t.paired {
+				if !s.current(c.Pin, gen) {
+					return
+				}
+				t := s.targets[c.Pin]
+				if !t.offline {
 					t.confirmed = true
 					setStatus(t, Connected, "", "")
 				}
+				// Under mu, so an unpairing cannot come between the check and Done.
+				w.Done(c.Pin, c.Topics, c.Removed)
+				done = true
 			})
-			w.Done(c.Pin, c.Topics, c.Removed)
-			return true
+			return done
 		}
-		s.update(func() { s.failed(c.Pin, err) })
+		if refusalCode(err, "") == "computer_offline" {
+			s.update(func() {
+				if s.current(c.Pin, gen) {
+					t := s.targets[c.Pin]
+					t.offline = true
+					setStatus(t, Disconnected, "computer_offline", "the node has no link to this computer")
+				}
+			})
+			select {
+			case <-ctx.Done():
+				return false
+			case <-resume:
+			}
+			delay = s.opts.MinDelay
+			continue
+		}
+		s.update(func() {
+			if s.current(c.Pin, gen) {
+				s.failed(c.Pin, err)
+			}
+		})
 		select {
 		case <-ctx.Done():
 			return false
@@ -302,38 +358,49 @@ func (s *SignedSource) apply(ctx context.Context, sig *Signed, w *Watcher, c Cha
 	}
 }
 
-// read reads a change's topics for one target. Each topic's data is replaced only after it
-// was read in full.
+// read reads a change's topics under the target's current generation.
 func (s *SignedSource) read(ctx context.Context, sig *Signed, w *Watcher, c Change) error {
+	s.mu.Lock()
+	gen := s.target(c.Pin).gen
+	s.mu.Unlock()
+	return s.readGen(ctx, sig, w, c, gen)
+}
+
+// readGen reads every topic of a change into a staged copy of the target's data and shows
+// the copy only when all of them were read in full, and the target is still at gen. On a
+// failure the shown data stays as it was.
+func (s *SignedSource) readGen(ctx context.Context, sig *Signed, w *Watcher, c Change, gen int) error {
 	pin := c.Pin
 	if _, ok := c.Topics["computers"]; ok && pin == s.opts.Host.NodePin {
 		if err := s.readComputers(ctx, sig, w); err != nil {
 			return err
 		}
 	}
-	if len(c.Removed) > 0 {
-		s.update(func() {
-			t := s.target(pin)
-			for _, topic := range c.Removed {
-				switch topic {
-				case "decisions":
-					t.items, t.state.Items, t.state.Counts = map[string]Item{}, nil, Counts{}
-				case "inbox":
-					t.inbox, t.state.Inbox = nil, nil
-				default:
-					delete(t.rooms, topic)
-				}
-			}
-			publishRooms(t)
-		})
+	s.mu.Lock()
+	t := s.target(pin)
+	st := staged{items: t.items, counts: t.state.Counts, itemList: t.state.Items,
+		inboxAfter: t.inboxAfter, inbox: t.inbox, rooms: map[string]*roomCursor{}, order: t.order}
+	for id, rc := range t.rooms {
+		st.rooms[id] = rc
+	}
+	s.mu.Unlock()
+	for _, topic := range c.Removed {
+		switch topic {
+		case "decisions":
+			st.items, st.itemList, st.counts = map[string]Item{}, nil, Counts{}
+		case "inbox":
+			st.inbox = nil
+		default:
+			delete(st.rooms, topic)
+		}
 	}
 	if _, ok := c.Topics["decisions"]; ok {
-		if err := s.readBoard(ctx, sig, pin); err != nil {
+		if err := s.readBoard(ctx, sig, pin, &st); err != nil {
 			return err
 		}
 	}
 	if _, ok := c.Topics["inbox"]; ok {
-		if err := s.readInbox(ctx, sig, pin); err != nil {
+		if err := s.readInbox(ctx, sig, pin, &st); err != nil {
 			return err
 		}
 	}
@@ -344,17 +411,43 @@ func (s *SignedSource) read(ctx context.Context, sig *Signed, w *Watcher, c Chan
 		}
 	}
 	if len(rooms) > 0 {
-		if err := s.readRooms(ctx, sig, pin); err != nil {
+		if err := s.readRooms(ctx, sig, pin, &st); err != nil {
 			return err
 		}
 		sort.Strings(rooms)
 		for _, id := range rooms {
-			if err := s.readRoom(ctx, sig, pin, id); err != nil {
+			if err := s.readRoom(ctx, sig, pin, id, &st); err != nil {
 				return err
 			}
 		}
 	}
+	var stale bool
+	s.update(func() {
+		if !s.current(pin, gen) && pin != s.opts.Host.NodePin {
+			stale = true
+			return
+		}
+		t := s.targets[pin]
+		t.items, t.state.Items, t.state.Counts = st.items, st.itemList, st.counts
+		t.inboxAfter, t.inbox, t.state.Inbox = st.inboxAfter, st.inbox, st.inbox
+		t.rooms, t.order = st.rooms, st.order
+		publishRooms(t)
+	})
+	if stale {
+		return context.Canceled
+	}
 	return nil
+}
+
+// staged is a target's data while a change is read; it is shown only when complete.
+type staged struct {
+	items      map[string]Item
+	itemList   []Item
+	counts     Counts
+	inboxAfter int64
+	inbox      []Message
+	rooms      map[string]*roomCursor
+	order      []string
 }
 
 // call signs and sends one read with the request timeout.
@@ -415,6 +508,12 @@ func (s *SignedSource) readComputers(ctx context.Context, sig *Signed, w *Watche
 			if t.offline {
 				t.offline = false
 				resume = append(resume, cpt.Pin)
+				if t.resume != nil {
+					select {
+					case t.resume <- struct{}{}:
+					default:
+					}
+				}
 			}
 			if t.confirmed {
 				setStatus(t, Connected, "", "")
@@ -426,6 +525,10 @@ func (s *SignedSource) readComputers(ctx context.Context, sig *Signed, w *Watche
 		for pin, t := range s.targets {
 			if !listed[pin] && t.paired {
 				t.paired = false
+				t.gen++
+				if t.cancel != nil {
+					t.cancel()
+				}
 				setStatus(t, Disconnected, "not_paired", "the node no longer lists this computer")
 				remove = append(remove, pin)
 			}
@@ -444,7 +547,7 @@ func (s *SignedSource) readComputers(ctx context.Context, sig *Signed, w *Watche
 }
 
 // readBoard reads every page of the active items, and each item whose revision changed.
-func (s *SignedSource) readBoard(ctx context.Context, sig *Signed, pin string) error {
+func (s *SignedSource) readBoard(ctx context.Context, sig *Signed, pin string, st *staged) error {
 	var counts Counts
 	var listed []Summary
 	var after int64
@@ -469,13 +572,10 @@ func (s *SignedSource) readBoard(ctx context.Context, sig *Signed, pin string) e
 		}
 		after = *p.NextAfter
 	}
-	s.mu.Lock()
-	have := s.target(pin).items
-	s.mu.Unlock()
 	kept := map[string]Item{}
 	items := make([]Item, 0, len(listed))
 	for _, sum := range listed {
-		item, ok := have[sum.Reference]
+		item, ok := st.items[sum.Reference]
 		if !ok || item.Revision != sum.Revision {
 			item = Item{}
 			err := s.call(ctx, sig, pin, "decision_get", map[string]any{"reference": sum.Reference}, &item)
@@ -492,20 +592,14 @@ func (s *SignedSource) readBoard(ctx context.Context, sig *Signed, pin string) e
 		kept[item.Reference] = item
 		items = append(items, item)
 	}
-	s.update(func() {
-		t := s.target(pin)
-		t.items, t.state.Items, t.state.Counts = kept, items, counts
-	})
+	st.items, st.itemList, st.counts = kept, items, counts
 	return nil
 }
 
 // readInbox reads the messages after the last one read and keeps those not acknowledged.
-func (s *SignedSource) readInbox(ctx context.Context, sig *Signed, pin string) error {
-	s.mu.Lock()
-	t := s.target(pin)
-	after, msgs := t.inboxAfter, t.inbox
-	s.mu.Unlock()
-	msgs = append([]Message(nil), msgs...)
+func (s *SignedSource) readInbox(ctx context.Context, sig *Signed, pin string, st *staged) error {
+	after := st.inboxAfter
+	msgs := append([]Message(nil), st.inbox...)
 	var acked int64
 	for {
 		var p inboxPage
@@ -527,15 +621,12 @@ func (s *SignedSource) readInbox(ctx context.Context, sig *Signed, pin string) e
 			open = append(open, m)
 		}
 	}
-	s.update(func() {
-		t := s.target(pin)
-		t.inboxAfter, t.inbox, t.state.Inbox = after, open, open
-	})
+	st.inboxAfter, st.inbox = after, open
 	return nil
 }
 
 // readRooms lists the rooms; a room no longer listed is dropped.
-func (s *SignedSource) readRooms(ctx context.Context, sig *Signed, pin string) error {
+func (s *SignedSource) readRooms(ctx context.Context, sig *Signed, pin string, st *staged) error {
 	var listed []Room
 	var after int64
 	for {
@@ -560,48 +651,33 @@ func (s *SignedSource) readRooms(ctx context.Context, sig *Signed, pin string) e
 		}
 		after = *p.NextAfter
 	}
-	s.update(func() {
-		t := s.target(pin)
-		rooms := map[string]*roomCursor{}
-		order := make([]string, 0, len(listed))
-		for _, r := range listed {
-			rc, ok := t.rooms[r.RoomID]
-			if !ok {
-				rc = &roomCursor{}
-			}
-			rc.room = r
-			rooms[r.RoomID] = rc
-			order = append(order, r.RoomID)
+	rooms := map[string]*roomCursor{}
+	order := make([]string, 0, len(listed))
+	for _, r := range listed {
+		rc := &roomCursor{room: r}
+		if old, ok := st.rooms[r.RoomID]; ok {
+			rc.after, rc.posts = old.after, old.posts
 		}
-		t.rooms, t.order = rooms, order
-		publishRooms(t)
-	})
+		rooms[r.RoomID] = rc
+		order = append(order, r.RoomID)
+	}
+	st.rooms, st.order = rooms, order
 	return nil
 }
 
 // readRoom reads a room's posts after the last one read. A room that is gone is dropped.
-func (s *SignedSource) readRoom(ctx context.Context, sig *Signed, pin, id string) error {
-	s.mu.Lock()
-	rc, ok := s.target(pin).rooms[id]
-	var after int64
-	var posts []Post
-	if ok {
-		after, posts = rc.after, rc.posts
-	}
-	s.mu.Unlock()
+func (s *SignedSource) readRoom(ctx context.Context, sig *Signed, pin, id string, st *staged) error {
+	rc, ok := st.rooms[id]
 	if !ok {
 		return nil
 	}
-	posts = append([]Post(nil), posts...)
+	after := rc.after
+	posts := append([]Post(nil), rc.posts...)
 	for {
 		var p roomPage
 		err := s.call(ctx, sig, pin, "room_read", map[string]any{"room": id, "after": after, "limit": 100}, &p)
 		if Code(err) == "room_not_found" {
-			s.update(func() {
-				t := s.target(pin)
-				delete(t.rooms, id)
-				publishRooms(t)
-			})
+			delete(st.rooms, id)
 			return nil
 		}
 		if err != nil {
@@ -615,13 +691,7 @@ func (s *SignedSource) readRoom(ctx context.Context, sig *Signed, pin, id string
 			break
 		}
 	}
-	s.update(func() {
-		t := s.target(pin)
-		if rc, ok := t.rooms[id]; ok {
-			t.rooms[id] = &roomCursor{room: rc.room, after: after, posts: posts}
-			publishRooms(t)
-		}
-	})
+	st.rooms[id] = &roomCursor{room: rc.room, after: after, posts: posts}
 	return nil
 }
 

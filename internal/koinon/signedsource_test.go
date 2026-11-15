@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -324,5 +326,148 @@ func TestSourceGoesOnFromItsVersions(t *testing.T) {
 	waitStates(t, r.src, "new message", func(m map[string]State) bool {
 		o := m[otherPin]
 		return o.Status == Connected && len(o.Inbox) == 2 && o.Inbox[1].Body == "third"
+	})
+}
+
+// fixedTransport answers each envelope with answer.
+type fixedTransport struct {
+	answer func(signed.Envelope, any) error
+	done   chan struct{}
+}
+
+func (f *fixedTransport) Call(_ context.Context, e signed.Envelope, out any) error {
+	return f.answer(e, out)
+}
+func (f *fixedTransport) Done() <-chan struct{} { return f.done }
+func (f *fixedTransport) Close()                {}
+
+// unitSource is a source with one confirmed computer and a session on answer.
+func unitSource(t *testing.T, answer func(signed.Envelope, any) error) (*SignedSource, *Signed, *Watcher) {
+	t.Helper()
+	key := signed.Key{User: "robert", Private: ed25519.NewKeyFromSeed(bytes.Repeat([]byte{9}, 32))}
+	src := NewSignedSource(SourceOptions{Host: Host{Label: "studio", NodePin: nodePin}, Access: Access{Key: key, Auths: bothAuths()},
+		MinDelay: 2 * time.Millisecond, MaxDelay: 5 * time.Millisecond})
+	src.mu.Lock()
+	tg := src.target(otherPin)
+	tg.paired, tg.confirmed = true, true
+	setStatus(tg, Connected, "", "")
+	src.mu.Unlock()
+	sig := &Signed{opts: SignedOptions{NodePin: nodePin, Key: key, Auths: bothAuths()}, t: &fixedTransport{answer: answer, done: make(chan struct{})}}
+	ctx, cancel := context.WithCancel(context.Background())
+	w := sig.Watch(ctx, nil, make(chan Change), WatchOptions{})
+	t.Cleanup(func() { cancel(); w.Stop() })
+	return src, sig, w
+}
+
+func otherState(src *SignedSource) State {
+	for _, s := range src.States() {
+		if s.Pin == otherPin {
+			return s
+		}
+	}
+	return State{}
+}
+
+func computersAnswer(list string) string {
+	return `{"node":{"pin":"` + nodePin + `","name":"desk"},"computers":[` + list + `]}`
+}
+
+func TestSourcePausesARefreshWhileOffline(t *testing.T) {
+	var mu sync.Mutex
+	offline, boardReads := true, 0
+	src, sig, w := unitSource(t, func(e signed.Envelope, out any) error {
+		mu.Lock()
+		defer mu.Unlock()
+		switch e.Op {
+		case "computers":
+			return json.Unmarshal([]byte(computersAnswer(`{"pin":"`+otherPin+`","name":"lab-1","state":"connected"}`)), out)
+		case "board_list":
+			boardReads++
+			if offline {
+				return &Refusal{Code: "computer_offline"}
+			}
+			return json.Unmarshal([]byte(`{"counts":{"waiting":0},"items":[],"more":false}`), out)
+		}
+		return &Refusal{Code: "unknown_operation"}
+	})
+	done := make(chan bool, 1)
+	go func() {
+		done <- src.apply(w.ctx, sig, w, Change{Pin: otherPin, Topics: map[string]string{"decisions": "00000000000000000002"}})
+	}()
+	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	n := boardReads
+	offline = false
+	mu.Unlock()
+	if s := otherState(src); s.Status != Disconnected || s.Code != "computer_offline" || n != 1 {
+		t.Fatalf("offline refresh: %s %s after %d reads", s.Status, s.Code, n)
+	}
+	if err := src.readComputers(w.ctx, sig, w); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case ok := <-done:
+		if !ok || otherState(src).Status != Connected {
+			t.Errorf("after return: %v %+v", ok, otherState(src))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the paused change did not go on after computers showed the computer back")
+	}
+}
+
+func TestSourceUnpairingEndsARefresh(t *testing.T) {
+	var reads atomic.Int64
+	src, sig, w := unitSource(t, func(e signed.Envelope, out any) error {
+		if e.Op == "computers" {
+			return json.Unmarshal([]byte(computersAnswer("")), out)
+		}
+		reads.Add(1)
+		return &Refusal{Code: "internal"}
+	})
+	done := make(chan bool, 1)
+	go func() {
+		done <- src.apply(w.ctx, sig, w, Change{Pin: otherPin, Topics: map[string]string{"decisions": "00000000000000000002"}})
+	}()
+	for reads.Load() < 2 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := src.readComputers(w.ctx, sig, w); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case ok := <-done:
+		if ok {
+			t.Error("an unpaired computer's change was done")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the refresh went on after the computer was unpaired")
+	}
+	n := reads.Load()
+	time.Sleep(30 * time.Millisecond)
+	if reads.Load() != n || otherState(src).Code != "not_paired" {
+		t.Errorf("reads %d -> %d, code %q", n, reads.Load(), otherState(src).Code)
+	}
+}
+
+func TestSourceShowsARoomOnlyWhenReadInFull(t *testing.T) {
+	r := newSourceRig(t, bothAuths(), nil)
+	waitStates(t, r.src, "settled", settled)
+	r.node.Change(otherPin, func(tg *koinontest.Target) {
+		tg.Fail["room_read"] = 1 << 20
+		tg.Rooms = []map[string]any{{"room_id": "R1", "name": "renamed", "revision": int64(2)}}
+		tg.Posts["R1"] = append(tg.Posts["R1"], map[string]any{"seq": int64(2), "body": "second"})
+		tg.Versions["R1"]++
+	})
+	deadline := time.Now().Add(150 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if o := otherState(r.src); o.Rooms[0].Name != "ops" || len(o.Rooms[0].Posts) != 1 {
+			t.Fatalf("a partly read room was shown: %+v", o.Rooms[0])
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Fail["room_read"] = 0 })
+	waitStates(t, r.src, "room read", func(m map[string]State) bool {
+		rs := m[otherPin].Rooms
+		return len(rs) == 1 && rs[0].Name == "renamed" && len(rs[0].Posts) == 2
 	})
 }
