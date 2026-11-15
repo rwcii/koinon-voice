@@ -390,14 +390,11 @@ func TestVerdictSameFormIsAnsweredOnce(t *testing.T) {
 
 func TestVerdictReconciledRefusalIsShownWithDetails(t *testing.T) {
 	var e Entry
-	var states []State
-	var smu sync.Mutex
 	r := newSourceRig(t, bothAuths(), nil, func(r *sourceRig) {
 		e = signedEntry(t, r, nodePin, "studio", time.Now().Unix())
 		r.journal.Reserve(e)
 		// The item moved on before the write arrived: the target refuses it.
 		r.node.Change(otherPin, func(tg *koinontest.Target) { tg.Items["P-1"]["revision"] = int64(9) })
-		r.src.opts.OnChange = func(s []State) { smu.Lock(); states = s; smu.Unlock() }
 	})
 	m := waitStates(t, r.src, "refused", func(m map[string]State) bool {
 		p := m[otherPin].Pending
@@ -413,7 +410,6 @@ func TestVerdictReconciledRefusalIsShownWithDetails(t *testing.T) {
 	if err := r.src.Dismiss(e.Request()); err != nil || len(otherState(r.src).Pending) != 0 {
 		t.Errorf("removing the notice: %v", err)
 	}
-	_ = states
 }
 
 func TestVerdictFinalUnknownWaitsForTheJournal(t *testing.T) {
