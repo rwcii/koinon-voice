@@ -504,3 +504,21 @@ func TestConnectorKeepsEveryPost(t *testing.T) {
 		t.Errorf("%d of 75 posts", n)
 	}
 }
+
+func TestConnectorLeavesSignedNodes(t *testing.T) {
+	h, _ := newHost(t, "signed")
+	ran := filepath.Join(t.TempDir(), "ran")
+	h.Koinon = filepath.Join(t.TempDir(), "koinon")
+	if err := os.WriteFile(h.Koinon, []byte("#!/bin/sh\ntouch "+ran+"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.NodePin = pinA
+	conn, _ := start(t, h, fastOptions())
+	s := waitFor(t, conn, "disconnected", func(s State) bool { return s.Status == Disconnected })
+	if s.Code != "signed_node" {
+		t.Errorf("signed node: %+v", s)
+	}
+	if _, err := os.Stat(ran); !os.IsNotExist(err) {
+		t.Error("the secret connection started a process for a signed node")
+	}
+}

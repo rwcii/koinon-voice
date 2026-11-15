@@ -220,6 +220,10 @@ func (c *Connector) update(f func(*State)) {
 // session runs one maintainer-mode process until it ends, and says why.
 func (c *Connector) session(ctx context.Context) *Down {
 	c.update(func(s *State) { s.Status, s.Attempts = Connecting, s.Attempts+1 })
+	if c.host.Signed() {
+		// A signed node never takes the secret connection; the signed source serves it.
+		return &Down{Code: "signed_node", Reason: "a signed node is not reached through the secret connection"}
+	}
 	if c.opts.Secrets == nil {
 		return &Down{Code: "no_secret_store", Reason: "no secret store"}
 	}

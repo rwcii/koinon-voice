@@ -146,7 +146,8 @@ mapped to them in [Mapping to the Koinon draft](#mapping-to-the-koinon-draft).
 Koinon contract: rwcii/koinon branch `docs/693-signed-maintainer`, frozen commit `4e324d5`,
 `docs/sprints/2026-11-14-signed-maintainer/decision.md` (D1 to D7 are its decisions); on the
 Koinon board as card LINK-693-SIGNED (revision 9) for the maintainer's approval. Gaps G1 to G19
-went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed:
+went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed. G20, the
+Serve route's wire details, is closed at `dfb2ed7`, a commit on `4e324d5`:
 
 | Gap | Closed by | Head |
 | --- | --- | --- |
@@ -168,6 +169,7 @@ went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed
 | G17 computer state for the Serve route | D6.3, D6.4 | `086b9f5` |
 | G18 a write's outcome after the key is enrolled again | D1.3, D1.7, D3.3, D4.3: each envelope carries `auth`, the hex SHA-256 of its enrollment statement's signed bytes, and runs only under that authorization; a statement is added once (`statement_used`). This replaced the clock floor of `d578d0e`, `072870b` and `fa95824` (G18b, G18c) | `05c531c`; outcome refused under a gone authorization at `4e324d5` |
 | G19 answer shapes of `outcome`, `changes` (20-digit string versions), `computers` and refusals | Answer shapes | `cbd8e21` |
+| G20 the Serve route's session answer (flat, with `idle_seconds` and `absolute_seconds`), `maintainer_token_expired` with HTTP 409 before the envelope is read, `invalid_request` with 400, and the sizes: 512 KiB a request, 1 MiB an answer and a link frame | Answer shapes, D5.2 | `dfb2ed7`, on `4e324d5`; Voice's Serve form (`internal/koinon/signedhttp.go`) |
 
 | ID | Koinon contract section | Status |
 | --- | --- | --- |
@@ -182,7 +184,7 @@ went to the Koinon pair on 2026-11-14 from both Voice agents, and each is closed
 | R16 | D4.5, settled point 1; rwcii/koinon#695 | settled |
 | R17, R18, R19, R21 | D6 (client-signed `changes` waits; `computers` topic; versions are strings) | covered; Voice's `Watcher` (`internal/koinon/signedwatch.go`) |
 | R22, R23 | D5 | covered |
-| R24 | D5.2, settled point 2 | covered |
+| R24 | D5.2, settled point 2; Answer shapes at `dfb2ed7` (G20) | covered; Voice's Serve form (`internal/koinon/signedhttp.go`) |
 | R25 | D5.1 | covered |
 | R26 | D1.4, D1.5, D1.7, D3.5 | covered; `koinon-voice key enroll` records each computer's authorization |
 | Records | Records | covered |

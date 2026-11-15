@@ -4,6 +4,13 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `hosts.toml` takes signed node rows: `node_pin` with the local form or `serve =
+  "https://HOST"` (R24). A row with `node_pin` or `serve`, even empty, is checked as a signed
+  node: a valid pin, no `ssh` or `secret`, a Serve address checked as the Serve client checks
+  it, and no local fields beside `serve`; two rows with one pin are refused. Voice uses an
+  enrollment only when its key ID, user and client match this install's key. `board` and
+  `dashboard` show signed rows as disconnected (`signed_node`) and start nothing for them
+  until the signed source is wired in (#36).
 - `koinon-voice key create --user NAME`, `key show` and `key enroll --target PIN` make this
   install's Ed25519 maintainer key, keep it in the Keychain item `koinon-voice-maintainer-key`
   (written through `security` on standard input, never replaced), print its key ID, public key

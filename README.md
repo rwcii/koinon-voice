@@ -135,6 +135,27 @@ it. To enroll again after a key is removed there, sign a new statement. On the t
 within 10 minutes, run `koinon maintainer key add --statement FILE` (a Koinon release with
 #693).
 
+A signed node is a `hosts.toml` row with `node_pin`, the node's pin read on the node with
+`koinon link status`. It has no `ssh` and no `secret`. Without `serve` it is the koinon on this
+computer, with `koinon`, `state_dir` and `address` as above; with `serve` it is another
+computer's Remote address, `https://HOST`:
+
+```toml
+[[host]]
+label = "studio"
+node_pin = "<64 hex digits from koinon link status on studio>"
+
+[[host]]
+label = "blackhole"
+node_pin = "<64 hex digits from koinon link status on blackhole>"
+serve = "https://blackhole.example.ts.net"
+```
+
+Two rows with the same `node_pin` are refused. Voice tries a signed node only when
+`enrollments.json` holds an enrollment for its pin made with this install's key, user and
+client; only the node's answer confirms it. `board` and `dashboard` read signed rows but do not
+connect to them yet: each shows as disconnected with the code `signed_node` (#36).
+
 ## Dashboard
 
 `koinon-voice dashboard` connects to every host and serves the dashboard on
