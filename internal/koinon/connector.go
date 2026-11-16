@@ -31,7 +31,12 @@ const (
 // State is what a connector knows of its host. A connector replaces its slices and never
 // changes them in place, so a State is safe to keep and read.
 type State struct {
-	Host   string
+	Host string
+	// Pin is a signed source's stable key for the computer (R12); Host shows its name, which
+	// can change and need not be unique. Node is the hosts.toml label of the row that reaches
+	// it. Both are empty for a secret connection.
+	Pin    string
+	Node   string
 	Status Status
 	// Code and Reason say why the host is disconnected; Code is Koinon's code when there
 	// is one. Neither ever holds the secret.
@@ -47,6 +52,11 @@ type State struct {
 	// Inbox holds the maintainer's messages that are not acknowledged.
 	Inbox []Message
 	Rooms []RoomState
+	// Pending are a signed source's verdicts whose outcome is not known yet.
+	Pending []PendingWrite
+	// Loaded: a signed source has read this computer's topics in full once, so its items,
+	// inbox and rooms are complete.
+	Loaded bool
 }
 
 // RoomState is a room with every post that Koinon retains.
@@ -220,6 +230,10 @@ func (c *Connector) update(f func(*State)) {
 // session runs one maintainer-mode process until it ends, and says why.
 func (c *Connector) session(ctx context.Context) *Down {
 	c.update(func(s *State) { s.Status, s.Attempts = Connecting, s.Attempts+1 })
+	if c.host.Signed() {
+		// A signed node never takes the secret connection; the signed source serves it.
+		return &Down{Code: "signed_node", Reason: "a signed node is not reached through the secret connection"}
+	}
 	if c.opts.Secrets == nil {
 		return &Down{Code: "no_secret_store", Reason: "no secret store"}
 	}

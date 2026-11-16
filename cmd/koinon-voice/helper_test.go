@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rwcii/koinon-voice/internal/koinon"
 	"github.com/rwcii/koinon-voice/internal/koinon/koinontest"
 	"github.com/rwcii/koinon-voice/internal/sidecar"
+	"github.com/rwcii/koinon-voice/internal/signed"
 )
 
 // The test binary is also a synthetic helper: with fakeHelperMode set it answers transcribe,
@@ -29,7 +31,17 @@ func TestMain(m *testing.M) {
 		fakeHelper()
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	// No test reads the person's key, enrollments or pending verdicts (WDR 006).
+	dir, err := os.MkdirTemp("", "koinon-voice-cmd-test")
+	if err != nil {
+		panic(err)
+	}
+	signedJournal = koinon.Journal{Path: filepath.Join(dir, "pending.json")}
+	keyEnrollments = signed.Enrollments{Path: filepath.Join(dir, "enrollments.json")}
+	keyStore = &memoryStore{items: map[string]string{}}
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
 }
 
 func fakeHelper() {

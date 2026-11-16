@@ -1,9 +1,9 @@
 ---
 adr: "001"
 title: "Local Bridge and Koinon Connectors"
-status: accepted
+status: modified
 created: "2026-10-23"
-updated: "2026-10-26"
+updated: "2026-11-14"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -13,6 +13,7 @@ superseded_by: ""
 related:
   - "002"
   - "003"
+  - "004"
 tags:
   - architecture
   - integration
@@ -23,7 +24,7 @@ tags:
 # ADR 001: Local Bridge and Koinon Connectors
 
 **Date:** 2026-10-23
-**Status:** Accepted
+**Status:** Modified
 **Authors:** Robert Capps
 
 ---
@@ -86,6 +87,9 @@ to decide (Koinon PDR 009, rwcii/koinon#470).
 
 ### Decision
 
+**Scope (ADR 004, Decision 2, 2026-11-14):** the process talks to full Koinon nodes and does not
+bundle, start or embed a Koinon daemon.
+
 `koinon-voice` is one Go process on the maintainer's machine. It serves the dashboard on a
 loopback address and runs speech engines as sidecar processes (ADR 002). On macOS the Swift
 helper captures the microphone and plays speech, with Apple's voice processing (ADR 002,
@@ -117,6 +121,12 @@ the grant.
 ## 3. Decision 2: A connector per daemon; stdio over SSH for remote hosts
 
 ### Decision
+
+**Transition (ADR 004, Decision 1, board kv-693-ssh, 2026-11-14):** Koinon Voice moves to one
+connection to its own computer's Koinon daemon and reaches paired computers through the links.
+This decision stays in effect until Koinon ships signed maintainer actions over links and
+Koinon Voice's sprint for them merges; then the SSH connector and the `ssh` entries of
+`hosts.toml` are removed.
 
 Each Koinon daemon is a connector with a host label. A connector runs
 `koinon mcp --maintainer --client koinon-voice --secret-stdin` and speaks MCP over its standard
@@ -168,6 +178,10 @@ maintainer accepted with it on 2026-10-26. The SSH path has not been tried yet (
 ## 4. Decision 3: Act through Koinon's maintainer mode
 
 ### Decision
+
+**Transition (ADR 004):** the secret per host gives way to a key pair per user and install that
+signs each maintainer action (rwcii/koinon#693). How the connection to Koinon Voice's own
+computer authenticates is settled with ADR 004. This decision stays in effect until then.
 
 Each connector reads what needs the maintainer, receives change notices and records the
 maintainer's posts and verdicts through the maintainer mode's tools, as the built-in
@@ -257,3 +271,4 @@ maintainer accepted this record on 2026-10-26.
 | 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |
 | 2026-10-26 | Accepted by the maintainer (board item kv-adr001); Koinon v0.5.0 has the maintainer mode |
 | 2026-10-27 | Decision 2's trade-off states what Koinon v0.5.0 does when the maintainer session ends, which the record had left open |
+| 2026-11-14 | Modified: Decisions 1 to 3 point to ADR 004 (kv-693-ssh; a client of full Koinon nodes); SSH and the secret per host stay until the transition in ADR 004, Decision 1 ends |

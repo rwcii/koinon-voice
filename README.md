@@ -111,6 +111,68 @@ the items that wait for the maintainer in full, the maintainer's inbox and the r
 new line on each change. The secret is written as the first
 line of the process's standard input and appears in no argument, log or output.
 
+### Maintainer key
+
+Koinon is moving maintainer actions to signatures: one key pair per user and install signs
+each action, and each Koinon computer accepts only keys enrolled on it
+([ADR 004](docs/architecture/adr/004-signed-client-of-koinon-nodes.md), rwcii/koinon#693).
+Secret rows of `hosts.toml` do not use the key; signed rows, below, sign every action with it.
+
+```sh
+koinon-voice key create --user NAME   # one Ed25519 key for this install, in the Keychain
+koinon-voice key show                 # its key ID, public key and user
+koinon-voice key enroll --target PIN  # a signed enrollment statement for one computer
+```
+
+`key create` refuses when this install has a key, and never replaces one. The private key is
+kept in the Keychain item `koinon-voice-maintainer-key`, written through `security` on
+standard input, and is printed nowhere. For `key enroll`, read the target's pin on the target
+itself: `koinon link status` prints it as `Fingerprint`. `--client` sets the client label
+(default `koinon-voice`) and `--out FILE` writes the statement to a new file. Each statement
+makes one authorization on its computer; `key enroll` records it for that pin in
+`~/.local/share/koinon-voice/enrollments.json`, and every signed action to the computer carries
+it. To enroll again after a key is removed there, sign a new statement. On the target,
+within 10 minutes, run `koinon maintainer key add --statement FILE` (a Koinon release with
+#693).
+
+A signed node is a `hosts.toml` row with `node_pin`, the node's pin read on the node with
+`koinon link status`. It has no `ssh` and no `secret`. Without `serve` it is the koinon on this
+computer, with `koinon`, `state_dir` and `address` as above; with `serve` it is another
+computer's Remote address, `https://HOST`:
+
+```toml
+[[host]]
+label = "studio"
+node_pin = "<64 hex digits from koinon link status on studio>"
+
+[[host]]
+label = "blackhole"
+node_pin = "<64 hex digits from koinon link status on blackhole>"
+serve = "https://blackhole.example.ts.net"
+```
+
+Two rows with the same `node_pin` are refused. Voice tries a signed node only when
+`enrollments.json` holds an enrollment for its pin made with this install's key, user and
+client; only the node's answer confirms it. Without the key, or without an enrollment for the
+node, the row shows why and nothing is sent; secret rows keep working.
+
+`board` and `dashboard` show a signed row as its node and each computer paired with it, by
+name, with its pin. They read each computer's board, inbox and rooms once, then only what its
+signed `changes` wait names. A computer that goes offline or is unpaired stays shown,
+disconnected, with what was last read.
+
+On the dashboard, a verdict on a signed computer's item is signed only for the item as the page
+showed it: when the item changed since, nothing is sent and the page shows it as it is now. Each
+item offers the verdicts of its kind (decision: approved, declined, feedback; task: completed,
+declined, feedback; fyi: acknowledged). The same form sent again sends nothing and shows its
+first result. A verdict is written to `~/.local/share/koinon-voice/pending.json` before it is
+sent and removed when its outcome is known. When an answer is lost, the computer shows the
+verdict as waiting for its outcome, and Koinon Voice asks the computer for it under the
+original signed request, also after a restart; it never signs the verdict again. An outcome that
+can no longer be asked, such as after the key was enrolled again there, stays shown until you
+remove its local record; read the item's record on that computer. A pending verdict through a
+node that no row names is listed with its node and computer pins, and nothing is sent for it.
+
 ## Dashboard
 
 `koinon-voice dashboard` connects to every host and serves the dashboard on

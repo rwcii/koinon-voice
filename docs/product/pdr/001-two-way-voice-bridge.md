@@ -3,7 +3,7 @@ pdr: "001"
 title: "Two-Way Voice Bridge"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-23"
+updated: "2026-11-14"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -12,6 +12,7 @@ superseded_by: ""
 related_adrs:
   - "001"
   - "002"
+  - "004"
 related_pdrs:
   - "002"
   - "003"
@@ -108,6 +109,12 @@ a client acting with the maintainer's identity, or a new agent family on the pee
 | A voice agent family | Koinon Voice joins as a peer like claude or codex | The maintainer described a bridge for the maintainer, not another agent |
 | A dashboard per daemon | Voice on each daemon's own dashboard | The maintainer asked for one unified dashboard |
 
+**Change (board kv-693-ssh, Robert Capps, 2026-11-14):** remote daemons are reached through the
+links between paired Koinon computers, through one connection to Koinon Voice's own computer's
+daemon, in place of SSH; SSH stays until Koinon ships signed maintainer actions over links and
+Koinon Voice's sprint for them merges (ADR 004, Decision 1). Koinon Voice contains only the
+parts that talk to full Koinon nodes and never runs Koinon itself (ADR 004, Decision 2).
+
 ### Rationale
 
 1. The maintainer described this product.
@@ -177,6 +184,9 @@ phasing." Later, asked whether the phone runs speech on the phone or sends audio
 and has no maintainer decision. Gate A of the Phase 0 plan (c699013) approved Phase 0's
 decision and does not decide the later phases.
 
+**Change (board kv-693-ssh, 2026-11-14):** Phase 2 reaches paired computers through the links
+(ADR 004), not remote daemons over SSH.
+
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
@@ -210,3 +220,4 @@ words or approvals; the order of Phases 1 to 3 is a proposal.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
+| 2026-11-14 | Decisions 1 and 3: remote daemons through the links in place of SSH (kv-693-ssh); Koinon Voice never runs Koinon (ADR 004) |

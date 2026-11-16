@@ -118,6 +118,15 @@ func (r *Refusal) Error() string {
 	return r.Code + ": " + r.Message
 }
 
+// Reason is the reason that a refusal's details name, such as signature_refused's.
+func (r *Refusal) Reason() string {
+	var d struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.Unmarshal(r.Details, &d)
+	return d.Reason
+}
+
 // CurrentRevision is the item's revision that a stale_revision refusal names.
 func (r *Refusal) CurrentRevision() (int64, bool) {
 	var d struct {

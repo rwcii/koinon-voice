@@ -4,6 +4,30 @@ All notable changes to Koinon Voice are recorded here. Add visible changes under
 
 ## Unreleased
 
+- `hosts.toml` takes signed node rows: `node_pin` with the local form or `serve =
+  "https://HOST"` (R24). A row with `node_pin` or `serve`, even empty, is checked as a signed
+  node: a valid pin, no `ssh` or `secret`, a Serve address checked as the Serve client checks
+  it, and no local fields beside `serve`; two rows with one pin are refused. Voice uses an
+  enrollment only when its key ID, user and client match this install's key (#36).
+- `board` and `dashboard` connect to signed rows beside the secret rows: each signed row shows
+  its node and every computer paired with it, keyed by pin and named by the node, read once and
+  then only for the topics that each computer's signed `changes` wait names. A missing key or
+  enrollment shows on the signed rows only, and sends nothing. The dashboard signs a verdict
+  only for the item as the page showed it, offers the verdicts of the item's kind, answers a
+  form sent again with its first result, and writes each verdict to
+  `~/.local/share/koinon-voice/pending.json` before sending it. A verdict whose answer was lost
+  is asked about under its original request until its outcome is known, also after a restart;
+  one whose outcome can no longer be asked stays shown until its local record is removed.
+  `board` lists pending verdicts through nodes that no row names under `unresolved`. A write
+  that the node answers `too_many_calls` (past the calls its session runs at once), through
+  `koinon mcp` or as HTTP 429 on the Remote route, is shown as not run, as `computer_offline`
+  is (#36).
+- `koinon-voice key create --user NAME`, `key show` and `key enroll --target PIN` make this
+  install's Ed25519 maintainer key, keep it in the Keychain item `koinon-voice-maintainer-key`
+  (written through `security` on standard input, never replaced), print its key ID, public key
+  and user, and sign an enrollment statement for one Koinon computer in Koinon's
+  `koinon-maintainer-1` envelope (RFC 8785 bytes, Ed25519), checked against Koinon's test
+  vectors (#36, rwcii/koinon#693).
 - Kokoro is the default voice of `summarize --speak` and `helper --say`. Each text starts a
   new `koinon-voice-kokoro`; its sentences are synthesized in turn and played by the Apple
   helper's new `play` method through its voice-processing engine while the next sentence is

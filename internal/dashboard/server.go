@@ -42,12 +42,25 @@ type Host interface {
 	Verdict(ctx context.Context, reference string, revision int64, verdict, note string) (koinon.Verdict, error)
 }
 
+// SignedSource is a signed row: it shows the node and its computers, each by pin, and gives
+// verdicts on the item as the page showed it (ADR 004).
+type SignedSource interface {
+	States() []koinon.State
+	Verdict(ctx context.Context, req koinon.VerdictRequest) koinon.VerdictResult
+	Dismiss(request string) error
+	// NewIntent issues the token of one rendered verdict form.
+	NewIntent() string
+}
+
 // Server is the dashboard. Its zero value is not usable; make it with New.
 type Server struct {
-	hosts []Host
-	host  string // the Host header every request must carry
-	tmpl  *template.Template
-	now   func() time.Time
+	hosts      []Host
+	signed     []SignedSource
+	unrouted   []koinon.Unrouted
+	journalErr string
+	host       string // the Host header every request must carry
+	tmpl       *template.Template
+	now        func() time.Time
 
 	mu       sync.Mutex
 	links    map[string]time.Time // one-time login tokens and their ends
@@ -75,8 +88,17 @@ func New(hosts []Host, addr string) (*Server, error) {
 	if err := CheckListen(addr); err != nil {
 		return nil, err
 	}
+	srv := &Server{}
 	tmpl, err := template.New("").Funcs(template.FuncMap{
-		"time": func(ms int64) string { return time.UnixMilli(ms).Format("2006-01-02 15:04") },
+		"intent": func(source int) string {
+			if source < 0 || source >= len(srv.signed) {
+				return ""
+			}
+			return srv.signed[source].NewIntent()
+		},
+		"time":     func(ms int64) string { return time.UnixMilli(ms).Format("2006-01-02 15:04") },
+		"digest":   func(it koinon.Item) string { d, _ := koinon.SnapshotDigest(it); return d },
+		"verdicts": func(kind string) []string { return koinon.KindVerdicts[kind] },
 	}).ParseFS(assets, "assets/*.html")
 	if err != nil {
 		return nil, err
@@ -85,11 +107,24 @@ func New(hosts []Host, addr string) (*Server, error) {
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
-	return &Server{
+	*srv = Server{
 		hosts: hosts, host: addr, tmpl: tmpl, now: time.Now,
 		links: map[string]time.Time{}, sessions: map[string]bool{}, csrfKey: key,
 		watchers: map[chan struct{}]bool{},
-	}, nil
+	}
+	return srv, nil
+}
+
+// SetSigned sets the signed rows; call it before Handler.
+func (s *Server) SetSigned(sources []SignedSource) { s.signed = sources }
+
+// SetUnresolved sets the pending verdicts through nodes that no row names, and why the
+// pending verdicts file could not be read, if it could not; call it before Handler.
+func (s *Server) SetUnresolved(u []koinon.Unrouted, journalErr error) {
+	s.unrouted = u
+	if journalErr != nil {
+		s.journalErr = journalErr.Error()
+	}
 }
 
 // LoginLink returns a new login link, which works once within LinkLifetime.
@@ -122,6 +157,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /board", s.authed(s.board))
 	mux.HandleFunc("GET /events", s.authed(s.events))
 	mux.HandleFunc("POST /verdict", s.authed(s.verdict))
+	mux.HandleFunc("POST /dismiss", s.authed(s.dismiss))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	return s.protect(mux)
 }
@@ -230,25 +266,37 @@ func (s *Server) render(w http.ResponseWriter, status int, name string, data any
 
 // view is what the board template shows.
 type view struct {
-	CSRF   string
-	Notice *notice
-	Hosts  []koinon.State
+	CSRF         string
+	Notice       *notice
+	Hosts        []koinon.State
+	Signed       []signedView
+	Unrouted     []koinon.Unrouted
+	JournalError string
 }
 
-// notice is the result of the last verdict, from fixed texts.
+// signedView is one signed row's states; Source is its index, which forms carry.
+type signedView struct {
+	Source int
+	States []koinon.State
+}
+
+// notice is the result of the last verdict, from fixed texts, with the refusal's details.
 type notice struct {
-	Host, Reference, Code string
-	OK                    bool
+	Host, Reference, Code, Detail string
+	OK, Repeat                    bool
 }
 
 func (s *Server) view(r *http.Request, session string) view {
-	v := view{CSRF: s.csrf(session)}
+	v := view{CSRF: s.csrf(session), Unrouted: s.unrouted, JournalError: s.journalErr}
 	for _, h := range s.hosts {
 		v.Hosts = append(v.Hosts, h.State())
 	}
+	for i, src := range s.signed {
+		v.Signed = append(v.Signed, signedView{Source: i, States: src.States()})
+	}
 	q := r.URL.Query()
 	if code := q.Get("notice"); code != "" {
-		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, OK: code == "recorded"}
+		v.Notice = &notice{Host: q.Get("host"), Reference: q.Get("ref"), Code: code, Detail: q.Get("detail"), Repeat: q.Get("repeat") == "1", OK: code == "recorded"}
 	}
 	return v
 }
@@ -299,6 +347,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, _ string) {
 // verdict gives a verdict through the item's host at the revision the page showed, and
 // returns to the page with the result.
 func (s *Server) verdict(w http.ResponseWriter, r *http.Request, _ string) {
+	if r.PostFormValue("source") != "" {
+		s.signedVerdict(w, r)
+		return
+	}
 	label, ref, verdict := r.PostFormValue("host"), r.PostFormValue("reference"), r.PostFormValue("verdict")
 	revision, err := strconv.ParseInt(r.PostFormValue("revision"), 10, 64)
 	var host Host
@@ -326,5 +378,81 @@ func (s *Server) verdict(w http.ResponseWriter, r *http.Request, _ string) {
 		}
 	}
 	q := url.Values{"notice": {code}, "host": {label}, "ref": {ref}}
+	http.Redirect(w, r, "/?"+q.Encode(), http.StatusSeeOther)
+}
+
+// signedSource returns the signed row that the form names and the state of the computer
+// with the form's pin, which that row must show now.
+func (s *Server) signedSource(r *http.Request) (SignedSource, koinon.State, bool) {
+	i, err := strconv.Atoi(r.PostFormValue("source"))
+	if err != nil || i < 0 || i >= len(s.signed) {
+		return nil, koinon.State{}, false
+	}
+	pin := r.PostFormValue("pin")
+	for _, st := range s.signed[i].States() {
+		if pin != "" && st.Pin == pin {
+			return s.signed[i], st, true
+		}
+	}
+	return nil, koinon.State{}, false
+}
+
+// signedVerdict gives a verdict on a signed row's item, as the page showed it: the form
+// carries the item's revision and snapshot digest, and the row signs only that item.
+func (s *Server) signedVerdict(w http.ResponseWriter, r *http.Request) {
+	ref := r.PostFormValue("reference")
+	revision, err := strconv.ParseInt(r.PostFormValue("revision"), 10, 64)
+	src, st, ok := s.signedSource(r)
+	code, detail, repeat := "invalid_request", "", false
+	if ok && ref != "" && err == nil {
+		res := src.Verdict(r.Context(), koinon.VerdictRequest{Pin: st.Pin, Reference: ref, Revision: revision,
+			Digest: r.PostFormValue("digest"), Verdict: r.PostFormValue("verdict"), Note: r.PostFormValue("note"),
+			Intent: r.PostFormValue("intent")})
+		code, detail, repeat = resultCode(res), koinon.DetailText(res.Details), res.Repeat
+	}
+	q := url.Values{"notice": {code}, "host": {st.Host}, "ref": {ref}}
+	if detail != "" {
+		q.Set("detail", detail)
+	}
+	if repeat {
+		q.Set("repeat", "1")
+	}
+	http.Redirect(w, r, "/?"+q.Encode(), http.StatusSeeOther)
+}
+
+// resultCode is the notice for a signed verdict's result.
+func resultCode(res koinon.VerdictResult) string {
+	switch {
+	case res.State == koinon.Recorded:
+		return "recorded"
+	case res.State == koinon.NotRun && res.Code == "too_many_calls":
+		// The node is connected and at its calls in flight; nothing ran.
+		return "too_many_calls"
+	case res.State == koinon.NotRun:
+		return "not_run"
+	case res.Pending:
+		return "pending"
+	case res.State == koinon.Unknown && res.Final:
+		return "final_unknown"
+	case res.State == koinon.Unknown:
+		return "unknown"
+	case res.Code != "":
+		return res.Code
+	}
+	return "failed"
+}
+
+// dismiss removes a signed row's local record of a verdict whose outcome can no longer be
+// learned. It sends nothing.
+func (s *Server) dismiss(w http.ResponseWriter, r *http.Request, _ string) {
+	src, st, ok := s.signedSource(r)
+	code := "invalid_request"
+	if ok {
+		code = "dismissed"
+		if err := src.Dismiss(r.PostFormValue("request")); err != nil {
+			code = "dismiss_failed"
+		}
+	}
+	q := url.Values{"notice": {code}, "host": {st.Host}}
 	http.Redirect(w, r, "/?"+q.Encode(), http.StatusSeeOther)
 }
