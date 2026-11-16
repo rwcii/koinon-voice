@@ -13,29 +13,20 @@ var (
 	sourceOptions = koinon.SourceOptions{}
 )
 
-// row is one row of hosts.toml: a secret connection or a signed node.
-type row struct {
-	conn   *koinon.Connector
-	signed *koinon.SignedSource
-}
-
-// sources are the rows of a hosts file, in its order, with the journal's records that no
-// signed row serves.
+// sources are the signed rows of a hosts file, in its order, with the journal's records that
+// no row serves.
 type sources struct {
-	rows       []row
+	rows       []*koinon.SignedSource
 	unrouted   []koinon.Unrouted
 	journalErr error
 }
 
-// newSources makes each row's connection; nothing here waits on the Keychain. The maintainer
-// key and enrollments are read once, only when a signed row starts; a failure there shows on
-// the signed rows and leaves the secret rows as they are.
+// newSources makes each row's source; nothing here waits on the Keychain. The maintainer
+// key and enrollments are read once, when the first row starts; a failure there shows on
+// every row.
 func newSources(hosts []koinon.Host, changed func()) sources {
 	var s sources
-	opts := connectorOptions
-	opts.Secrets, opts.Version = hostSecrets, version
-	opts.OnChange = func(koinon.State) { changed() }
-	// The key and enrollments are read once, by the first signed row to start, under its
+	// The key and enrollments are read once, by the first row to start, under its
 	// context: a Keychain that does not answer ends with the command.
 	var once sync.Once
 	var access koinon.Access
@@ -48,14 +39,10 @@ func newSources(hosts []koinon.Host, changed func()) sources {
 	}
 	pins := map[string]bool{}
 	for _, h := range hosts {
-		if !h.Signed() {
-			s.rows = append(s.rows, row{conn: koinon.New(h, opts)})
-			continue
-		}
 		so := sourceOptions
 		so.Host, so.LoadAccess, so.Version, so.Journal = h, load, version, signedJournal
 		so.OnChange = func([]koinon.State) { changed() }
-		s.rows = append(s.rows, row{signed: koinon.NewSignedSource(so)})
+		s.rows = append(s.rows, koinon.NewSignedSource(so))
 		pins[h.NodePin] = true
 	}
 	entries, err := signedJournal.Load()
@@ -71,27 +58,19 @@ func newSources(hosts []koinon.Host, changed func()) sources {
 func (s sources) run(ctx context.Context, wg *sync.WaitGroup) {
 	for _, r := range s.rows {
 		wg.Add(1)
-		go func(r row) {
+		go func(r *koinon.SignedSource) {
 			defer wg.Done()
-			if r.conn != nil {
-				r.conn.Run(ctx)
-			} else {
-				r.signed.Run(ctx)
-			}
+			r.Run(ctx)
 		}(r)
 	}
 }
 
-// states are every row's states in file order; a signed row has one for its node and one
-// for each computer paired with it.
+// states are every row's states in file order: one for its node and one for each computer
+// paired with it.
 func (s sources) states() []koinon.State {
 	var out []koinon.State
 	for _, r := range s.rows {
-		if r.conn != nil {
-			out = append(out, r.conn.State())
-		} else {
-			out = append(out, r.signed.States()...)
-		}
+		out = append(out, r.States()...)
 	}
 	return out
 }

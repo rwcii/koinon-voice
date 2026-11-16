@@ -63,8 +63,7 @@ func signedRows() (*fakeSigned, *fakeSigned) {
 
 func serveSigned(t *testing.T, sources ...SignedSource) (*Server, *httptest.Server, *http.Client, string, string) {
 	t.Helper()
-	s, ts, c := serve(t)
-	s.SetSigned(sources)
+	s, ts, c := serve(t, sources...)
 	login(t, s, c)
 	_, body := get(t, c, ts.URL+"/")
 	m := csrfField.FindStringSubmatch(body)

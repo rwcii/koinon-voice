@@ -29,12 +29,11 @@ const (
 	cmdGonePin  = "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
 )
 
-// signedHosts adds a signed row, "studio", to the board's hosts file: a fake node "desk"
-// paired with "lab-1", which holds a decision item. With withKey the install has a key
-// enrolled on both; the journal holds one verdict through a node that no row names.
+// signedHosts writes a hosts file with one signed row, "studio": a fake node "desk" paired
+// with "lab-1", which holds a decision item. With withKey the install has a key enrolled on
+// both; the journal holds one verdict through a node that no row names.
 func signedHosts(t *testing.T, withKey bool) (string, *koinontest.SignedNode) {
 	t.Helper()
-	hosts := boardHosts(t)
 	dir := t.TempDir()
 	store := &memoryStore{items: map[string]string{}}
 	oldStore, oldEnr, oldJournal, oldOpts := keyStore, keyEnrollments, signedJournal, sourceOptions
@@ -90,9 +89,10 @@ func signedHosts(t *testing.T, withKey bool) (string, *koinontest.SignedNode) {
 	if _, err := signedJournal.Reserve(koinon.Entry{NodePin: cmdGonePin, Node: "old-node", Envelope: gone, FirstSent: 1}); err != nil {
 		t.Fatal(err)
 	}
-	f, _ := os.OpenFile(hosts, os.O_APPEND|os.O_WRONLY, 0o600)
-	fmt.Fprintf(f, "[[host]]\nlabel = \"studio\"\nnode_pin = %q\n", cmdNodePin)
-	f.Close()
+	hosts := filepath.Join(dir, "hosts.toml")
+	if err := os.WriteFile(hosts, []byte(fmt.Sprintf("[[host]]\nlabel = \"studio\"\nnode_pin = %q\n", cmdNodePin)), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return hosts, node
 }
 
@@ -105,7 +105,7 @@ type signedBoard struct {
 	OK         bool
 }
 
-func TestBoardSignedAndSecretRows(t *testing.T) {
+func TestBoardSignedRows(t *testing.T) {
 	hosts, _ := signedHosts(t, true)
 	var stdout, stderr bytes.Buffer
 	run([]string{"board", "--hosts", hosts, "--timeout", "20s"}, nil, &stdout, &stderr)
@@ -117,8 +117,7 @@ func TestBoardSignedAndSecretRows(t *testing.T) {
 	for _, h := range out.Hosts {
 		got[h.Host] = string(h.Status) + "|" + h.Pin + "|" + h.Node
 	}
-	if got["local"] != "connected||" || !strings.HasPrefix(got["other"], "disconnected||") ||
-		got["desk"] != "connected|"+cmdNodePin+"|studio" || got["lab-1"] != "connected|"+cmdOtherPin+"|studio" {
+	if len(got) != 2 || got["desk"] != "connected|"+cmdNodePin+"|studio" || got["lab-1"] != "connected|"+cmdOtherPin+"|studio" {
 		t.Errorf("hosts %v", got)
 	}
 	for _, h := range out.Hosts {
@@ -144,7 +143,7 @@ func TestBoardSignedRowWithoutAKey(t *testing.T) {
 	for _, h := range out.Hosts {
 		got[h.Host] = string(h.Status) + "|" + h.Code
 	}
-	if got["local"] != "connected|" || got["studio"] != "disconnected|key_unavailable" || out.OK {
+	if len(got) != 1 || got["studio"] != "disconnected|key_unavailable" || out.OK {
 		t.Errorf("hosts %v ok %v", got, out.OK)
 	}
 	if len(node.Seen) != 0 {
@@ -325,7 +324,7 @@ func TestBoardTimeoutBoundsTheKeychain(t *testing.T) {
 	for _, h := range out.Hosts {
 		got[h.Host] = h.Status
 	}
-	if got["local"] != "connected" || got["studio"] != "connecting" {
+	if len(got) != 1 || got["studio"] != "connecting" {
 		t.Errorf("hosts %v", got)
 	}
 }
@@ -359,5 +358,27 @@ func TestBoardFailedFirstReadIsNotOK(t *testing.T) {
 	out, code := boardJSON(t, "--hosts", hosts, "--timeout", "20s")
 	if code == 0 || out.OK || len(out.Hosts) != 1 || out.Hosts[0].Code != "internal" {
 		t.Errorf("exit %d ok %v hosts %+v", code, out.OK, out.Hosts)
+	}
+}
+
+// Agent text that would move the cursor or clear the terminal is printed escaped.
+func TestBoardEscapesControlCharacters(t *testing.T) {
+	_, node := signedHosts(t, true)
+	node.RemoveTarget(cmdOtherPin)
+	node.Change(cmdNodePin, func(tg *koinontest.Target) {
+		tg.Items["N-1"] = map[string]any{"reference": "N-1", "revision": int64(1), "kind": "fyi", "title": "Clear\x1b[2J the screen",
+			"state": "active", "commands": []string{}}
+		tg.Versions["decisions"]++
+	})
+	hosts := signedOnly(t, fmt.Sprintf("[[host]]\nlabel = \"studio\"\nnode_pin = %q\n", cmdNodePin))
+	var stdout, stderr bytes.Buffer
+	run([]string{"board", "--hosts", hosts, "--timeout", "20s"}, nil, &stdout, &stderr)
+	var out signedBoard
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("%v: %s", err, stdout.String())
+	}
+	if strings.Count(stdout.String(), "\n") != 1 || strings.Contains(stdout.String(), "\x1b") ||
+		len(out.Hosts) != 1 || len(out.Hosts[0].Items) != 1 || out.Hosts[0].Items[0].Title != "Clear\x1b[2J the screen" {
+		t.Errorf("output:\n%q", stdout.String())
 	}
 }

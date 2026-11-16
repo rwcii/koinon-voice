@@ -21,10 +21,6 @@ const (
 func TestLoadHostsSignedRows(t *testing.T) {
 	hosts, err := LoadHosts(writeHosts(t, `
 [[host]]
-label = "local"
-secret = "maintainer-local"
-
-[[host]]
 label = "studio"
 node_pin = "`+pinA+`"
 state_dir = "/state"
@@ -37,30 +33,26 @@ serve = "https://blackhole.example.ts.net"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hosts) != 3 || hosts[0].Signed() || !hosts[1].Signed() || !hosts[2].Signed() || hosts[2].Serve == "" {
+	if len(hosts) != 2 || hosts[0].NodePin != pinA || hosts[0].Serve != "" || hosts[1].NodePin != pinB || hosts[1].Serve == "" {
 		t.Fatalf("hosts %+v", hosts)
 	}
-	if k, args := hosts[1].SignedLocal(); k != "koinon" || strings.Join(args, " ") != "--state-dir /state" {
+	if k, args := hosts[0].SignedLocal(); k != "koinon" || strings.Join(args, " ") != "--state-dir /state" {
 		t.Errorf("local form %s %v", k, args)
 	}
 
 	row := func(fields string) string { return "[[host]]\nlabel = \"a\"\n" + fields }
 	for name, tc := range map[string]struct{ content, want string }{
-		"empty pin":        {row("node_pin = \"\"\n"), "needs node_pin"},
-		"empty pin secret": {row("node_pin = \"\"\nsecret = \"s\"\n"), "needs node_pin"},
-		"serve no pin":     {row("serve = \"https://h.example\"\n"), "needs node_pin"},
-		"empty serve":      {row("node_pin = \"" + pinA + "\"\nserve = \"\"\n"), "serve: "},
-		"short pin":        {row("node_pin = \"abc\"\n"), "node_pin: "},
-		"upper pin":        {row("node_pin = \"" + strings.ToUpper(pinA) + "\"\n"), "node_pin: "},
-		"secret":           {row("node_pin = \"" + pinA + "\"\nsecret = \"s\"\n"), "has no secret"},
-		"empty secret":     {row("node_pin = \"" + pinA + "\"\nsecret = \"\"\n"), "has no secret"},
-		"ssh":              {row("node_pin = \"" + pinA + "\"\nssh = \"devbox\"\n"), "has no ssh"},
-		"http":             {row("node_pin = \"" + pinA + "\"\nserve = \"http://h.example\"\n"), "must be https"},
-		"path":             {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example/x\"\n"), "no path"},
-		"user":             {row("node_pin = \"" + pinA + "\"\nserve = \"https://u@h.example\"\n"), "no user"},
-		"serve and local":  {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example\"\nkoinon = \"/k\"\n"), "no koinon, state_dir or address"},
-		"serve and state":  {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example\"\nstate_dir = \"\"\n"), "no koinon, state_dir or address"},
-		"same pin":         {row("node_pin = \""+pinA+"\"\n") + "[[host]]\nlabel = \"b\"\nnode_pin = \"" + pinA + "\"\n", "hosts a and b name the same node_pin"},
+		"empty pin":       {row("node_pin = \"\"\n"), "needs node_pin"},
+		"serve no pin":    {row("serve = \"https://h.example\"\n"), "needs node_pin"},
+		"empty serve":     {row("node_pin = \"" + pinA + "\"\nserve = \"\"\n"), "serve: "},
+		"short pin":       {row("node_pin = \"abc\"\n"), "node_pin: "},
+		"upper pin":       {row("node_pin = \"" + strings.ToUpper(pinA) + "\"\n"), "node_pin: "},
+		"http":            {row("node_pin = \"" + pinA + "\"\nserve = \"http://h.example\"\n"), "must be https"},
+		"path":            {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example/x\"\n"), "no path"},
+		"user":            {row("node_pin = \"" + pinA + "\"\nserve = \"https://u@h.example\"\n"), "no user"},
+		"serve and local": {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example\"\nkoinon = \"/k\"\n"), "no koinon, state_dir or address"},
+		"serve and state": {row("node_pin = \"" + pinA + "\"\nserve = \"https://h.example\"\nstate_dir = \"\"\n"), "no koinon, state_dir or address"},
+		"same pin":        {row("node_pin = \""+pinA+"\"\n") + "[[host]]\nlabel = \"b\"\nnode_pin = \"" + pinA + "\"\n", "hosts a and b name the same node_pin"},
 	} {
 		p := writeHosts(t, tc.content)
 		_, err := LoadHosts(p)

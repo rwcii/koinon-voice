@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// decisionsURI is a resource that the tests subscribe to.
+const decisionsURI = "koinon://maintainer/decisions"
+
 // pipeServer is a scripted server on the other end of a client's pipes.
 type pipeServer struct {
 	in  *bufio.Reader
@@ -67,8 +70,8 @@ func TestClientAnswersAndNotices(t *testing.T) {
 		t.Fatalf("method %q", method)
 	}
 	// A notice before the answer reaches the notices, not the call.
-	s.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": DecisionsURI}})
-	s.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": DecisionsURI}})
+	s.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": decisionsURI}})
+	s.send(t, map[string]any{"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": map[string]string{"uri": decisionsURI}})
 	s.send(t, map[string]any{"jsonrpc": "2.0", "id": id, "result": toolResult(`{"ok":true,"result":{"counts":{"waiting":1},"items":[{"reference":"p-1","revision":2}],"more":false,"next_after":null}}`, false)})
 	if err := <-done; err != nil {
 		t.Fatal(err)
@@ -81,7 +84,7 @@ func TestClientAnswersAndNotices(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no notice")
 	}
-	if got := c.TakeNotices(); len(got) != 1 || got[0] != DecisionsURI {
+	if got := c.TakeNotices(); len(got) != 1 || got[0] != decisionsURI {
 		t.Errorf("notices %v", got)
 	}
 	if got := c.TakeNotices(); len(got) != 0 {
@@ -107,7 +110,7 @@ func TestClientRefusalsAndErrors(t *testing.T) {
 		t.Errorf("current revision %d %v", rev, ok)
 	}
 
-	go func() { done <- c.Subscribe(ctx, DecisionsURI) }()
+	go func() { done <- c.Subscribe(ctx, decisionsURI) }()
 	id, _ = s.request(t)
 	s.send(t, map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": -32603, "message": "daemon_unavailable", "data": map[string]string{"code": "daemon_unavailable"}}})
 	err = <-done

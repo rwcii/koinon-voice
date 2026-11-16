@@ -15,8 +15,7 @@ import (
 )
 
 // SignedOptions configure a signed client of one Koinon node (ADR 004; Koinon contract
-// 15ec0ff, Decisions 5.1 and 5.3). It is not wired into board or dashboard yet; the per-host
-// connectors stay until the transition of ADR 004, Decision 1 ends.
+// 15ec0ff, Decisions 5.1 and 5.3).
 type SignedOptions struct {
 	// Koinon is the koinon binary; Args are extra words after `mcp --maintainer --signed`,
 	// such as --state-dir.

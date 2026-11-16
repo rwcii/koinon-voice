@@ -4,42 +4,34 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/rwcii/koinon-voice/internal/signed"
 )
 
-// ClientName is the client that Koinon records with each action, as mcp:koinon-voice
-// (ADR 001, Decision 3).
+// ClientName is the client that this install's key is enrolled for and that each signed
+// envelope names; Koinon records a verdict with it as key:koinon-voice (ADR 004, Decision 3).
 const ClientName = "koinon-voice"
 
-// Host is one Koinon daemon in hosts.toml.
+// Host is one signed node in hosts.toml (ADR 004): Koinon Voice reaches Koinon only as a
+// signed client of it.
 type Host struct {
 	// Label names the host in every view.
 	Label string `toml:"label"`
-	// SSH is the ssh destination of a remote host; empty is this machine.
-	SSH string `toml:"ssh"`
-	// Koinon is the koinon binary: a full path on a remote host, where a non-interactive
-	// shell may not have it on PATH; empty is "koinon" on this machine's PATH.
+	// Koinon is the koinon binary of the local form; empty is "koinon" on this machine's PATH.
 	Koinon string `toml:"koinon"`
-	// StateDir and Address select the daemon when it is not the default one.
+	// StateDir and Address select the node's daemon in the local form when it is not the
+	// default one.
 	StateDir string `toml:"state_dir"`
 	Address  string `toml:"address"`
-	// Secret is the Keychain name of the daemon's maintainer secret: the service is
-	// koinon-voice-<secret>.
-	Secret string `toml:"secret"`
-	// NodePin makes the row a signed node (ADR 004): the node's pin, read on the node itself
-	// with `koinon link status`. Every action to it and through it is a signed envelope.
+	// NodePin is the node's pin, read on the node itself with `koinon link status`. Every
+	// action to it and through it is a signed envelope.
 	NodePin string `toml:"node_pin"`
-	// Serve is a signed node's Remote (Tailscale Serve) address, https://HOST (R24). Empty is
-	// the local form: the koinon binary on this machine, with Koinon, StateDir and Address.
+	// Serve is the node's Remote (Tailscale Serve) address, https://HOST (R24). Empty is the
+	// local form: the koinon binary on this machine, with Koinon, StateDir and Address.
 	Serve string `toml:"serve"`
 }
-
-// Signed reports whether the host is a signed node.
-func (h Host) Signed() bool { return h.NodePin != "" }
 
 // SignedLocal returns the koinon binary and the extra words after
 // `mcp --maintainer --signed` for a signed node in the local form (SignedOptions).
@@ -56,44 +48,6 @@ func (h Host) SignedLocal() (string, []string) {
 		args = append(args, "--address", h.Address)
 	}
 	return koinon, args
-}
-
-// Remote reports whether the host is reached through ssh.
-func (h Host) Remote() bool { return h.SSH != "" }
-
-// Command returns the program and arguments that start the host's maintainer mode. ssh is
-// the ssh binary for a remote host. The secret is never an argument: it is the first line
-// of standard input (Koinon PDR 009, Decision 3).
-func (h Host) Command(ssh string) (string, []string) {
-	koinon := h.Koinon
-	if koinon == "" {
-		koinon = "koinon"
-	}
-	args := []string{"mcp", "--maintainer", "--client", ClientName, "--secret-stdin"}
-	if h.StateDir != "" {
-		args = append(args, "--state-dir", h.StateDir)
-	}
-	if h.Address != "" {
-		args = append(args, "--address", h.Address)
-	}
-	if !h.Remote() {
-		return koinon, args
-	}
-	if ssh == "" {
-		ssh = "ssh"
-	}
-	// ssh joins the words after the destination with spaces for the remote shell, so each
-	// word is quoted for it. BatchMode stops ssh from asking for a password or a host key.
-	remote := []string{"-o", "BatchMode=yes", "-T", "--", h.SSH, shellQuote(koinon)}
-	for _, a := range args {
-		remote = append(remote, shellQuote(a))
-	}
-	return ssh, remote
-}
-
-// shellQuote quotes a word for a POSIX shell.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // maxHostsFile bounds hosts.toml.
@@ -113,7 +67,8 @@ func LoadHosts(path string) ([]Host, error) {
 		return nil, err
 	}
 	// Pointers tell a field that is set to "" from one that is absent, so a row with an
-	// empty node_pin or serve is a malformed signed row, never a secret row.
+	// empty node_pin or serve is a malformed row, and a row that names ssh or secret at all
+	// is refused.
 	var f struct {
 		Host []struct {
 			Label    string  `toml:"label"`
@@ -146,49 +101,41 @@ func LoadHosts(path string) ([]Host, error) {
 	seen := map[string]bool{}
 	pins := map[string]string{}
 	for i, r := range f.Host {
-		h := Host{Label: r.Label, SSH: str(r.SSH), Koinon: str(r.Koinon), StateDir: str(r.StateDir),
-			Address: str(r.Address), Secret: str(r.Secret), NodePin: str(r.NodePin), Serve: str(r.Serve)}
+		h := Host{Label: r.Label, Koinon: str(r.Koinon), StateDir: str(r.StateDir),
+			Address: str(r.Address), NodePin: str(r.NodePin), Serve: str(r.Serve)}
 		switch {
 		case h.Label == "":
 			return nil, fmt.Errorf("%s: host %d has no label", path, i+1)
 		case seen[h.Label]:
 			return nil, fmt.Errorf("%s: host %s is listed twice", path, h.Label)
+		case r.SSH != nil || r.Secret != nil:
+			return nil, fmt.Errorf("%s: host %s: %w", path, h.Label, errRemovedRow)
 		}
 		seen[h.Label] = true
-		if r.NodePin != nil || r.Serve != nil {
-			if err := checkSignedRow(h, r.Serve != nil, r.SSH != nil, r.Secret != nil, r.Koinon != nil || r.StateDir != nil || r.Address != nil); err != nil {
-				return nil, fmt.Errorf("%s: host %s: %w", path, h.Label, err)
-			}
-			if other, ok := pins[h.NodePin]; ok {
-				return nil, fmt.Errorf("%s: hosts %s and %s name the same node_pin", path, other, h.Label)
-			}
-			pins[h.NodePin] = h.Label
-			hosts[i] = h
-			continue
+		if err := checkSignedRow(h, r.Serve != nil, r.Koinon != nil || r.StateDir != nil || r.Address != nil); err != nil {
+			return nil, fmt.Errorf("%s: host %s: %w", path, h.Label, err)
 		}
-		switch {
-		case h.Secret == "":
-			return nil, fmt.Errorf("%s: host %s has no secret (the Keychain name of its maintainer secret) and no node_pin", path, h.Label)
-		case strings.HasPrefix(h.SSH, "-"):
-			return nil, fmt.Errorf("%s: host %s: ssh %q begins with -", path, h.Label, h.SSH)
-		case h.Remote() && !strings.HasPrefix(h.Koinon, "/"):
-			return nil, fmt.Errorf("%s: host %s: koinon must be the full path of the remote koinon binary", path, h.Label)
+		if other, ok := pins[h.NodePin]; ok {
+			return nil, fmt.Errorf("%s: hosts %s and %s name the same node_pin", path, other, h.Label)
 		}
+		pins[h.NodePin] = h.Label
 		hosts[i] = h
 	}
 	return hosts, nil
 }
 
-// checkSignedRow checks a row with node_pin or serve: a signed node has a valid pin, no ssh
-// and no secret, and either a Serve address or the local form's fields, not both.
-func checkSignedRow(h Host, hasServe, hasSSH, hasSecret, hasLocal bool) error {
-	switch {
-	case h.NodePin == "":
-		return errors.New("a signed node needs node_pin, read on the node with `koinon link status`")
-	case hasSSH:
-		return errors.New("a signed node has no ssh; set serve to reach it remotely")
-	case hasSecret:
-		return errors.New("a signed node has no secret; it signs with this install's maintainer key")
+// errRemovedRow is a row with ssh or secret, the fields of the maintainer-secret connection
+// that Koinon Voice no longer has (ADR 004, Decision 1).
+var errRemovedRow = errors.New("ssh and secret rows were removed; use a signed node row: node_pin, " +
+	"read on the node with `koinon link status`, and serve = \"https://HOST\" to reach another computer " +
+	"(README \"Connect to Koinon\")")
+
+// checkSignedRow checks a signed node row: a valid pin, and either a Serve address or the
+// local form's fields, not both.
+func checkSignedRow(h Host, hasServe, hasLocal bool) error {
+	if h.NodePin == "" {
+		return errors.New("a signed node needs node_pin, read on the node with `koinon link status` " +
+			"(README \"Connect to Koinon\")")
 	}
 	if err := signed.CheckPin(h.NodePin); err != nil {
 		return fmt.Errorf("node_pin: %w", err)

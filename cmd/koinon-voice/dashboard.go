@@ -25,7 +25,7 @@ var openLink = func(link string) error {
 	return exec.Command(name, link).Start()
 }
 
-// runDashboard is koinon-voice dashboard. Connect to each Koinon daemon in the hosts file and
+// runDashboard is koinon-voice dashboard. Connect to each signed node in the hosts file and
 // serve the dashboard on a loopback address: each host's state, the items that wait for the
 // maintainer, the maintainer's inbox, and a verdict by click. It prints a login link, which
 // works once within 60 seconds, and opens it unless --no-open.
@@ -61,22 +61,16 @@ func runDashboard(args []string, stdout, stderr io.Writer) int {
 			srv.Changed()
 		}
 	})
-	var views []dashboard.Host
-	var signed []dashboard.SignedSource
-	for _, r := range src.rows {
-		if r.conn != nil {
-			views = append(views, r.conn)
-		} else {
-			signed = append(signed, r.signed)
-		}
+	signed := make([]dashboard.SignedSource, len(src.rows))
+	for i, r := range src.rows {
+		signed[i] = r
 	}
-	srv, err = dashboard.New(views, ln.Addr().String())
+	srv, err = dashboard.New(signed, ln.Addr().String())
 	if err != nil {
 		ln.Close()
 		fmt.Fprintln(stderr, "koinon-voice dashboard:", err)
 		return 1
 	}
-	srv.SetSigned(signed)
 	srv.SetUnresolved(src.unrouted, src.journalErr)
 
 	ctx, cancel := watchContext()

@@ -13,7 +13,7 @@ import (
 
 // SourceOptions configure a signed source. Zero values take the defaults below.
 type SourceOptions struct {
-	// Host is a signed row of hosts.toml (Host.Signed).
+	// Host is a row of hosts.toml.
 	Host Host
 	// Access is this install's key and authorizations; AccessErr is why it could not be
 	// loaded. With AccessErr, or without an authorization for the node's pin, the source
