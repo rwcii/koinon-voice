@@ -97,12 +97,29 @@ Covers where Koinon Voice connects and what it runs. The Koinon side is Koinon's
   is not paired is then not reachable from Koinon Voice.
 - **Review when:** a computer that cannot be paired must be reached from Koinon Voice.
 
+### When the removal merges (kv-36-ssh-merge)
+
+- **Decided by:** Robert Capps. **Date:** 2026-11-16, board kv-36-ssh-merge, revision 1,
+  approved.
+- **Context:** the maintainer asked to finish #36 ("take on 36. finish it off."). The removal
+  was ready while #693 was on Koinon `develop` only (latest release v0.11.2), and the
+  maintainer's `hosts.toml` still had a secret row and an `ssh` row. Options: merge after a
+  Koinon release with #693 is installed and `hosts.toml` is moved to signed rows (recommended);
+  merge at once, with a Koinon build from `develop` on each computer until the release.
+- **Decision:** the removal merges after a Koinon release with #693 is installed and the
+  maintainer's `hosts.toml` is moved to signed rows, and Koinon Voice works on them. A task
+  card gives the maintainer the commands for that move when the release exists.
+- **Reason and scope:** Decision 1 above; a merge before the release stops the maintainer's
+  board and dashboard, because v0.11.2 has no signed actions. The Koinon release is not
+  decided here.
+
 ### Alternatives Considered
 
 | Alternative | Description | Why Rejected |
 | ----------- | ----------- | ------------ |
 | SSH beside the links | Keep SSH for computers that are not paired | Two connector paths to test and keep; not chosen on kv-693-ssh |
 | Remove SSH at once | Drop SSH before Koinon ships | Koinon Voice has no remote path until then; not chosen on kv-693-ssh |
+| Merge the removal at once | Merge before a Koinon release, with Koinon from `develop` on each computer | Not chosen on kv-36-ssh-merge |
 
 ---
 
@@ -185,3 +202,4 @@ Decision 3, the mechanism, follows the Koinon design on #693 and was approved at
 | 2026-11-14 | Initial creation, with Decisions 1 (kv-693-ssh) and 2 (the maintainer's terminal answer) |
 | 2026-11-16 | Decision 3 from the sprint record approved at Gate A (kv-36-gate-a); status accepted (#38) |
 | 2026-11-16 | Decision 1 done: the SSH connector and the secret connection removed (#36) |
+| 2026-11-16 | Decision 1: the removal merges after a Koinon release with #693 is installed (kv-36-ssh-merge) |
