@@ -211,6 +211,25 @@ The maintainer approved the Koinon contract on the Koinon board as card LINK-693
 (revision 10) on 2026-11-15. A change to the contract is mapped here before the Voice side
 builds on it.
 
+## Gate A (kv-36-gate-a)
+
+- **Decided by:** Robert Capps. **Date:** 2026-11-16, board kv-36-gate-a, revision 1, approved.
+- **Context:** the sprint puts Gate A, the maintainer's approval of this document, before the
+  merge of PR #37. The card cited the maintainer's direction on #36 ("I would rather voice just
+  contain the parts needed to communicate with full koinon nodes. I don't want it to run koinon
+  itself."), the Koinon contract approved as LINK-693-SIGNED revision 10, the live checks below,
+  and the peer and refusal reviews on `3b27752`. Options: approve this document and merge PR #37
+  (recommended); give feedback on this document first, with the merge waiting.
+- **Decision:** this document is approved. Its **[proposal]** points are the approved Voice
+  spec, and PR #37 merges into `develop` with squash auto-merge. #36 stays open for the removal
+  of the SSH connectors (ADR 004, Decision 1).
+- **Reason and scope:** Voice reaches full Koinon nodes as a signed client and does not run
+  Koinon, as the maintainer directed on #36. The changes this approves to PDR 002 and PDR 004
+  are written into those records under #38. A3's target-side lost reply, the held transaction
+  and A4 are checked by Koinon's synthetic tests only.
+- **Review when:** Koinon ships signed maintainer actions over links, for the SSH connector
+  removal (ADR 004, Decision 1).
+
 ## Live checks
 
 Koinon #693 chunk 1 (rwcii/koinon `88d3870`, PR #699: actions on the node's own pin), a
