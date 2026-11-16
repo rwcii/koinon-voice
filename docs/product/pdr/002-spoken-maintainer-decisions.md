@@ -3,7 +3,7 @@ pdr: "002"
 title: "Spoken Maintainer Decisions"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-25"
+updated: "2026-11-16"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -44,8 +44,9 @@ happens.
 2. Decision 1: Spoken words carry the maintainer's dashboard weight
 3. Decision 2: Read-back for decisions only
 4. Decision 3: The item is on screen with the spoken summary
-5. Conclusion
-6. Document History
+5. Decision 4: A verdict names its user and computer, and each outcome is said
+6. Conclusion
+7. Document History
 
 ---
 
@@ -159,11 +160,40 @@ The maintainer hears the gist and can read the whole item before deciding.
 
 ---
 
+## 5. Decision 4: A verdict names its user and computer, and each outcome is said
+
+### Decision
+
+- **Decided by:** Robert Capps. **Date:** 2026-11-16, board kv-36-gate-a, revision 1, approved.
+- **Context:** Koinon Voice became a signed client of Koinon nodes (ADR 004): each verdict is
+  signed with the key of one user and install and reaches the computer that holds the item
+  through the links. The sprint record `docs/sprints/2026-11-14-signed-client/decision.md`
+  proposed the changes below to this record ("Changes on the Koinon Voice side", R9 and R13).
+  Gate A asked the maintainer to approve that record; the other option was to give feedback on
+  it before the merge.
+- **Decision:**
+  1. A verdict records the user name of the key that signed it, on the computer that holds the
+     item.
+  2. The read-back of Decision 2 names that computer.
+  3. Koinon Voice says each verdict's outcome: recorded; refused, with its reason; not run, for
+     example when the computer is offline; or unknown, when the verdict was sent and its answer
+     was lost.
+- **Reason and scope:** the maintainer approved the sprint record. The read-back and the spoken
+  outcome apply to verdicts given by voice; the dashboard shows the same outcomes.
+
+### User Impact
+
+The maintainer hears which computer a verdict goes to before confirming it, and hears whether
+it was recorded.
+
+---
+
 ## Conclusion
 
 The maintainer's spoken words are the maintainer's dashboard actions. Decisions alone are read
-back before they are recorded, with the item and the verdict on screen. All three decisions
-are the maintainer's words of 2026-10-23.
+back before they are recorded, with the item and the verdict on screen. Decisions 1 to 3 are
+the maintainer's words of 2026-10-23. Decision 4, the maintainer's approval of 2026-11-16,
+names the user and the computer of each verdict and says its outcome.
 
 ---
 
@@ -173,3 +203,4 @@ are the maintainer's words of 2026-10-23.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-10-25 | The agent-session alternative's reason stated as what Koinon records, not as a limit on peer messages (rwcii/koinon#487) |
+| 2026-11-16 | Decision 4: a verdict names its user and computer, and each outcome is said (kv-36-gate-a, #38) |

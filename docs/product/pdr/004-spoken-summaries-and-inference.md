@@ -3,7 +3,7 @@ pdr: "004"
 title: "Spoken Summaries and Inference"
 status: draft
 created: "2026-10-23"
-updated: "2026-10-26"
+updated: "2026-11-16"
 authors:
   - "Robert Capps"
 reviewers: []
@@ -112,6 +112,9 @@ The maintainer enables external inference per host, and it is off until then. Wh
 Claude Haiku summarizes; where it is off, the local Qwen3-4B does. A spoken request to
 summarize one item externally stays open.
 
+The opt-in is kept by the computer's stable identity, its pinned link key, not by its name, so
+a rename or a new pairing under a reused name never carries it to another computer.
+
 The measurements behind it (`docs/sprints/2026-10-23-phase0-spike/results.md`): on 20
 synthetic items, Haiku was correct on all 20, and among the quickest to speak at
 about a hundredth of a cent per item; the local models missed a fact in 6 and 8 of 20, most
@@ -126,7 +129,10 @@ engines, including Apple's on-device model, local open-weight models, Claude, Op
 OpenRouter, and proposed this decision. Maintainer, 2026-10-26, approved board item
 kv-pdr004-d2, "Koinon Voice: external summarization scope: per host, Claude Haiku where on,
 local Qwen3-4B where off (PDR 004, Decision 2)?", with the note: "You can use external
-inference for this".
+inference for this". Maintainer (Robert Capps), 2026-11-16, approved board item kv-36-gate-a,
+the Gate A approval of `docs/sprints/2026-11-14-signed-client/decision.md`, which keeps the
+opt-in by the computer's stable identity (its R12 and "Changes on the Koinon Voice side"). The
+other option on that card was to give feedback on that record before the merge.
 
 ### Alternatives Considered
 
@@ -163,3 +169,4 @@ Claude Haiku where it is on and the local Qwen3-4B where it is off.
 | 2026-10-23 | Initial creation |
 | 2026-10-24 | Decision 2: Phase 0's proposal for the maintainer's decision |
 | 2026-10-26 | Decision 2 decided by the maintainer: external inference per host |
+| 2026-11-16 | Decision 2: the opt-in is kept by the computer's stable identity (kv-36-gate-a, #38) |

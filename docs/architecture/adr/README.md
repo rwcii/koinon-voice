@@ -12,4 +12,4 @@ Koinon Voice keeps these records and how a constraint becomes one.
 | 001    | [Local Bridge and Koinon Connectors](001-local-bridge-and-connectors.md) | Modified |
 | 002    | [Local Speech Engine Sidecars](002-local-speech-engine-sidecars.md) | Accepted |
 | 003    | [Inference Adapters](003-inference-adapters.md) | Draft |
-| 004    | [Signed Client of Koinon Nodes](004-signed-client-of-koinon-nodes.md) | Draft |
+| 004    | [Signed Client of Koinon Nodes](004-signed-client-of-koinon-nodes.md) | Accepted |
