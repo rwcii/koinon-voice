@@ -1,3 +1,6 @@
+// Package koinontest is a synthetic signed Koinon node for tests (WDR 006, Decision 2): in
+// process, on a node's Serve route, or as a `koinon mcp --maintainer --signed` process that a
+// test binary runs from TestMain when SignedEnv is set.
 package koinontest
 
 import (
@@ -16,6 +19,18 @@ import (
 
 	"github.com/rwcii/koinon-voice/internal/signed"
 )
+
+// SignedEnv selects the fake signed process; it holds the control directory.
+const SignedEnv = "KOINON_VOICE_FAKE_SIGNED"
+
+// Main runs the fake signed process when SignedEnv is set, and otherwise reports false. A
+// TestMain calls it first.
+func Main() bool {
+	if dir := os.Getenv(SignedEnv); dir != "" {
+		os.Exit(fakeSigned(dir))
+	}
+	return false
+}
 
 // SignedNode is a synthetic `koinon mcp --maintainer --signed` that acts out the Koinon
 // contract (rwcii/koinon docs/sprints/2026-11-14-signed-maintainer/decision.md at fa95824):

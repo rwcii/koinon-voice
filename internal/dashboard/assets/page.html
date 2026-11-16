@@ -17,7 +17,6 @@
 {{- else if eq .Code "stale_revision"}}{{.Reference}} on {{.Host}} changed after the page showed it. It shows below as it is now; give the verdict again.
 {{- else if eq .Code "not_found"}}{{.Reference}} on {{.Host}} has left the board. No verdict was given.
 {{- else if eq .Code "decided"}}{{.Reference}} on {{.Host}} already has a verdict.
-{{- else if eq .Code "disconnected"}}{{.Host}} is not connected. No verdict was given.
 {{- else if eq .Code "not_run"}}{{.Host}} is not reachable now. Nothing was sent; give the verdict again when it is connected.
 {{- else if eq .Code "too_many_calls"}}{{.Host}} is connected and was answering as many calls as it takes at once (<code>too_many_calls</code>). Nothing was sent; give the verdict again once its other calls finish.
 {{- else if eq .Code "unknown"}}The verdict on {{.Reference}} ({{.Host}}) was sent and its answer did not arrive. Koinon Voice is asking {{.Host}} for its outcome; it shows below until then.
@@ -29,7 +28,7 @@
 {{- else if eq .Code "journal_failed"}}The verdict on {{.Reference}} could not be written to the pending writes file, so nothing was sent.
 {{- else if eq .Code "dismissed"}}The local record was removed. Its outcome stays unknown; nothing was sent.
 {{- else if eq .Code "dismiss_failed"}}The local record could not be removed.
-{{- else if eq .Code "invalid_verdict"}}That verdict does not fit {{.Reference}}: a decision item takes approve or decline, an fyi item takes dismiss.
+{{- else if eq .Code "invalid_verdict"}}That verdict does not fit {{.Reference}}; give one of the verdicts on its buttons. Nothing was sent.
 {{- else}}Koinon did not record the verdict on {{.Reference}} ({{.Host}}): {{.Code}}.{{end -}}
 {{if .Detail}} Details: {{.Detail}}{{end}}
 </p>

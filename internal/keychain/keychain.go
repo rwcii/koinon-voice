@@ -1,5 +1,5 @@
-// Package keychain reads secrets from the macOS login Keychain: provider API keys
-// (ADR 003, Decision 2) and each Koinon daemon's maintainer secret (ADR 001, Decision 3).
+// Package keychain reads and adds items in the macOS login Keychain: provider API keys
+// (ADR 003, Decision 2) and this install's maintainer key (ADR 004).
 package keychain
 
 import (

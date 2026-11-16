@@ -1,6 +1,6 @@
-// Package koinon connects Koinon Voice to Koinon daemons through Koinon's maintainer mode,
-// `koinon mcp --maintainer`, on stdio: locally as a child process, or on a remote host
-// through ssh (ADR 001).
+// Package koinon connects Koinon Voice to Koinon nodes as a signed maintainer client: through
+// `koinon mcp --maintainer --signed` on this machine, or a node's Remote (Tailscale Serve)
+// address (ADR 004).
 package koinon
 
 import (
@@ -171,10 +171,6 @@ func Code(err error) string {
 	var e *RPCError
 	if errors.As(err, &e) {
 		return e.DataCode()
-	}
-	var d *Down
-	if errors.As(err, &d) {
-		return d.Code
 	}
 	return ""
 }

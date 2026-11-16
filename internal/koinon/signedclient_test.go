@@ -25,6 +25,12 @@ const (
 	otherPin = "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecf"
 )
 
+// TestMain lets the test binary act as the fake signed node that WriteSigned starts.
+func TestMain(m *testing.M) {
+	koinontest.Main()
+	os.Exit(m.Run())
+}
+
 type fakeClock struct {
 	mu  sync.Mutex
 	now int64

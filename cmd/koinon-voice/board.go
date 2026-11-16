@@ -11,26 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rwcii/koinon-voice/internal/keychain"
 	"github.com/rwcii/koinon-voice/internal/koinon"
 )
-
-// hostSecrets reads each host's maintainer secret; tests replace it so no test reads the
-// Keychain (WDR 006).
-var hostSecrets koinon.Secrets = keychain.Keychain{}
-
-// connectorOptions are the connectors' options before the command sets its own; tests
-// shorten the waits.
-var connectorOptions = koinon.Options{}
 
 // watchContext ends a --watch run; tests replace it.
 var watchContext = func() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
 
-// runBoard is koinon-voice board. Connect to each Koinon daemon in the hosts file through its
-// maintainer mode and print each host's state and the items that wait for the maintainer. The
-// exit status is 1 when a host is not connected.
+// runBoard is koinon-voice board. Connect to each signed node in the hosts file and print the
+// state of each computer it reaches and the items that wait for the maintainer. The exit
+// status is 1 when a computer is not connected or not read in full.
 func runBoard(args []string, stdout, stderr io.Writer) int {
 	fs := flags("board")
 	hostsFile := fs.String("hosts", defaultHosts(), "hosts file")
@@ -95,8 +86,8 @@ func runBoard(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// settled reports whether every host has connected or failed its first start, and every
-// computer of a signed row has been read in full once or shows why it was not.
+// settled reports whether every computer has connected or failed its first start, and has
+// been read in full once or shows why it was not.
 func settled(states []koinon.State) bool {
 	for _, s := range states {
 		if s.Status == koinon.Connecting {

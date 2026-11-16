@@ -32,8 +32,9 @@ tags:
 Koinon Voice reaches every paired Koinon computer through one connection to its own computer's
 Koinon daemon, as a client that signs the maintainer's actions with a key pair per user and
 install (rwcii/koinon#693). It contains only the parts that talk to full Koinon nodes and never runs
-Koinon itself. The per-host SSH connectors of ADR 001, Decision 2 stay until Koinon ships
-signed maintainer actions over links and Koinon Voice's sprint for them merges.
+Koinon itself. The per-host SSH connectors of ADR 001, Decision 2 stayed until Koinon shipped
+signed maintainer actions over links and Koinon Voice's sprint for them merged; #36 removes
+them.
 
 Decisions 1 and 2 are the maintainer's. Decision 3, how the client signs, connects and
 registers its key, was settled with the Koinon pair in
@@ -90,6 +91,8 @@ Covers where Koinon Voice connects and what it runs. The Koinon side is Koinon's
   paired computers through the links. The SSH connectors of ADR 001, Decision 2 stay until
   Koinon ships signed maintainer actions over links and Koinon Voice's sprint for them merges;
   then the SSH connector and the `ssh` entries of `hosts.toml` are removed.
+- **Done:** #36 removes the SSH connector, the secret connection of ADR 001, Decision 3 and the
+  `ssh` and `secret` entries of `hosts.toml`. `hosts.toml` takes only signed node rows.
 - **Reason and scope:** one connection and one key replace a secret per host. A computer that
   is not paired is then not reachable from Koinon Voice.
 - **Review when:** a computer that cannot be paired must be reached from Koinon Voice.
@@ -168,8 +171,8 @@ Covers where Koinon Voice connects and what it runs. The Koinon side is Koinon's
 ## Conclusion
 
 Koinon Voice becomes a signed client of full Koinon nodes, reaching paired computers through
-the links, and it never runs Koinon. The SSH connectors stay until the signed path ships and
-Koinon Voice's sprint for it merges. Decisions 1 and 2 are the maintainer's of 2026-11-14;
+the links, and it never runs Koinon. #36 removes the SSH connectors and the secret per host,
+as Decision 1 set out. Decisions 1 and 2 are the maintainer's of 2026-11-14;
 Decision 3, the mechanism, follows the Koinon design on #693 and was approved at Gate A on
 2026-11-16.
 
@@ -181,3 +184,4 @@ Decision 3, the mechanism, follows the Koinon design on #693 and was approved at
 | ---------- | ---------------- |
 | 2026-11-14 | Initial creation, with Decisions 1 (kv-693-ssh) and 2 (the maintainer's terminal answer) |
 | 2026-11-16 | Decision 3 from the sprint record approved at Gate A (kv-36-gate-a); status accepted (#38) |
+| 2026-11-16 | Decision 1 done: the SSH connector and the secret connection removed (#36) |

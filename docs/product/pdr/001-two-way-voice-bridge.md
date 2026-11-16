@@ -111,8 +111,7 @@ a client acting with the maintainer's identity, or a new agent family on the pee
 
 **Change (board kv-693-ssh, Robert Capps, 2026-11-14):** remote daemons are reached through the
 links between paired Koinon computers, through one connection to Koinon Voice's own computer's
-daemon, in place of SSH; SSH stays until Koinon ships signed maintainer actions over links and
-Koinon Voice's sprint for them merges (ADR 004, Decision 1). Koinon Voice contains only the
+daemon, in place of SSH (ADR 004, Decision 1). The SSH path is removed (#36). Koinon Voice contains only the
 parts that talk to full Koinon nodes and never runs Koinon itself (ADR 004, Decision 2).
 
 ### Rationale
@@ -221,3 +220,4 @@ words or approvals; the order of Phases 1 to 3 is a proposal.
 | ---------- | ---------------- |
 | 2026-10-23 | Initial creation |
 | 2026-11-14 | Decisions 1 and 3: remote daemons through the links in place of SSH (kv-693-ssh); Koinon Voice never runs Koinon (ADR 004) |
+| 2026-11-16 | Decision 1: the SSH path is removed (#36) |

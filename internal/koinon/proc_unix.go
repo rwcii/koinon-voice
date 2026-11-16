@@ -8,7 +8,7 @@ import (
 )
 
 // setGroup starts the process in its own process group, so killGroup also ends anything it
-// started, such as ssh.
+// started.
 func setGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
