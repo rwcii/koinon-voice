@@ -1,9 +1,9 @@
 ---
 adr: "004"
 title: "Signed Client of Koinon Nodes"
-status: draft
+status: accepted
 created: "2026-11-14"
-updated: "2026-11-14"
+updated: "2026-11-16"
 parent_adr: ""
 authors:
   - "Robert Capps"
@@ -22,7 +22,7 @@ tags:
 # ADR 004: Signed Client of Koinon Nodes
 
 **Date:** 2026-11-14
-**Status:** Draft
+**Status:** Accepted
 **Authors:** Robert Capps
 
 ---
@@ -35,10 +35,10 @@ install (rwcii/koinon#693). It contains only the parts that talk to full Koinon 
 Koinon itself. The per-host SSH connectors of ADR 001, Decision 2 stay until Koinon ships
 signed maintainer actions over links and Koinon Voice's sprint for them merges.
 
-The two decisions below are the maintainer's. How the client authenticates, reaches a node
-from a computer without one, and registers its key is not decided yet; it is settled with the
-Koinon pair in `docs/sprints/2026-11-14-signed-client/decision.md` (#36), and this record is
-revised with it.
+Decisions 1 and 2 are the maintainer's. Decision 3, how the client signs, connects and
+registers its key, was settled with the Koinon pair in
+`docs/sprints/2026-11-14-signed-client/decision.md` (#36) and approved by the maintainer at
+that sprint's Gate A (kv-36-gate-a).
 
 ---
 
@@ -47,8 +47,9 @@ revised with it.
 1. Problem Context
 2. Decision 1: One connection through the links, SSH until signed actions ship (kv-693-ssh)
 3. Decision 2: A client of full nodes, which never runs Koinon
-4. Conclusion
-5. Document History
+4. Decision 3: Signed envelopes, one key per user and install, two ways to a node (kv-36-gate-a)
+5. Conclusion
+6. Document History
 
 ---
 
@@ -127,12 +128,50 @@ Covers where Koinon Voice connects and what it runs. The Koinon side is Koinon's
 
 ---
 
+## 4. Decision 3: Signed envelopes, one key per user and install, two ways to a node (kv-36-gate-a)
+
+- **Decided by:** Robert Capps. **Date:** 2026-11-16, board kv-36-gate-a, revision 1, approved.
+- **Context:** Decisions 1 and 2 left how the client authenticates, reaches a node from a
+  computer without one, and registers its key to the sprint record
+  `docs/sprints/2026-11-14-signed-client/decision.md`, settled with the Koinon pair against the
+  Koinon contract that the maintainer approved as LINK-693-SIGNED, revision 10. Gate A asked the
+  maintainer to approve that record and merge PR #37; the other option was to give feedback on
+  it first.
+- **Decision:**
+  1. Each install has an Ed25519 key pair for its user. The private key is in the macOS
+     Keychain (R10). `koinon-voice key create` makes it and `koinon-voice key show` prints the
+     public key.
+  2. Each maintainer action, reads included, leaves as a signed `koinon-maintainer-1` envelope.
+     The signature covers the action and its arguments, the target computer, the client, the
+     key ID, a request ID and the creation time (R9, R11).
+  3. Where a Koinon daemon runs on Koinon Voice's computer, Koinon Voice connects to it with
+     `koinon mcp --maintainer --signed`, opened by a signed `session` (R25). Where none runs, it
+     uses another computer's Remote address on the route `/v1/maintainer/signed`, which takes
+     only signed envelopes after a signed session (R24).
+  4. The key is registered on each computer by that computer's own maintainer:
+     `koinon-voice key enroll --target PIN` writes a signed enrollment statement, and
+     `koinon maintainer key add` on that computer accepts it (R26).
+  5. A computer is named by its pinned link key. Koinon Voice keys its state by that pin and
+     shows the computer's name (R12).
+  6. A write is signed once and sent again only as the same envelope. When its answer is lost,
+     Koinon Voice asks for its `outcome` under the same request (R13 to R15).
+  7. Koinon Voice keeps one signed `changes` wait for each computer it shows, and reads a topic
+     again when its version changes (R17, R21).
+- **Reason and scope:** the maintainer approved the sprint record, which maps these points to
+  the Koinon contract. The sprint record holds each requirement with its evidence and the live
+  checks.
+- **Review when:** Koinon changes the `koinon-maintainer-1` contract in a section that the
+  sprint record maps.
+
+---
+
 ## Conclusion
 
 Koinon Voice becomes a signed client of full Koinon nodes, reaching paired computers through
 the links, and it never runs Koinon. The SSH connectors stay until the signed path ships and
-Koinon Voice's sprint for it merges. Both decisions are the maintainer's of 2026-11-14; the
-mechanism follows the Koinon design on #693.
+Koinon Voice's sprint for it merges. Decisions 1 and 2 are the maintainer's of 2026-11-14;
+Decision 3, the mechanism, follows the Koinon design on #693 and was approved at Gate A on
+2026-11-16.
 
 ---
 
@@ -141,3 +180,4 @@ mechanism follows the Koinon design on #693.
 | Date       | Change           |
 | ---------- | ---------------- |
 | 2026-11-14 | Initial creation, with Decisions 1 (kv-693-ssh) and 2 (the maintainer's terminal answer) |
+| 2026-11-16 | Decision 3 from the sprint record approved at Gate A (kv-36-gate-a); status accepted (#38) |
